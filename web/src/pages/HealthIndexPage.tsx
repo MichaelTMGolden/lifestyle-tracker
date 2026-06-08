@@ -80,6 +80,9 @@ export default function HealthDashboard() {
   const sleepD = tail(b.sleepScore, days), stressD = tail(b.stress, days), rhrD = tail(b.rhr, days)
   const stepsD = tail(b.steps, days), weightD = tail(b.weight, days)
 
+  // Any real Garmin-sourced signals yet? Drives honest empty states.
+  const hasHealth = b.sleepScore.length > 0 || b.rhr.length > 0 || b.stress.length > 0 || b.steps.length > 0
+
   // readiness from available signals
   const sleepToday = b.today.lastSleepScore ?? latest(b.sleepScore) ?? 60
   const rhrNow = b.today.restingHr ?? latest(b.rhr) ?? 55
@@ -152,7 +155,7 @@ export default function HealthDashboard() {
       <div className="page-head">
         <div>
           <h1>Health</h1>
-          <p className="subtitle">Personal intelligence briefing · Garmin synced 2h ago · MyFitnessPal 1h ago</p>
+          <p className="subtitle">Personal intelligence briefing{hasHealth ? '' : ' · connect Garmin to populate health metrics'}</p>
         </div>
         <div className="seg">
           {RANGES.map(([l, dn]) => <button key={dn} className={days === dn ? 'on' : ''} onClick={() => setDays(dn)}>{l}</button>)}
@@ -162,18 +165,35 @@ export default function HealthDashboard() {
       {/* ===== readiness hero ===== */}
       <div className="hero-grid">
         <section className="card ring-card">
-          <div className="ring-wrap"><Ring value={readiness} color={rColor} /><div className="ring-label"><b>{readiness}</b><span>{rLabel}</span></div></div>
-          <div>
-            <h2 style={{ margin: '0 0 6px' }}>{rLabel} · readiness {readiness}/100</h2>
-            <p className="why">{capitalize(why[0])}, {why[1]}, and {why[2]}. {readiness < 65 ? 'Favour an easier day and protect tonight’s sleep.' : 'Good day to push if you feel it.'}</p>
-            <div className="chips">
-              <Chip s={sleepToday >= 70 ? 'good' : sleepToday >= 55 ? 'watch' : 'off'}>Sleep {Math.round(sleepToday)}</Chip>
-              <Chip s={rhrNow <= 58 ? 'good' : 'watch'}>Resting HR {Math.round(rhrNow)} · {rhrNow > 55 ? '+' : ''}{Math.round(rhrNow - 55)} vs base</Chip>
-              <Chip s={stressRecent < 45 ? 'good' : 'watch'}>Stress {Math.round(stressRecent)}</Chip>
-              <Chip s="stub">HRV · awaiting Garmin</Chip>
-              <Chip s="stub">Training load · awaiting Garmin</Chip>
-            </div>
-          </div>
+          {hasHealth ? (
+            <>
+              <div className="ring-wrap"><Ring value={readiness} color={rColor} /><div className="ring-label"><b>{readiness}</b><span>{rLabel}</span></div></div>
+              <div>
+                <h2 style={{ margin: '0 0 6px' }}>{rLabel} · readiness {readiness}/100</h2>
+                <p className="why">{capitalize(why[0])}, {why[1]}, and {why[2]}. {readiness < 65 ? 'Favour an easier day and protect tonight’s sleep.' : 'Good day to push if you feel it.'}</p>
+                <div className="chips">
+                  <Chip s={sleepToday >= 70 ? 'good' : sleepToday >= 55 ? 'watch' : 'off'}>Sleep {Math.round(sleepToday)}</Chip>
+                  <Chip s={rhrNow <= 58 ? 'good' : 'watch'}>Resting HR {Math.round(rhrNow)} · {rhrNow > 55 ? '+' : ''}{Math.round(rhrNow - 55)} vs base</Chip>
+                  <Chip s={stressRecent < 45 ? 'good' : 'watch'}>Stress {Math.round(stressRecent)}</Chip>
+                  <Chip s="stub">HRV · awaiting Garmin</Chip>
+                  <Chip s="stub">Training load · awaiting Garmin</Chip>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="ring-wrap"><div className="ring-label"><b>—</b><span>No data</span></div></div>
+              <div>
+                <h2 style={{ margin: '0 0 6px' }}>Readiness needs Garmin</h2>
+                <p className="why">Connect Garmin so sleep, resting HR and stress flow in — your daily readiness score and trends appear here once they do.</p>
+                <div className="chips">
+                  <Chip s="stub">Sleep · awaiting Garmin</Chip>
+                  <Chip s="stub">Resting HR · awaiting Garmin</Chip>
+                  <Chip s="stub">Stress · awaiting Garmin</Chip>
+                </div>
+              </div>
+            </>
+          )}
         </section>
         <section className="card stub-card">
           <div className="stub-tag">Awaiting Garmin sync</div>

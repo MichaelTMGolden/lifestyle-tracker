@@ -667,6 +667,7 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 .cl-label a:hover { color: var(--crimson); }
 .health-row { display: flex; gap: 1.3rem; align-items: center; flex-wrap: wrap; }
 .gauge-wrap { position: relative; width: 92px; height: 92px; flex: 0 0 auto; }
+.gauge-empty { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line-strong); border-radius: 50%; }
 .gauge-lab { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .gauge-lab b { font-family: var(--font-head); font-size: 1.5rem; line-height: 1; }
 .gauge-lab span { font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-top: 3px; }
@@ -676,6 +677,7 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 .ht-val small { font-family: var(--font-body); font-size: 0.78rem; color: var(--text-dim); }
 .energy-row { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 .er-head { display: flex; justify-content: space-between; gap: 12px; font-family: var(--font-head); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+.energy-empty { padding: 0.5rem 0 0.2rem; font-size: 0.85rem; font-style: italic; }
 .prod-cards { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .pcard { flex: 1; min-width: 120px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.9rem; text-decoration: none; color: inherit; }
 .pcard:hover { border-color: var(--line-strong); }

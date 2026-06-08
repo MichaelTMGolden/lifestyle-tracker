@@ -15,9 +15,6 @@ const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const readyColor = (s: number) => (s >= 80 ? STATUS.good : s >= 65 ? '#9fc7b0' : s >= 45 ? STATUS.watch : STATUS.off)
 
-// Sample intraday energy curve (real Body Battery arrives once Garmin is connected).
-const SAMPLE_BB = [36, 52, 69, 84, 90, 85, 78, 73, 70, 66, 64, 71, 66, 61, 60, 61, 62]
-
 type TimelineRow = { start: number; end: number } & (
   | { kind: 'block'; block: ScheduleBlock }
   | { kind: 'event'; event: CalendarEvent }
@@ -53,6 +50,8 @@ export default function TodayPage() {
   if (!today || !schedule) return <p className="muted">Loading…</p>
 
   const now = today.nowMinutes
+  // Do we have any real Garmin-sourced health data yet? Drives honest empty states.
+  const hasHealth = today.lastSleepScore != null || today.restingHr != null || today.stepsToday > 0
   const dateLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
   const openDaily = daily.filter((d) => !d.done)
   const dailyDone = daily.length - openDaily.length
@@ -128,7 +127,7 @@ export default function TodayPage() {
 
         <NextAppointment events={schedule.events} now={now} />
 
-        <HealthCompact today={today} now={now} />
+        <HealthCompact today={today} hasHealth={hasHealth} />
 
         <section className="card">
           <h2>Tasks <Link to="/tasks" className="back">all →</Link></h2>
@@ -155,7 +154,7 @@ export default function TodayPage() {
       <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
 
       <section className="panel strip">
-        <HealthCluster today={today} now={now} />
+        <HealthCluster today={today} hasHealth={hasHealth} />
         <ProductivityCluster daily={daily} dailyDone={dailyDone} openDaily={openDaily} today={today} weekPct={weekPct} overdue={overdue} />
       </section>
 
@@ -240,27 +239,42 @@ function HTilesRow({ today }: { today: Today }) {
   )
 }
 
-function EnergyRow({ now }: { now: number }) {
+// Body Battery isn't ingested yet (not in the CSV import), so this is always an
+// honest "connect Garmin" placeholder until that signal is wired up.
+function EnergyRow() {
   return (
     <div className="energy-row">
-      <div className="er-head"><span>Energy · Body Battery</span><span className="muted">sample · connect Garmin</span></div>
-      <EnergyMini now={now} />
+      <div className="er-head"><span>Energy · Body Battery</span></div>
+      <div className="energy-empty muted">Connect Garmin to see Body Battery</div>
     </div>
   )
 }
 
-function HealthCluster({ today, now }: { today: Today; now: number }) {
+function ReadinessGauge({ today, hasHealth, size }: { today: Today; hasHealth: boolean; size: number }) {
+  if (!hasHealth) {
+    return (
+      <div className="gauge-wrap gauge-empty" style={{ width: size, height: size }}>
+        <div className="gauge-lab"><b>—</b><span>Connect Garmin</span></div>
+      </div>
+    )
+  }
+  return (
+    <div className="gauge-wrap">
+      <Ring value={today.readiness} size={size} color={readyColor(today.readiness)} />
+      <div className="gauge-lab"><b>{today.readiness}</b><span>{today.readinessLabel}</span></div>
+    </div>
+  )
+}
+
+function HealthCluster({ today, hasHealth }: { today: Today; hasHealth: boolean }) {
   return (
     <div className="cluster health">
       <div className="cl-label">Health <Link to="/health">full page →</Link></div>
       <div className="health-row">
-        <div className="gauge-wrap">
-          <Ring value={today.readiness} size={92} color={readyColor(today.readiness)} />
-          <div className="gauge-lab"><b>{today.readiness}</b><span>{today.readinessLabel}</span></div>
-        </div>
+        <ReadinessGauge today={today} hasHealth={hasHealth} size={92} />
         <HTilesRow today={today} />
       </div>
-      <EnergyRow now={now} />
+      <EnergyRow />
     </div>
   )
 }
@@ -285,15 +299,18 @@ function ProductivityCluster({ daily, dailyDone, openDaily, today, weekPct, over
 }
 
 // Mobile compact health: ring + two key numbers, expands to the real charts.
-function HealthCompact({ today, now }: { today: Today; now: number }) {
+function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean }) {
   const [open, toggle] = usePersistentToggle('today.health', false)
   return (
     <section className="card health-compact">
       <button type="button" className="collapse-head" aria-expanded={open} onClick={toggle}>
         <span className="hc-glance">
-          <Ring value={today.readiness} size={54} color={readyColor(today.readiness)} />
+          {hasHealth && <Ring value={today.readiness} size={54} color={readyColor(today.readiness)} />}
           <span className="hc-nums">
-            <span className="hc-num"><b style={{ color: readyColor(today.readiness) }}>{today.readiness}</b><span>{today.readinessLabel}</span></span>
+            <span className="hc-num">
+              <b style={{ color: hasHealth ? readyColor(today.readiness) : 'var(--text-dim)' }}>{hasHealth ? today.readiness : '—'}</b>
+              <span>{hasHealth ? today.readinessLabel : 'Connect Garmin'}</span>
+            </span>
             <span className="hc-num"><b>{today.lastSleepScore ?? '—'}</b><span>Sleep</span></span>
             <span className="hc-num"><b>{today.restingHr ?? '—'}</b><span>Rest HR</span></span>
           </span>
@@ -301,7 +318,7 @@ function HealthCompact({ today, now }: { today: Today; now: number }) {
         <span className="collapse-caret" aria-hidden>{open ? '▾' : '▸'}</span>
       </button>
       <div className="hc-foot"><Link to="/health">Full page →</Link></div>
-      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow now={now} /></div>}
+      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow /></div>}
     </section>
   )
 }
@@ -467,22 +484,3 @@ function HTile({ name, main, sub, spark, goal, baseline, color }: {
   )
 }
 
-function EnergyMini({ now }: { now: number }) {
-  const w = 680, h = 60, P = { l: 4, r: 4, t: 6, b: 4 }
-  const pts = SAMPLE_BB.map((v, i) => ({ t: (i / (SAMPLE_BB.length - 1)) * 1440, v })).filter((p) => p.t <= now)
-  if (pts.length < 2) pts.push({ t: now, v: SAMPLE_BB[0] })
-  const X = (t: number) => P.l + (t / 1440) * (w - P.l - P.r)
-  const Y = (v: number) => P.t + (1 - v / 100) * (h - P.t - P.b)
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')
-  const area = `M${X(pts[0].t).toFixed(1)},${h - P.b} ${pts.map((p) => `L${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')} L${X(pts[pts.length - 1].t).toFixed(1)},${h - P.b} Z`
-  const cur = pts[pts.length - 1]
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', display: 'block', opacity: 0.85 }}>
-      <defs><linearGradient id="bbgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#74c79a" stopOpacity=".26" /><stop offset="100%" stopColor="#74c79a" stopOpacity="0" /></linearGradient></defs>
-      <path d={area} fill="url(#bbgrad)" />
-      <path d={line} fill="none" stroke="#74c79a" strokeWidth="2" strokeLinejoin="round" />
-      <line x1={X(cur.t)} x2={X(cur.t)} y1={P.t} y2={h - P.b} stroke="var(--crimson)" strokeWidth="1.2" opacity=".8" />
-      <circle cx={X(cur.t)} cy={Y(cur.v)} r="3.6" fill="#fff" stroke="var(--crimson)" strokeWidth="2" />
-    </svg>
-  )
-}
