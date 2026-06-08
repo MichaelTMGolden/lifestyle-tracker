@@ -740,9 +740,21 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 .earlier:hover { color: var(--text); }
 
 @media (max-width: 820px) {
-  .nownext, .strip { grid-template-columns: 1fr; }
-  .nn-cell { border-right: 0; border-bottom: 1px solid var(--line); }
+  .strip { grid-template-columns: 1fr; }
   .cluster.health { border-right: 0; border-bottom: 1px solid var(--line); }
+
+  /* Compact Now+Next: current | next side by side with a thin progress row
+     below, so the to-do list & quick actions sit higher on the page. */
+  .nownext { grid-template-columns: 1fr 1fr; }
+  .nn-cell { padding: 0.55rem 0.75rem; border-right: 1px solid var(--line); border-bottom: 0; }
+  .nn-cell:nth-child(2) { border-right: 0; }
+  .nn-k { font-size: 0.56rem; }
+  .nn-act { font-size: 1.05rem; margin: 2px 0; }
+  .nn-meta { font-size: 0.74rem; }
+  .nn-right { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--line);
+    flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 0.45rem 0.75rem; }
+  .nn-right .prog { flex: 1; min-width: 80px; }
+  .nn-tom { font-size: 0.72rem; width: 100%; }
 }
 
 /* Reserve space for the sticky action bar across the whole mobile range
