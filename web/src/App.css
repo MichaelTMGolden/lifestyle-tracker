@@ -386,6 +386,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   text-decoration: underline; text-underline-offset: 2px; padding: 0; margin-top: 0.2rem; }
 .track-toggle:hover { color: var(--text); }
 
+/* ---------- login screen (shared-password gate) ---------- */
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+.login-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 0.8rem;
+  background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 10px; padding: 2rem 1.6rem; }
+.login-brand { font-family: var(--font-head); font-size: 1.6rem; margin: 0; }
+.login-sub { color: var(--text-dim); margin: 0 0 0.4rem; font-size: 0.95rem; }
+.login-card input { background: var(--bg); border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text);
+  padding: 0.7rem 0.8rem; font-family: var(--font-body); font-size: 1rem; }
+.login-card input:focus { outline: none; border-color: var(--crimson); }
+.login-err { color: var(--bad); font-size: 0.85rem; margin: 0; }
+
 /* ---------- collapsibles (mobile home sections) ---------- */
 .collapsible { padding: 0; overflow: hidden; }
 .collapse-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;

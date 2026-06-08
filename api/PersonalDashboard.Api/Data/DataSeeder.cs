@@ -14,16 +14,23 @@ public static class DataSeeder
 {
     private const int Days = 90;
 
-    public static async Task SeedAsync(AppDbContext db)
+    /// <param name="dummyData">
+    /// When false (production), seeds only the real scaffold — practices, goals and
+    /// the weekly timetable — and skips all invented history/metrics/tasks so you
+    /// start from a clean slate. Defaults true for local development.
+    /// </param>
+    public static async Task SeedAsync(AppDbContext db, bool dummyData = true)
     {
-        // Schedule has its own guard so it seeds independently of the dummy data.
-        await SeedScheduleAsync(db);
-        // Goals/food depend on other rows existing; no-op on a fresh DB here and
-        // are called again at the end once the base data is in place.
-        await SeedGoalsAsync(db);
-        await SeedFoodAsync(db);
+        // --- Real scaffold (always) ---
+        await SeedScheduleAsync(db);   // weekly timetable from the bundled markdown
+        await SeedHabitsAsync(db);     // practice definitions (no fake history)
+        await SeedGoalsAsync(db);      // goal scaffold (needs habits to exist)
 
-        if (await db.DataSources.AnyAsync()) return;
+        // Production keeps a clean slate; everything below is invented sample data.
+        if (!dummyData) return;
+
+        // Already-populated dummy DB: just backfill the sample food if missing.
+        if (await db.DataSources.AnyAsync()) { await SeedFoodAsync(db); return; }
 
         // Fixed seed => stable, reproducible dummy data across runs.
         Randomizer.Seed = new Random(1234);
@@ -118,23 +125,13 @@ public static class DataSeeder
         }
         db.CalendarEvents.AddRange(events);
 
-        // --- Habits + logs ---
-        // The four tracked practices the heatmap focuses on, plus daily anchors.
-        // Each has a baseline completion rate so the contribution grids look
-        // distinct and realistic.
-        // Singing / Guitar / Writing accumulate practice minutes (feed the goals);
-        // Reading / Mobility stay binary done/not-done.
-        var habitDefs = new (string Name, double Rate, bool TracksTime)[]
+        // --- Habit logs (dummy history for the already-seeded practices) ---
+        // Per-practice completion rate so the contribution grids look distinct.
+        var habitRates = new Dictionary<string, double>
         {
-            ("Singing", 0.70, true),
-            ("Guitar", 0.78, true),
-            ("Writing", 0.55, true),
-            ("Reading", 0.82, false),
-            ("Mobility", 0.60, false),
+            ["Singing"] = 0.70, ["Guitar"] = 0.78, ["Writing"] = 0.55, ["Reading"] = 0.82, ["Mobility"] = 0.60,
         };
-        var habits = habitDefs.Select(d => new Habit { Name = d.Name, TracksTime = d.TracksTime }).ToList();
-        db.Habits.AddRange(habits);
-        await db.SaveChangesAsync();
+        var habits = await db.Habits.ToListAsync();
 
         // ~26 weeks of history so the GitHub-style heatmap has depth. Only
         // completed days are stored (absence == not done). Timed skills carry a
@@ -143,21 +140,21 @@ public static class DataSeeder
         const int habitHistoryDays = 182;
         var habitStart = today.AddDays(-habitHistoryDays);
         var logs = new List<HabitLog>();
-        for (var i = 0; i < habits.Count; i++)
+        foreach (var h in habits)
         {
-            var def = habitDefs[i];
+            var rate = habitRates.GetValueOrDefault(h.Name, 0.6);
             for (var d = 0; d <= habitHistoryDays; d++) // inclusive => ends today
             {
                 var daysFromEnd = habitHistoryDays - d;
                 var trend = 0.12 * (d / (double)habitHistoryDays); // recent weeks a touch stronger
-                var completed = daysFromEnd < 12 || Randomizer.Seed.NextDouble() < def.Rate + trend - 0.06;
+                var completed = daysFromEnd < 12 || Randomizer.Seed.NextDouble() < rate + trend - 0.06;
                 if (!completed) continue;
                 logs.Add(new HabitLog
                 {
-                    HabitId = habits[i].Id,
+                    HabitId = h.Id,
                     Date = DateOnly.FromDateTime(habitStart.AddDays(d)),
                     Completed = true,
-                    Minutes = def.TracksTime ? Randomizer.Seed.Next(20, 91) : 0,
+                    Minutes = h.TracksTime ? Randomizer.Seed.Next(20, 91) : 0,
                 });
             }
         }
@@ -194,9 +191,23 @@ public static class DataSeeder
 
         await db.SaveChangesAsync();
 
-        // Habits + sources now exist — seed example goals and recent food entries.
-        await SeedGoalsAsync(db);
+        // Sources now exist — seed the recent sample food entries + rollups.
         await SeedFoodAsync(db);
+    }
+
+    /// <summary>
+    /// Seeds the tracked practice definitions (no logs). These are real habits;
+    /// their history is logged in-app. No-op if any habit already exists.
+    /// </summary>
+    public static async Task SeedHabitsAsync(AppDbContext db)
+    {
+        if (await db.Habits.AnyAsync()) return;
+        var defs = new (string Name, bool TracksTime)[]
+        {
+            ("Singing", true), ("Guitar", true), ("Writing", true), ("Reading", false), ("Mobility", false),
+        };
+        db.Habits.AddRange(defs.Select(d => new Habit { Name = d.Name, TracksTime = d.TracksTime }));
+        await db.SaveChangesAsync();
     }
 
     /// <summary>

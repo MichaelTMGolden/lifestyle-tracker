@@ -10,6 +10,7 @@ using PersonalDashboard.Api.Schedule;
 namespace PersonalDashboard.Api.Endpoints;
 
 public record WeightInput(double Value);
+public record LoginInput(string Password);
 public record MinutesInput(int Minutes);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds);
 public record FoodEntryInput(

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './index.css'
 import Layout from './Layout.tsx'
+import { AuthGate } from './auth/AuthGate.tsx'
 
 // Code-split each route. Keeps the initial bundle small — in particular the heavy
 // Recharts dependency (only used by MetricDetailPage) no longer loads for the
@@ -18,6 +19,7 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage.tsx'))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <AuthGate>
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -32,5 +34,6 @@ createRoot(document.getElementById('root')!).render(
         </Route>
       </Routes>
     </BrowserRouter>
+    </AuthGate>
   </StrictMode>,
 )

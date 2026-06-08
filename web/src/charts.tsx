@@ -61,12 +61,23 @@ export function Spark({ data, color, goal, baseline, h = 42, fill = true }: {
 
 interface Anno { label: string }
 
+// Placeholder shown when a series has no data (e.g. before Garmin is imported),
+// so empty arrays never crash the axis/tooltip code that indexes by position.
+export function EmptyChart({ height = 200 }: { height?: number }) {
+  return (
+    <div className="muted" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+      No data yet
+    </div>
+  )
+}
+
 // ---- Line chart with baseline / band / annotations + tooltip ----
 export function AnnotatedLine({ dates, data, color, band, baseline, annotations = {}, height = 210, unit = '' }: {
   dates: Date[]; data: (number | null)[]; color: string; band?: [number, number]; baseline?: number
   annotations?: Record<number, Anno>; height?: number; unit?: string
 }) {
   const [tip, setTip] = useState<{ i: number; px: number; py: number } | null>(null)
+  if (data.length === 0 || dates.length === 0) return <EmptyChart height={height} />
   const W = 720, H = height, P = { l: 34, r: 14, t: 14, b: 24 }
   const pts = data.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v != null)
   const vals = pts.map((p) => p.v)
@@ -110,6 +121,7 @@ export function StackedBars({ dates, data, keys, colors, height = 200, unit = 'm
   dates: Date[]; data: Record<string, number>[]; keys: string[]; colors: string[]; height?: number; unit?: string; maxBars?: number
 }) {
   const [tip, setTip] = useState<{ i: number; px: number; py: number } | null>(null)
+  if (data.length === 0 || dates.length === 0) return <EmptyChart height={height} />
   const slice = data.length > maxBars ? data.slice(-maxBars) : data
   const dslice = dates.length > maxBars ? dates.slice(-maxBars) : dates
   const W = 720, H = height, P = { l: 34, r: 10, t: 12, b: 22 }

@@ -272,7 +272,7 @@ export interface FoodEntryInput {
 const tzHeaders = () => ({ 'X-Tz-Offset': String(new Date().getTimezoneOffset()) })
 
 async function get<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: tzHeaders() })
+  const res = await fetch(url, { headers: tzHeaders(), credentials: 'include' })
   if (!res.ok) throw new Error(`${url} -> ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -280,6 +280,7 @@ async function get<T>(url: string): Promise<T> {
 async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...tzHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
@@ -289,6 +290,17 @@ async function send<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 const post = <T>(url: string, body?: unknown) => send<T>('POST', url, body)
 
+// Auth (shared-password gate). login returns false on a wrong password rather than throwing.
+export interface AuthState { required: boolean; authed: boolean }
+async function login(password: string): Promise<boolean> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...tzHeaders() },
+    body: JSON.stringify({ password }),
+  })
+  return res.ok
+}
+
 export interface TodoInput {
   title: string
   notes?: string | null
@@ -297,6 +309,10 @@ export interface TodoInput {
 }
 
 export const api = {
+  authStatus: () => get<AuthState>('/api/auth/status'),
+  login,
+  logout: () => post('/api/auth/logout'),
+
   summary: () => get<Summary>('/api/summary'),
   metric: (key: string, days = 90) => get<MetricPoint[]>(`/api/metrics/${key}?days=${days}`),
   metricKeys: () => get<MetricKey[]>('/api/metrics'),
