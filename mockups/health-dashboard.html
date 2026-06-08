@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Health · personal intelligence briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0c0d11; --panel:#14161d; --panel-2:#191c25; --line:rgba(220,225,235,.08); --line-2:rgba(220,225,235,.16);
+    --text:#e9e7e1; --dim:#8b8e99; --faint:#5d616c;
+    --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+    --sans:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    /* one consistent hue per metric */
+    --sleep:#4fb0c6; --stress:#a974e0; --rhr:#e0697a; --hrv:#74c79a; --steps:#e0a64e; --weight:#8aa0b8;
+    --battery:#74c79a; --protein:#e0a64e; --calin:#e0a64e; --calout:#e0697a;
+    --good:#74c79a; --watch:#e0a64e; --off:#e0697a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1200px 480px at 50% -8%, rgba(169,116,224,.07), transparent 70%), var(--bg); color:var(--text); font-family:var(--sans); font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  a{color:inherit}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 22px 90px;}
+
+  /* header */
+  .topbar{position:sticky; top:0; z-index:30; background:rgba(12,13,17,.86); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .topbar-inner{max-width:1120px; margin:0 auto; padding:12px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;}
+  .brand{font-family:var(--serif); font-size:20px; letter-spacing:.3px;}
+  .brand small{display:block; font-family:var(--sans); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); font-weight:600;}
+  .controls{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .freshness{font-size:12px; color:var(--dim); display:flex; gap:10px; align-items:center;}
+  .freshness .warn{color:var(--watch);}
+  .seg{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:2px;}
+  .seg button{border:0; background:none; color:var(--dim); font-family:var(--sans); font-weight:600; font-size:12px; letter-spacing:.06em; padding:6px 12px; border-radius:6px; cursor:pointer;}
+  .seg button.on{background:rgba(169,116,224,.16); color:#d8c4f2;}
+
+  /* section scaffolding */
+  section{margin-top:40px;}
+  .sec-label{font-family:var(--sans); text-transform:uppercase; letter-spacing:.22em; font-size:11px; font-weight:700; color:var(--faint); margin:0 0 14px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px;}
+  .pad{padding:18px 20px;}
+
+  /* readiness hero */
+  .hero{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:18px; margin-top:24px;}
+  .hero .ring-card{display:flex; gap:22px; align-items:center;}
+  .ring{position:relative; flex:0 0 auto;}
+  .ring .label{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .ring .label b{font-size:34px; font-weight:700; line-height:1;}
+  .ring .label span{font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-top:4px;}
+  .hero h2{font-family:var(--serif); font-weight:500; font-size:30px; margin:0 0 6px; letter-spacing:.2px;}
+  .hero p.why{font-family:var(--serif); font-size:16.5px; color:#cfd2d9; margin:0 0 14px; line-height:1.45;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{display:inline-flex; align-items:center; gap:7px; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:12.5px; color:#cdd0d8;}
+  .chip .dot{width:7px; height:7px; border-radius:50%;}
+  .battery-card{display:flex; flex-direction:column; justify-content:center; gap:10px;}
+  .battery-card .bb-top{display:flex; align-items:baseline; gap:10px;}
+  .battery-card .bb-val{font-size:40px; font-weight:700; line-height:1;}
+  .battery-card .bb-cap{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); font-weight:600;}
+  .bbar{height:10px; border-radius:6px; background:var(--panel-2); overflow:hidden; border:1px solid var(--line);}
+  .bbar > i{display:block; height:100%; background:linear-gradient(90deg,#4fb0c6,#74c79a);}
+  .bb-flux{display:flex; gap:18px; font-size:13px; color:var(--dim);}
+  .bb-flux b{color:var(--text);}
+
+  /* vitals */
+  .vitals{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .vcard{cursor:pointer; transition:border-color .15s, transform .15s;}
+  .vcard:hover{border-color:var(--line-2); transform:translateY(-2px);}
+  .vcard .v-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .v-name{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); font-weight:700;}
+  .v-val{font-size:28px; font-weight:700; line-height:1.05; margin-top:6px;}
+  .v-val small{font-size:13px; font-weight:600; color:var(--dim); margin-left:4px;}
+  .v-sub{font-size:12.5px; color:var(--dim); margin-top:2px;}
+  .v-target{font-size:11.5px; margin-top:2px;}
+  .trend{display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:600; white-space:nowrap;}
+  .v-spark{margin-top:12px;}
+
+  /* insights */
+  .insights{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  .ins-group h3{font-family:var(--sans); text-transform:uppercase; letter-spacing:.16em; font-size:11px; color:var(--faint); font-weight:700; margin:0 0 10px;}
+  .ins{font-family:var(--serif); font-size:16px; line-height:1.5; color:#d7dae1; padding:10px 0; border-bottom:1px solid var(--line); display:flex; gap:10px;}
+  .ins:last-child{border-bottom:0;}
+  .ins .mark{font-family:var(--sans); font-weight:700; flex:0 0 auto; width:18px; text-align:center;}
+  .ins b{color:#fff;}
+  .ins .act{display:block; font-family:var(--sans); font-size:13px; color:var(--sleep); margin-top:5px; font-style:normal;}
+  .lowconf{font-family:var(--sans); font-size:11px; color:var(--watch); border:1px solid rgba(224,166,78,.4); border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap;}
+  .rval{font-family:var(--sans); font-size:12px; color:var(--dim);}
+
+  /* generic chart frame */
+  .chart{position:relative; width:100%;}
+  .chart svg{width:100%; height:auto; display:block;}
+  .axis{fill:var(--faint); font-size:10px; font-family:var(--sans);}
+  .gridline{stroke:var(--line);}
+  .tip{position:absolute; pointer-events:none; background:#0a0b0e; border:1px solid var(--line-2); border-radius:8px; padding:8px 10px; font-size:12px; transform:translate(-50%,-115%); white-space:nowrap; z-index:5; box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .tip .t-date{color:var(--dim); font-size:11px; margin-bottom:3px;}
+  .tip .t-row{display:flex; gap:8px; align-items:center;}
+  .tip .t-anno{color:var(--watch); margin-top:4px; font-size:11px;}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  .grid2-13{display:grid; grid-template-columns:1.4fr 1fr; gap:18px;}
+  .card-h{font-size:13px; font-weight:600; color:#cdd0d8; margin:0 0 4px;}
+  .card-sub{font-size:12px; color:var(--dim); margin:0 0 12px;}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--dim); margin-top:10px;}
+  .legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px;}
+
+  .stat-line{display:flex; justify-content:space-between; font-size:13px; padding:7px 0; border-bottom:1px solid var(--line);}
+  .stat-line:last-child{border-bottom:0;}
+  .stat-line b{font-weight:600;}
+  .muted{color:var(--dim);}
+
+  .workout{display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .workout:last-child{border-bottom:0;}
+  .w-ico{width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:var(--panel-2); flex:0 0 auto;}
+  .w-meta{margin-left:auto; color:var(--dim); font-size:12.5px; text-align:right;}
+
+  .barbig{height:9px; border-radius:6px; background:var(--panel-2); overflow:hidden; border:1px solid var(--line);}
+  .barbig > i{display:block; height:100%;}
+
+  select, input[type=number], input[type=text]{font-family:var(--sans); background:var(--panel-2); color:var(--text); border:1px solid var(--line-2); border-radius:8px; padding:7px 10px; font-size:13px;}
+  .btn{font-family:var(--sans); font-weight:600; font-size:13px; background:rgba(169,116,224,.16); color:#d8c4f2; border:1px solid rgba(169,116,224,.4); border-radius:8px; padding:7px 14px; cursor:pointer;}
+  .btn:hover{background:rgba(169,116,224,.28);}
+  .btn.ghost{background:none; color:var(--dim); border-color:var(--line-2);}
+
+  .digest{font-family:var(--serif); font-size:16.5px; line-height:1.6; color:#d7dae1;}
+  .digest p{margin:0 0 10px;}
+  .digest .accent{color:#fff;}
+
+  .explorer-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .interp{font-family:var(--serif); font-size:15px; color:#d7dae1; margin-top:10px;}
+
+  @media (max-width:880px){
+    .hero{grid-template-columns:1fr;}
+    .vitals{grid-template-columns:repeat(2,1fr);}
+    .insights,.grid2,.grid2-13{grid-template-columns:1fr;}
+  }
+  @media (max-width:520px){
+    .vitals{grid-template-columns:1fr 1fr;}
+    .hero .ring-card{flex-direction:column; text-align:center;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const {useState, useMemo, useRef} = React;
+
+/* ============================== helpers ============================== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+const std=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));};
+const round=(v,d=0)=>{const p=10**d;return Math.round(v*p)/p;};
+function pearson(xs,ys){const n=xs.length;if(n<3)return 0;const mx=mean(xs),my=mean(ys);let nu=0,dx=0,dy=0;for(let i=0;i<n;i++){const a=xs[i]-mx,b=ys[i]-my;nu+=a*b;dx+=a*a;dy+=b*b;}const d=Math.sqrt(dx*dy);return d?nu/d:0;}
+function movingAvg(a,w){return a.map((_,i)=>mean(a.slice(Math.max(0,i-w+1),i+1)));}
+const fmtDate=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+const COL={sleep:'#4fb0c6',stress:'#a974e0',rhr:'#e0697a',hrv:'#74c79a',steps:'#e0a64e',weight:'#8aa0b8',battery:'#74c79a',protein:'#e0a64e',calin:'#e0a64e',calout:'#e0697a'};
+const STATUS={good:'#74c79a',watch:'#e0a64e',off:'#e0697a'};
+
+/* ============================== data ============================== */
+const DAYS=365;
+const TODAY=new Date(); TODAY.setHours(0,0,0,0);
+const DATES=[...Array(DAYS)].map((_,i)=>{const d=new Date(TODAY);d.setDate(d.getDate()-(DAYS-1-i));return d;});
+const rnd=mulberry32(20260607);
+const fromEnd=i=>DAYS-1-i; // 0 = today
+
+// sleep score: stable ~69, declines over the last fortnight, today = 51
+const sleepScore=DATES.map((d,i)=>{const fe=fromEnd(i);let b; if(fe<14)b=51+fe*1.55; else if(fe<28)b=67; else b=69; return clamp(Math.round(b+(rnd()*10-5)),38,93);});
+sleepScore[DAYS-1]=51;
+// stress: inverse to sleep + noise  (=> r ~ -0.6)
+const stress=sleepScore.map(s=>clamp(Math.round(56-0.42*(s-62)+(rnd()*10-5)),20,90));
+// resting HR: baseline 55, mild stress link, an explainable dip + a spike
+const restingHr=DATES.map((d,i)=>{const fe=fromEnd(i);let v=55+0.06*(stress[i]-54)+(rnd()*2.4-1.2); if(fe>=10&&fe<=13)v-=4.5; if(fe>=29&&fe<=31)v+=4; return round(v,1);});
+restingHr[DAYS-1]=57;
+const RHR_ANNO={[DAYS-1-12]:{label:'Travel — sensor readings off',kind:'travel'},[DAYS-1-30]:{label:'Late night + alcohol',kind:'alcohol'},[DAYS-1-5]:{label:'Hard interval session',kind:'workout'}};
+// HRV ~45ms, band 38-52, balanced
+const hrv=DATES.map(()=>clamp(Math.round(45+(rnd()*12-6)),30,60));
+// steps: only last 40 days have data (demonstrates small-n / low confidence)
+const steps=DATES.map((d,i)=>fromEnd(i)>40?null:Math.round(clamp(5400+(rnd()*4200-2100),1800,13500)));
+// weight: ~75.9, noisy daily + smooth trend
+let wbase=76.4; const weightGen=DATES.map((d,i)=>{wbase+=(rnd()*0.18-0.105); return round(clamp(wbase,74.8,77.2)+(rnd()*0.5-0.25),1);});
+weightGen[DAYS-1]=75.9;
+// nutrition
+const calIn=DATES.map(()=>Math.round(2100+(rnd()*520-260)));
+const calOut=DATES.map(()=>Math.round(2400+(rnd()*420-210)));
+const protein=DATES.map(()=>Math.round(120+(rnd()*44-22)));
+const carbs=DATES.map(()=>Math.round(220+(rnd()*80-40)));
+const fat=DATES.map(()=>Math.round(72+(rnd()*30-15)));
+// sleep stages (minutes)
+const stages=DATES.map((d,i)=>{const total=clamp(Math.round(sleepScore[i]*4.2+260+(rnd()*60-30)),300,560);const deep=Math.round(total*(0.13+rnd()*0.05));const rem=Math.round(total*(0.19+rnd()*0.07));const awake=Math.round(total*(0.04+rnd()*0.05));const light=total-deep-rem-awake;return {total,deep,rem,light,awake};});
+// stress zones (minutes/day)
+const stressZones=DATES.map((d,i)=>{const s=stress[i];const high=Math.round(s*1.4+rnd()*30);const med=Math.round(s*2.2+rnd()*40);const low=Math.round(420-s*1.5+rnd()*60);const rest=Math.round(1440-high-med-low-stages[i].total);return {high,med,low,rest:Math.max(120,rest)};});
+// bed/wake times (minutes from midnight; bed ~ 1380=23:00 with variance, wake ~ 420=7:00)
+const bedMin=DATES.map(()=>Math.round(1370+(rnd()*90-30)));
+const wakeMin=DATES.map(()=>Math.round(420+(rnd()*70-25)));
+// vo2max slow rise
+const vo2=DATES.map((d,i)=>round(46.5+i/DAYS*1.6+(rnd()*0.5-0.25),1));
+// body battery series (for spark)
+const battery=DATES.map(()=>Math.round(clamp(60+(rnd()*30-15),20,95)));
+const BODY_BATTERY={current:62,charged:70,drained:85};
+// intraday Body Battery (energy) — charges overnight, peaks at wake, drains through the day
+const NOW_MIN=20*60+3; // 20:03
+const BB_DAY=[
+  {t:0,v:36},{t:120,v:52},{t:240,v:69},{t:360,v:84},{t:420,v:90},{t:495,v:85},{t:560,v:78},
+  {t:620,v:73},{t:690,v:70},{t:720,v:66},{t:765,v:64},{t:805,v:71},{t:900,v:66},{t:1000,v:61},
+  {t:1080,v:60},{t:1140,v:61},{t:NOW_MIN,v:62},
+];
+
+const WORKOUTS=[
+  {d:0,type:'Strength',ico:'🏋',dur:'58m',intensity:'Moderate',cal:430},
+  {d:1,type:'Run — easy',ico:'🏃',dur:'42m',intensity:'Low',cal:395},
+  {d:2,type:'Climbing',ico:'🧗',dur:'1h 25m',intensity:'High',cal:560},
+  {d:4,type:'Intervals',ico:'🏃',dur:'38m',intensity:'High',cal:470},
+  {d:5,type:'Mobility',ico:'🧘',dur:'22m',intensity:'Low',cal:90},
+  {d:6,type:'Strength',ico:'🏋',dur:'1h 02m',intensity:'Moderate',cal:455},
+];
+const INTENSITY={week:112,goal:150};
+const TRAIN={status:'Productive',acute:312,chronic:286};
+const VO2_NOW=vo2[DAYS-1];
+
+/* ============================== chart primitives ============================== */
+function useTip(){const [tip,setTip]=useState(null);return [tip,setTip];}
+
+function Spark({data, color, goal, baseline, w=150, h=42, fill=true}){
+  const vals=data.filter(v=>v!=null);
+  if(!vals.length) return <svg viewBox={`0 0 ${w} ${h}`} style={{width:'100%'}}/>;
+  let lo=Math.min(...vals, goal??Infinity, baseline??Infinity), hi=Math.max(...vals, goal??-Infinity, baseline??-Infinity);
+  if(lo===hi){lo-=1;hi+=1;}
+  const n=data.length, pad=3;
+  const X=i=>pad+(i/(n-1))*(w-2*pad);
+  const Y=v=>pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
+  let dpath='',started=false,area='';
+  data.forEach((v,i)=>{if(v==null){started=false;return;}const cmd=started?'L':'M';dpath+=`${cmd}${X(i).toFixed(1)},${Y(v).toFixed(1)} `;started=true;});
+  const firstIdx=data.findIndex(v=>v!=null);
+  if(fill && firstIdx>=0){area=`M${X(firstIdx)},${h-pad} `+data.map((v,i)=>v==null?'':`L${X(i).toFixed(1)},${Y(v).toFixed(1)} `).join('')+`L${X(n-1)},${h-pad} Z`;}
+  return <svg viewBox={`0 0 ${w} ${h}`} style={{width:'100%'}} preserveAspectRatio="none">
+    {fill && <path d={area} fill={color} opacity=".10"/>}
+    {goal!=null && <line x1={pad} x2={w-pad} y1={Y(goal)} y2={Y(goal)} stroke={STATUS.good} strokeWidth="1" strokeDasharray="3 3" opacity=".7"/>}
+    {baseline!=null && <line x1={pad} x2={w-pad} y1={Y(baseline)} y2={Y(baseline)} stroke={color} strokeWidth="1" strokeDasharray="2 3" opacity=".5"/>}
+    <path d={dpath} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/>
+  </svg>;
+}
+
+function LineChart({dates, data, color, band, baseline, annotations={}, height=210, unit=''}){
+  const [tip,setTip]=useTip();
+  const W=720,H=height,P={l:34,r:14,t:14,b:24};
+  const pts=data.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+  const vals=pts.map(p=>p.v);
+  let lo=Math.min(...vals, band?band[0]:Infinity, baseline??Infinity);
+  let hi=Math.max(...vals, band?band[1]:-Infinity, baseline??-Infinity);
+  const padv=(hi-lo)*0.1||1; lo-=padv; hi+=padv;
+  const X=i=>P.l+(i/(data.length-1))*(W-P.l-P.r);
+  const Y=v=>P.t+(1-(v-lo)/(hi-lo))*(H-P.t-P.b);
+  const path=pts.map((p,k)=>`${k?'L':'M'}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+  const ticks=4;
+  function move(e){const r=e.currentTarget.getBoundingClientRect();const rx=(e.clientX-r.left)/r.width*W;let i=Math.round((rx-P.l)/(W-P.l-P.r)*(data.length-1));i=clamp(i,0,data.length-1);if(data[i]==null)return;setTip({i,px:(e.clientX-r.left),py:(e.clientY-r.top)});}
+  return <div className="chart" onMouseLeave={()=>setTip(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`} onMouseMove={move}>
+      {[...Array(ticks+1)].map((_,k)=>{const v=lo+(hi-lo)*k/ticks;const y=Y(v);return <g key={k}><line className="gridline" x1={P.l} x2={W-P.r} y1={y} y2={y}/><text className="axis" x={P.l-6} y={y+3} textAnchor="end">{Math.round(v)}</text></g>;})}
+      {band && <rect x={P.l} y={Y(band[1])} width={W-P.l-P.r} height={Y(band[0])-Y(band[1])} fill={color} opacity=".09"/>}
+      {baseline!=null && <line x1={P.l} x2={W-P.r} y1={Y(baseline)} y2={Y(baseline)} stroke={color} strokeDasharray="4 4" opacity=".55"/>}
+      {baseline!=null && <text className="axis" x={W-P.r} y={Y(baseline)-4} textAnchor="end" fill={color} opacity=".8">baseline</text>}
+      <path d={path} fill="none" stroke={color} strokeWidth="2"/>
+      {Object.keys(annotations).map(k=>{const i=+k;if(data[i]==null)return null;return <g key={k}><line x1={X(i)} x2={X(i)} y1={P.t} y2={H-P.b} stroke="var(--watch)" strokeDasharray="2 3" opacity=".5"/><circle cx={X(i)} cy={Y(data[i])} r="3.5" fill="var(--watch)"/></g>;})}
+      {tip && <g><line x1={X(tip.i)} x2={X(tip.i)} y1={P.t} y2={H-P.b} stroke="var(--line-2)"/><circle cx={X(tip.i)} cy={Y(data[tip.i])} r="4" fill={color}/></g>}
+      {[0,Math.floor(data.length/2),data.length-1].map(i=><text key={i} className="axis" x={X(i)} y={H-8} textAnchor="middle">{fmtDate(dates[i])}</text>)}
+    </svg>
+    {tip && <div className="tip" style={{left:tip.px,top:tip.py}}>
+      <div className="t-date">{fmtDate(dates[tip.i])}</div>
+      <div className="t-row"><b>{round(data[tip.i],1)}{unit}</b></div>
+      {annotations[tip.i] && <div className="t-anno">⚑ {annotations[tip.i].label}</div>}
+    </div>}
+  </div>;
+}
+
+function StackedBar({dates, data, keys, colors, height=200, unit='m', maxBars=60}){
+  const [tip,setTip]=useTip();
+  const slice=data.length>maxBars?data.slice(-maxBars):data;
+  const dslice=dates.length>maxBars?dates.slice(-maxBars):dates;
+  const W=720,H=height,P={l:34,r:10,t:12,b:22};
+  const totals=slice.map(d=>keys.reduce((s,k)=>s+d[k],0));
+  const hi=Math.max(...totals)*1.05||1;
+  const bw=(W-P.l-P.r)/slice.length;
+  const Y=v=>P.t+(1-v/hi)*(H-P.t-P.b);
+  return <div className="chart" onMouseLeave={()=>setTip(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`}>
+      {[0,.25,.5,.75,1].map((f,k)=>{const y=P.t+f*(H-P.t-P.b);return <g key={k}><line className="gridline" x1={P.l} x2={W-P.r} y1={y} y2={y}/><text className="axis" x={P.l-6} y={y+3} textAnchor="end">{Math.round(hi*(1-f))}</text></g>;})}
+      {slice.map((d,i)=>{let acc=0;const x=P.l+i*bw;return <g key={i} onMouseEnter={e=>{const r=e.currentTarget.closest('svg').getBoundingClientRect();setTip({i,px:(x+bw/2)/W*r.width,py:Y(totals[i])/H*r.height});}}>
+        {keys.map((k,ki)=>{const h=(d[k]/hi)*(H-P.t-P.b);const y=Y(acc+d[k]);acc+=d[k];return <rect key={k} x={x+0.6} y={y} width={Math.max(0.6,bw-1.2)} height={h} fill={colors[ki]} opacity=".88"/>;})}
+      </g>;})}
+      {[0,Math.floor(slice.length/2),slice.length-1].map(i=><text key={i} className="axis" x={P.l+i*bw+bw/2} y={H-7} textAnchor="middle">{fmtDate(dslice[i])}</text>)}
+    </svg>
+    {tip && <div className="tip" style={{left:tip.px,top:tip.py}}>
+      <div className="t-date">{fmtDate(dslice[tip.i])}</div>
+      {keys.map((k,ki)=><div className="t-row" key={k}><span style={{width:9,height:9,borderRadius:2,background:colors[ki],display:'inline-block'}}></span>{k}: <b>{Math.round(slice[tip.i][k])}{unit}</b></div>)}
+    </div>}
+  </div>;
+}
+
+function Bars({dates, data, color, goal, height=180}){
+  const [tip,setTip]=useTip();
+  const pts=data.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+  const W=720,H=height,P={l:38,r:10,t:12,b:22};
+  const hi=Math.max(...pts.map(p=>p.v), goal||0)*1.08;
+  const n=data.length, bw=(W-P.l-P.r)/n;
+  const Y=v=>P.t+(1-v/hi)*(H-P.t-P.b);
+  return <div className="chart" onMouseLeave={()=>setTip(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`}>
+      {[0,.5,1].map((f,k)=>{const y=P.t+f*(H-P.t-P.b);return <g key={k}><line className="gridline" x1={P.l} x2={W-P.r} y1={y} y2={y}/><text className="axis" x={P.l-6} y={y+3} textAnchor="end">{Math.round(hi*(1-f))}</text></g>;})}
+      {data.map((v,i)=>v==null?null:<rect key={i} x={P.l+i*bw+0.8} y={Y(v)} width={Math.max(1,bw-1.6)} height={H-P.b-Y(v)} fill={v>=goal?STATUS.good:color} opacity=".85"
+        onMouseEnter={e=>{const r=e.currentTarget.closest('svg').getBoundingClientRect();setTip({i,px:(P.l+i*bw+bw/2)/W*r.width,py:Y(v)/H*r.height});}}/>)}
+      {goal && <g><line x1={P.l} x2={W-P.r} y1={Y(goal)} y2={Y(goal)} stroke={STATUS.good} strokeDasharray="4 4"/><text className="axis" x={W-P.r} y={Y(goal)-4} textAnchor="end" fill={STATUS.good}>goal {goal.toLocaleString()}</text></g>}
+      {[0,Math.floor(n/2),n-1].map(i=>data[i]!=null&&<text key={i} className="axis" x={P.l+i*bw+bw/2} y={H-7} textAnchor="middle">{fmtDate(dates[i])}</text>)}
+    </svg>
+    {tip && <div className="tip" style={{left:tip.px,top:tip.py}}><div className="t-date">{fmtDate(dates[tip.i])}</div><div className="t-row"><b>{data[tip.i].toLocaleString()}</b> steps</div></div>}
+  </div>;
+}
+
+function Scatter({xs, ys, xLabel, yLabel, xColor, yColor, height=300}){
+  const [tip,setTip]=useTip();
+  const pairs=[];for(let i=0;i<xs.length;i++){if(xs[i]!=null&&ys[i]!=null)pairs.push({x:xs[i],y:ys[i],i});}
+  const W=560,H=height,P={l:46,r:16,t:14,b:38};
+  if(pairs.length<3) return <div className="muted">Not enough overlapping data.</div>;
+  const xv=pairs.map(p=>p.x), yv=pairs.map(p=>p.y);
+  let xlo=Math.min(...xv),xhi=Math.max(...xv),ylo=Math.min(...yv),yhi=Math.max(...yv);
+  const xp=(xhi-xlo)*0.08||1,yp=(yhi-ylo)*0.08||1; xlo-=xp;xhi+=xp;ylo-=yp;yhi+=yp;
+  const X=v=>P.l+(v-xlo)/(xhi-xlo)*(W-P.l-P.r);
+  const Y=v=>P.t+(1-(v-ylo)/(yhi-ylo))*(H-P.t-P.b);
+  const r=pearson(xv,yv);
+  // regression line
+  const mx=mean(xv),my=mean(yv);let num=0,den=0;for(const p of pairs){num+=(p.x-mx)*(p.y-my);den+=(p.x-mx)**2;}const slope=den?num/den:0;const inter=my-slope*mx;
+  return <div className="chart" onMouseLeave={()=>setTip(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`}>
+      {[0,.25,.5,.75,1].map((f,k)=>{const y=P.t+f*(H-P.t-P.b);return <line key={k} className="gridline" x1={P.l} x2={W-P.r} y1={y} y2={y}/>;})}
+      <line x1={X(xlo)} y1={Y(slope*xlo+inter)} x2={X(xhi)} y2={Y(slope*xhi+inter)} stroke="var(--text)" strokeWidth="1.6" strokeDasharray="5 4" opacity=".8"/>
+      {pairs.map((p,k)=><circle key={k} cx={X(p.x)} cy={Y(p.y)} r="3.4" fill={xColor} opacity=".6"
+        onMouseEnter={e=>{const rr=e.currentTarget.closest('svg').getBoundingClientRect();setTip({p,px:X(p.x)/W*rr.width,py:Y(p.y)/H*rr.height});}}/>)}
+      <text className="axis" x={(P.l+W-P.r)/2} y={H-6} textAnchor="middle" fill={xColor}>{xLabel}</text>
+      <text className="axis" x={-(H)/2} y={13} textAnchor="middle" transform="rotate(-90)" fill={yColor}>{yLabel}</text>
+      <text className="axis" x={P.l} y={H-P.b+14} textAnchor="middle">{round(xlo,0)}</text>
+      <text className="axis" x={W-P.r} y={H-P.b+14} textAnchor="middle">{round(xhi,0)}</text>
+    </svg>
+    {tip && <div className="tip" style={{left:tip.px,top:tip.py}}><div className="t-row">{xLabel}: <b>{round(tip.p.x,1)}</b></div><div className="t-row">{yLabel}: <b>{round(tip.p.y,1)}</b></div></div>}
+  </div>;
+}
+
+function Ring({value, size=132, color}){
+  const r=(size-16)/2, c=2*Math.PI*r, off=c*(1-value/100);
+  return <svg width={size} height={size} className="ring-svg">
+    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--panel-2)" strokeWidth="10"/>
+    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+      strokeDasharray={c} strokeDashoffset={off} transform={`rotate(-90 ${size/2} ${size/2})`}/>
+  </svg>;
+}
+
+function EnergyChart({data, now, height=180}){
+  const [tip,setTip]=useTip();
+  const W=720,H=height,P={l:30,r:16,t:14,b:22},XMAX=1440;
+  const X=t=>P.l+(t/XMAX)*(W-P.l-P.r);
+  const Y=v=>P.t+(1-v/100)*(H-P.t-P.b);
+  const line=data.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+  const area=`M${X(data[0].t)},${H-P.b} `+data.map(p=>`L${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)} `).join('')+`L${X(data[data.length-1].t).toFixed(1)},${H-P.b} Z`;
+  const cur=data[data.length-1];
+  const peak=data.reduce((m,p)=>p.v>m.v?p:m,data[0]);
+  const lab=t=>{const h=Math.floor(t/60);return h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';};
+  function move(e){const r=e.currentTarget.getBoundingClientRect();const rx=(e.clientX-r.left)/r.width*W;const t=clamp((rx-P.l)/(W-P.l-P.r)*XMAX,0,now);let best=data[0];for(const p of data)if(Math.abs(p.t-t)<Math.abs(best.t-t))best=p;setTip({p:best,px:X(best.t)/W*r.width,py:Y(best.v)/H*r.height});}
+  return <div className="chart" onMouseLeave={()=>setTip(null)}>
+    <svg viewBox={`0 0 ${W} ${H}`} onMouseMove={move}>
+      <defs><linearGradient id="engrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#74c79a" stopOpacity=".34"/><stop offset="100%" stopColor="#74c79a" stopOpacity="0"/></linearGradient></defs>
+      <rect x={P.l} y={Y(100)} width={W-P.l-P.r} height={Y(70)-Y(100)} fill="#74c79a" opacity=".05"/>
+      <rect x={P.l} y={Y(25)} width={W-P.l-P.r} height={Y(0)-Y(25)} fill="#e0697a" opacity=".06"/>
+      {[0,25,50,75,100].map(v=><g key={v}><line className="gridline" x1={P.l} x2={W-P.r} y1={Y(v)} y2={Y(v)}/><text className="axis" x={P.l-5} y={Y(v)+3} textAnchor="end">{v}</text></g>)}
+      <path d={area} fill="url(#engrad)"/>
+      <path d={line} fill="none" stroke="#74c79a" strokeWidth="2.2" strokeLinejoin="round"/>
+      {/* peak marker */}
+      <circle cx={X(peak.t)} cy={Y(peak.v)} r="3" fill="#74c79a"/>
+      <text className="axis" x={X(peak.t)} y={Y(peak.v)-7} textAnchor="middle" fill="#9bd9b8">peak {peak.v}</text>
+      {/* now marker */}
+      <line x1={X(now)} x2={X(now)} y1={P.t} y2={H-P.b} stroke="var(--accent,#b23a5b)" strokeWidth="1.5"/>
+      <circle cx={X(now)} cy={Y(cur.v)} r="5" fill="#fff" stroke="var(--accent,#b23a5b)" strokeWidth="2.5"/>
+      <text className="axis" x={X(now)} y={P.t-2} textAnchor="middle" fill="var(--accent,#b23a5b)" style={{fontWeight:700}}>● {cur.v} now</text>
+      {/* future (after now) faint */}
+      <line x1={X(now)} x2={W-P.r} y1={Y(cur.v)} y2={Y(cur.v-14)} stroke="#74c79a" strokeWidth="1.4" strokeDasharray="4 4" opacity=".4"/>
+      {[0,360,720,1080,1440].map(t=><text key={t} className="axis" x={X(t)} y={H-7} textAnchor="middle">{lab(t)}</text>)}
+      {tip && <circle cx={X(tip.p.t)} cy={Y(tip.p.v)} r="3.5" fill="#74c79a"/>}
+    </svg>
+    {tip && <div className="tip" style={{left:tip.px,top:tip.py}}><div className="t-date">{lab(tip.p.t).replace('a',' am').replace('p',' pm')}</div><div className="t-row"><b>{tip.p.v}</b> / 100 energy</div></div>}
+  </div>;
+}
+
+/* ============================== small UI ============================== */
+function Trend({delta, betterHigher}){
+  if(Math.abs(delta)<0.5) return <span className="trend" style={{color:'var(--dim)'}}>— flat</span>;
+  const up=delta>0, good=up===betterHigher;
+  return <span className="trend" style={{color:good?STATUS.good:STATUS.off}}>{up?'▲':'▼'} {Math.abs(Math.round(delta))}%</span>;
+}
+function statusColor(s){return STATUS[s]||'var(--dim)';}
+
+/* ============================== sections ============================== */
+function Vital({name,value,valSub,sub,target,targetStatus,delta,betterHigher,spark,onClick}){
+  return <div className="panel pad vcard" onClick={onClick}>
+    <div className="v-top">
+      <div className="v-name">{name}</div>
+      <Trend delta={delta} betterHigher={betterHigher}/>
+    </div>
+    <div className="v-val">{value}{valSub&&<small>{valSub}</small>}</div>
+    {sub && <div className="v-sub">{sub}</div>}
+    {target && <div className="v-target" style={{color:statusColor(targetStatus)}}>{target}</div>}
+    <div className="v-spark">{spark}</div>
+  </div>;
+}
+
+function App(){
+  const RANGES=[['2W',14],['1M',30],['3M',90],['6M',180],['1Y',365]];
+  const [range,setRange]=useState(30);
+  const sliceN=range;
+  const sl=a=>a.slice(-sliceN);
+  const dts=DATES.slice(-sliceN);
+
+  // weight is stateful (manual add)
+  const [weight,setWeight]=useState(weightGen);
+  const [wInput,setWInput]=useState('');
+  const wSlice=weight.slice(-sliceN);
+  const wMA=movingAvg(weight,7).slice(-sliceN);
+
+  // labelled windows
+  const last=a=>{const v=a.filter(x=>x!=null);return v[v.length-1];};
+  const avgN=(a,n)=>mean(a.filter(x=>x!=null).slice(-n));
+  const sleep14=avgN(sleepScore,14), sleepPrior=mean(sleepScore.slice(-28,-14));
+  const sleepDelta=(sleep14-sleepPrior)/sleepPrior*100;
+  const steps7=avgN(steps,7), stepsPrior=mean(steps.slice(-28,-14).filter(x=>x!=null));
+  const stepsDelta=(steps7-stepsPrior)/stepsPrior*100;
+  const stress14=avgN(stress,14), stressPrior=mean(stress.slice(-28,-14));
+  const stressDelta=(stress14-stressPrior)/stressPrior*100;
+  const rhrNow=last(restingHr), rhrPrior=mean(restingHr.slice(-28,-14));
+  const rhrDelta=(mean(restingHr.slice(-14))-rhrPrior)/rhrPrior*100;
+  const hrvNow=last(hrv), hrvDelta=(avgN(hrv,14)-mean(hrv.slice(-28,-14)))/mean(hrv.slice(-28,-14))*100;
+  const wNow=last(weight), wPrior=mean(weight.slice(-28,-14)), wDelta=(mean(weight.slice(-14))-wPrior)/wPrior*100;
+
+  // readiness
+  const readiness=Math.round(0.30*51+0.20*70+0.25*BODY_BATTERY.current+0.15*(100-(rhrNow-55)*8)+0.10*75);
+  const rLabel=readiness>=80?'Primed':readiness>=65?'Steady':readiness>=45?'Strained':'Depleted';
+  const rColor=readiness>=80?STATUS.good:readiness>=65?'#9fc7b0':readiness>=45?STATUS.watch:STATUS.off;
+
+  // explorer
+  const METRICS=useMemo(()=>({
+    sleep:{label:'Sleep score',data:sleepScore,color:COL.sleep},
+    stress:{label:'Stress',data:stress,color:COL.stress},
+    rhr:{label:'Resting HR',data:restingHr,color:COL.rhr},
+    hrv:{label:'HRV',data:hrv,color:COL.hrv},
+    steps:{label:'Steps',data:steps,color:COL.steps},
+    weight:{label:'Weight',data:weight,color:COL.weight},
+    calin:{label:'Calories in',data:calIn,color:COL.calin},
+    protein:{label:'Protein',data:protein,color:COL.protein},
+  }),[weight]);
+  const [xKey,setXKey]=useState('sleep'), [yKey,setYKey]=useState('stress');
+  const xs=sl(METRICS[xKey].data), ys=sl(METRICS[yKey].data);
+  const expR=useMemo(()=>{const pairs=[];for(let i=0;i<xs.length;i++)if(xs[i]!=null&&ys[i]!=null)pairs.push([xs[i],ys[i]]);return {r:pearson(pairs.map(p=>p[0]),pairs.map(p=>p[1])),n:pairs.length};},[xs,ys]);
+  const interp=r=>{const a=Math.abs(r);const dir=r<0?'less':'more';const str=a<0.2?'little to no':a<0.4?'a weak':a<0.6?'a moderate':'a strong';return `${str} ${r<0?'negative':'positive'} relationship — more ${METRICS[xKey].label.toLowerCase()} tends to mean ${dir} ${METRICS[yKey].label.toLowerCase()}.`;};
+
+  function addWeight(){const v=parseFloat(wInput);if(!v||v<30||v>250)return;const nw=weight.slice();nw[nw.length-1]=round(v,1);setWeight(nw);setWInput('');}
+
+  const sleepDebt=Math.round(sl(stages).reduce((s,d)=>s+(480-d.total),0)/60);
+  const bedVar=Math.round(std(sl(bedMin))), wakeVar=Math.round(std(sl(wakeMin)));
+  const calNet=Math.round(avgN(calIn,sliceN)-avgN(calOut,sliceN));
+  const proteinAvg=Math.round(avgN(protein,sliceN));
+  const stepStreak=(()=>{let s=0;for(let i=steps.length-1;i>=0;i--){if(steps[i]==null)break;if(steps[i]>=8000)s++;else break;}return s;})();
+
+  return <>
+    <div className="topbar"><div className="topbar-inner">
+      <div className="brand">Health<small>Intelligence briefing</small></div>
+      <div className="controls">
+        <div className="freshness">
+          <span>Garmin synced <b style={{color:'var(--text)'}}>2h ago</b></span>
+          <span>·</span>
+          <span>MyFitnessPal synced <b style={{color:'var(--text)'}}>1h ago</b></span>
+        </div>
+        <div className="seg">{RANGES.map(([l,d])=><button key={d} className={range===d?'on':''} onClick={()=>setRange(d)}>{l}</button>)}</div>
+      </div>
+    </div></div>
+
+    <div className="wrap">
+
+      {/* ===== readiness hero ===== */}
+      <section style={{marginTop:0}}>
+        <div className="hero">
+          <div className="panel pad ring-card">
+            <div className="ring"><Ring value={readiness} color={rColor}/><div className="label"><b>{readiness}</b><span>{rLabel}</span></div></div>
+            <div>
+              <h2>{rLabel} — readiness {readiness}/100</h2>
+              <p className="why">Balanced HRV and a workable energy reserve, but last night's sleep was poor (51) and stress is running high. Favour an easier day and protect tonight's sleep.</p>
+              <div className="chips">
+                <span className="chip"><span className="dot" style={{background:STATUS.off}}></span>Sleep 51 · poor</span>
+                <span className="chip"><span className="dot" style={{background:STATUS.good}}></span>HRV balanced · {hrvNow}ms</span>
+                <span className="chip"><span className="dot" style={{background:STATUS.watch}}></span>Body Battery {BODY_BATTERY.current}</span>
+                <span className="chip"><span className="dot" style={{background:STATUS.watch}}></span>Resting HR {rhrNow} · +{round(rhrNow-55,0)} vs base</span>
+                <span className="chip"><span className="dot" style={{background:STATUS.good}}></span>Load · Productive</span>
+              </div>
+            </div>
+          </div>
+          <div className="panel pad battery-card">
+            <div className="bb-cap">Body Battery</div>
+            <div className="bb-top"><span className="bb-val">{BODY_BATTERY.current}</span><span className="muted">/ 100 now</span></div>
+            <div className="bbar"><i style={{width:BODY_BATTERY.current+'%'}}></i></div>
+            <div className="bb-flux"><span>▲ charged <b style={{color:STATUS.good}}>{BODY_BATTERY.charged}</b></span><span>▼ drained <b style={{color:STATUS.off}}>{BODY_BATTERY.drained}</b> today</span></div>
+            <div className="muted" style={{fontSize:12.5}}>Net −{BODY_BATTERY.drained-BODY_BATTERY.charged} — you spent more than you recovered. Typical after a high-stress day on poor sleep.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== energy through the day ===== */}
+      <section>
+        <div className="sec-label">Energy through the day · Body Battery</div>
+        <div className="panel pad">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:18,flexWrap:'wrap',marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'baseline',gap:14}}>
+              <span style={{fontSize:40,fontWeight:700,lineHeight:1}}>{BODY_BATTERY.current}</span>
+              <span className="muted">/ 100 now</span>
+              <span style={{fontSize:13}}><span style={{color:STATUS.good}}>▲ {BODY_BATTERY.charged} charged</span> · <span style={{color:STATUS.off}}>▼ {BODY_BATTERY.drained} drained</span> today</span>
+            </div>
+            <div className="muted" style={{fontSize:13,maxWidth:430,textAlign:'right'}}>Peaked at 90 after sleep, now <b style={{color:'var(--text)'}}>62 and drifting down</b> — normal for evening. The late-morning stretch drained most; protect tonight's sleep to recharge.</div>
+          </div>
+          <EnergyChart data={BB_DAY} now={NOW_MIN}/>
+          <div className="legend"><span><i style={{background:'#74c79a'}}></i>Energy</span><span style={{color:'var(--accent,#b23a5b)'}}>● you are here · 20:03</span><span className="muted">shaded bands: high ≥ 70 · low ≤ 25</span></div>
+        </div>
+      </section>
+
+      {/* ===== vitals ===== */}
+      <section>
+        <div className="sec-label">Key vitals · trends vs prior fortnight</div>
+        <div className="vitals">
+          <Vital name="Sleep Score" value={sleepScore[DAYS-1]} valSub="today" sub={`14-day avg ${round(sleep14,1)}`} target={sleep14>=70?'within target':'below 70+ target'} targetStatus={sleep14>=70?'good':'off'} delta={sleepDelta} betterHigher={true} spark={<Spark data={sl(sleepScore)} color={COL.sleep} goal={70}/>}/>
+          <Vital name="Resting HR" value={rhrNow} valSub="bpm" sub="baseline 55" target={rhrNow<=58?'near baseline':'above baseline'} targetStatus={rhrNow<=58?'good':'watch'} delta={rhrDelta} betterHigher={false} spark={<Spark data={sl(restingHr)} color={COL.rhr} baseline={55}/>}/>
+          <Vital name="HRV" value={hrvNow} valSub="ms" sub="balanced · band 38–52" target="within range" targetStatus="good" delta={hrvDelta} betterHigher={true} spark={<Spark data={sl(hrv)} color={COL.hrv} goal={52} baseline={38}/>}/>
+          <Vital name="Stress" value={round(stress14,0)} valSub="avg" sub="lower is better" target={stress14<45?'calm':'elevated'} targetStatus={stress14<45?'good':'watch'} delta={stressDelta} betterHigher={false} spark={<Spark data={sl(stress)} color={COL.stress}/>}/>
+          <Vital name="Steps" value={Math.round(steps7).toLocaleString()} valSub="7-day avg" sub={`goal 8,000 · streak ${stepStreak}d`} target="32% under goal" targetStatus="off" delta={stepsDelta} betterHigher={true} spark={<Spark data={sl(steps)} color={COL.steps} goal={8000}/>}/>
+          <Vital name="Weight" value={round(wNow,1)} valSub="kg" sub="7-day trend flat" target="stable" targetStatus="good" delta={wDelta} betterHigher={false} spark={<Spark data={wMA} color={COL.weight} fill={false}/>}/>
+        </div>
+      </section>
+
+      {/* ===== insights & actions ===== */}
+      <section>
+        <div className="sec-label">What the data says</div>
+        <div className="panel pad insights">
+          <div className="ins-group">
+            <h3>Trends</h3>
+            <div className="ins"><span className="mark" style={{color:STATUS.off}}>!</span><div><b>Sleep down {Math.abs(Math.round(sleepDelta))}%</b> — now averaging {round(sleep14,1)} vs {round(sleepPrior,1)} the prior fortnight, and well under the 70+ target.</div></div>
+            <div className="ins"><span className="mark" style={{color:STATUS.off}}>!</span><div><b>Stress up {Math.round(stressDelta)}%</b> — averaging {round(stress14,0)}, the highest in six weeks.<span className="act">→ Your data says better sleep is your fastest lever to bring this down (see below).</span></div></div>
+            <div className="ins"><span className="mark" style={{color:'var(--dim)'}}>•</span><div><b>Resting HR steady</b> at {rhrNow} bpm, ~{round(rhrNow-55,0)} above your 55 baseline — consistent with the elevated stress.</div></div>
+            <div className="ins"><span className="mark" style={{color:STATUS.off}}>!</span><div><b>Steps 32% under goal</b> — {Math.round(steps7).toLocaleString()}/day vs an 8,000 target.<span className="act">→ A 20-minute walk most days would close most of the gap.</span></div></div>
+          </div>
+          <div className="ins-group">
+            <h3>Relationships</h3>
+            <div className="ins"><span className="mark" style={{color:STATUS.good}}>↔</span><div>Better sleep clearly lowers your stress. <span className="rval">r = −0.60, n = 177</span><span className="act">→ Strongest lever you have. Protect a consistent bedtime.</span></div></div>
+            <div className="ins"><span className="mark" style={{color:STATUS.good}}>↔</span><div>Better sleep tends to lower next-day resting HR. <span className="rval">r = −0.39, n = 177</span></div></div>
+            <div className="ins"><span className="mark" style={{color:'var(--dim)'}}>↔</span><div>Steps vs stress shows essentially no link. <span className="rval">r = 0.03, n = 37</span><span className="lowconf">low confidence · 37 days</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== sleep ===== */}
+      <section>
+        <div className="sec-label">Sleep</div>
+        <div className="grid2-13">
+          <div className="panel pad">
+            <div className="card-h">Sleep stages</div>
+            <div className="card-sub">Deep / light / REM / awake per night</div>
+            <StackedBar dates={dts} data={sl(stages)} keys={['deep','light','rem','awake']} colors={['#2f6f86','#4fb0c6','#a974e0','#e0697a']}/>
+            <div className="legend"><span><i style={{background:'#2f6f86'}}></i>Deep</span><span><i style={{background:'#4fb0c6'}}></i>Light</span><span><i style={{background:'#a974e0'}}></i>REM</span><span><i style={{background:'#e0697a'}}></i>Awake</span></div>
+          </div>
+          <div className="panel pad">
+            <div className="card-h">Score & consistency</div>
+            <div className="card-sub">Target band 70+</div>
+            <Spark data={sl(sleepScore)} color={COL.sleep} goal={70} h={64}/>
+            <div style={{marginTop:14}}>
+              <div className="stat-line"><span className="muted">Sleep debt ({RANGES.find(r=>r[1]===range)[0]})</span><b style={{color:sleepDebt>0?STATUS.off:STATUS.good}}>{sleepDebt>0?`−${sleepDebt}h`:'on target'}</b></div>
+              <div className="stat-line"><span className="muted">Bedtime variance</span><b style={{color:bedVar>30?STATUS.watch:STATUS.good}}>±{bedVar} min</b></div>
+              <div className="stat-line"><span className="muted">Wake variance</span><b style={{color:wakeVar>30?STATUS.watch:STATUS.good}}>±{wakeVar} min</b></div>
+              <div className="stat-line"><span className="muted">Schedule regularity</span><b>{bedVar<25&&wakeVar<25?'Tight':'Loose'}</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== recovery & stress ===== */}
+      <section>
+        <div className="sec-label">Recovery & stress</div>
+        <div className="grid2">
+          <div className="panel pad">
+            <div className="card-h">Resting heart rate <span className="muted">· baseline 55, annotated</span></div>
+            <div className="card-sub">Hover a marker to see what happened</div>
+            <LineChart dates={dts} data={sl(restingHr)} color={COL.rhr} baseline={55} unit=" bpm"
+              annotations={Object.fromEntries(Object.entries(RHR_ANNO).map(([k,v])=>[+k-(DAYS-sliceN),v]).filter(([k])=>k>=0))}/>
+          </div>
+          <div className="panel pad">
+            <div className="card-h">HRV <span className="muted">· status Balanced</span></div>
+            <div className="card-sub">Personal baseline band 38–52 ms</div>
+            <LineChart dates={dts} data={sl(hrv)} color={COL.hrv} band={[38,52]} unit=" ms"/>
+          </div>
+        </div>
+        <div className="panel pad" style={{marginTop:18}}>
+          <div className="card-h">Stress — time in zones</div>
+          <div className="card-sub">Minutes per day · rest / low / medium / high</div>
+          <StackedBar dates={dts} data={sl(stressZones)} keys={['rest','low','med','high']} colors={['#3a4150','#5b6b7e','#a974e0','#e0697a']}/>
+          <div className="legend"><span><i style={{background:'#3a4150'}}></i>Rest</span><span><i style={{background:'#5b6b7e'}}></i>Low</span><span><i style={{background:'#a974e0'}}></i>Medium</span><span><i style={{background:'#e0697a'}}></i>High</span></div>
+        </div>
+      </section>
+
+      {/* ===== activity & training ===== */}
+      <section>
+        <div className="sec-label">Activity & training</div>
+        <div className="grid2-13">
+          <div className="panel pad">
+            <div className="card-h">Steps <span className="muted">· goal 8,000 · {stepStreak}-day streak</span></div>
+            <Bars dates={dts} data={sl(steps)} color={COL.steps} goal={8000}/>
+          </div>
+          <div className="panel pad">
+            <div className="card-h">Recent workouts</div>
+            <div style={{marginTop:6}}>{WORKOUTS.map((w,k)=><div className="workout" key={k}><span className="w-ico">{w.ico}</span><div><div>{w.type}</div><div className="muted" style={{fontSize:12}}>{['Today','Yesterday','2d','3d','4d','5d','6d'][w.d]}</div></div><div className="w-meta">{w.dur} · {w.intensity}<br/>{w.cal} kcal</div></div>)}</div>
+          </div>
+        </div>
+        <div className="grid2" style={{marginTop:18}}>
+          <div className="panel pad">
+            <div className="card-h">Intensity minutes <span className="muted">· this week</span></div>
+            <div style={{display:'flex',alignItems:'baseline',gap:10,margin:'8px 0 10px'}}><span style={{fontSize:30,fontWeight:700}}>{INTENSITY.week}</span><span className="muted">/ {INTENSITY.goal} min goal</span></div>
+            <div className="barbig"><i style={{width:Math.min(100,INTENSITY.week/INTENSITY.goal*100)+'%',background:INTENSITY.week>=INTENSITY.goal?STATUS.good:STATUS.watch}}></i></div>
+            <div className="muted" style={{marginTop:8,fontSize:12.5}}>{INTENSITY.goal-INTENSITY.week} minutes short — one more moderate session clears it.</div>
+          </div>
+          <div className="panel pad">
+            <div className="card-h">Training status & fitness</div>
+            <div className="stat-line"><span className="muted">Training status</span><b style={{color:STATUS.good}}>{TRAIN.status}</b></div>
+            <div className="stat-line"><span className="muted">Acute load (7d)</span><b>{TRAIN.acute}</b></div>
+            <div className="stat-line"><span className="muted">Chronic load (28d)</span><b>{TRAIN.chronic}</b></div>
+            <div className="stat-line"><span className="muted">Acute : chronic</span><b style={{color:(TRAIN.acute/TRAIN.chronic)<1.3?STATUS.good:STATUS.watch}}>{round(TRAIN.acute/TRAIN.chronic,2)} · safe</b></div>
+            <div className="stat-line"><span className="muted">VO₂ max</span><b style={{color:STATUS.good}}>{VO2_NOW} ▲</b></div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== nutrition ===== */}
+      <section>
+        <div className="sec-label">Nutrition · MyFitnessPal</div>
+        <div className="grid2">
+          <div className="panel pad">
+            <div className="card-h">Calorie balance <span className="muted">· avg over range</span></div>
+            <div style={{display:'flex',gap:24,margin:'10px 0 4px',flexWrap:'wrap'}}>
+              <div><div className="muted" style={{fontSize:12}}>In (MFP)</div><div style={{fontSize:26,fontWeight:700,color:COL.calin}}>{Math.round(avgN(calIn,sliceN)).toLocaleString()}</div></div>
+              <div><div className="muted" style={{fontSize:12}}>Out (Garmin)</div><div style={{fontSize:26,fontWeight:700,color:COL.calout}}>{Math.round(avgN(calOut,sliceN)).toLocaleString()}</div></div>
+              <div><div className="muted" style={{fontSize:12}}>Net</div><div style={{fontSize:26,fontWeight:700,color:calNet<0?STATUS.good:STATUS.watch}}>{calNet>0?'+':''}{calNet}</div></div>
+            </div>
+            <div className="muted" style={{fontSize:12.5}}>{calNet<0?`Mild deficit of ${Math.abs(calNet)} kcal/day — consistent with a slow cut.`:'Slight surplus.'}</div>
+            <div style={{marginTop:14}} className="card-sub">Daily intake consistency</div>
+            <Spark data={sl(calIn)} color={COL.calin} baseline={Math.round(avgN(calIn,sliceN))} h={50}/>
+          </div>
+          <div className="panel pad">
+            <div className="card-h">Macros <span className="muted">· protein is the one to watch</span></div>
+            <div style={{marginTop:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}><span>Protein</span><span><b>{proteinAvg}g</b> <span className="muted">/ 150g target</span></span></div>
+              <div className="barbig"><i style={{width:Math.min(100,proteinAvg/150*100)+'%',background:proteinAvg>=150?STATUS.good:STATUS.watch}}></i></div>
+              <div className="muted" style={{fontSize:12,marginTop:5,marginBottom:14}}>{150-proteinAvg>0?`${150-proteinAvg}g short on average — add a protein source at one meal.`:'On target.'}</div>
+              <div className="stat-line"><span style={{color:COL.protein}}>Protein</span><b>{proteinAvg}g · {Math.round(proteinAvg*4/(proteinAvg*4+avgN(carbs,sliceN)*4+avgN(fat,sliceN)*9)*100)}%</b></div>
+              <div className="stat-line"><span style={{color:'#7e8aa0'}}>Carbs</span><b>{Math.round(avgN(carbs,sliceN))}g</b></div>
+              <div className="stat-line"><span style={{color:'#c7a06a'}}>Fat</span><b>{Math.round(avgN(fat,sliceN))}g</b></div>
+            </div>
+          </div>
+        </div>
+        <div className="panel pad" style={{marginTop:18}}>
+          <div className="card-h">Weight vs intake <span className="muted">· does the deficit show up on the scale?</span></div>
+          <div className="card-sub">7-day weight trend (line) over daily calorie balance</div>
+          <Scatter xs={sl(calIn).map((v,i)=>v-sl(calOut)[i])} ys={wSlice} xLabel="Daily net calories" yLabel="Weight (kg)" xColor={COL.calin} yColor={COL.weight} height={260}/>
+        </div>
+      </section>
+
+      {/* ===== body composition ===== */}
+      <section>
+        <div className="sec-label">Body composition</div>
+        <div className="panel pad">
+          <div className="card-h">Weight <span className="muted">· daily (noisy) with 7-day moving average</span></div>
+          <div className="card-sub">The moving average is the truth; daily readings swing with water & food.</div>
+          <div className="chart"><svg viewBox="0 0 720 220" style={{width:'100%'}}>
+            {(()=>{const W=720,H=220,P={l:38,r:14,t:12,b:24};const lo=Math.min(...wSlice)-0.4,hi=Math.max(...wSlice)+0.4;const X=i=>P.l+i/(wSlice.length-1)*(W-P.l-P.r);const Y=v=>P.t+(1-(v-lo)/(hi-lo))*(H-P.t-P.b);
+              return <g>
+                {[0,.5,1].map((f,k)=>{const y=P.t+f*(H-P.t-P.b);return <g key={k}><line className="gridline" x1={P.l} x2={W-P.r} y1={y} y2={y}/><text className="axis" x={P.l-6} y={y+3} textAnchor="end">{round(hi-(hi-lo)*f,1)}</text></g>;})}
+                {wSlice.map((v,i)=><circle key={i} cx={X(i)} cy={Y(v)} r="2" fill={COL.weight} opacity=".4"/>)}
+                <path d={wMA.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')} fill="none" stroke={COL.weight} strokeWidth="2.4"/>
+                {[0,Math.floor(wSlice.length/2),wSlice.length-1].map(i=><text key={i} className="axis" x={X(i)} y={H-7} textAnchor="middle">{fmtDate(dts[i])}</text>)}
+              </g>;})()}
+          </svg></div>
+          <div className="grid2" style={{marginTop:14}}>
+            <div className="stat-line"><span className="muted">Body fat %</span><b className="muted">— not tracked</b></div>
+            <div className="stat-line"><span className="muted">Waist</span><b className="muted">— not tracked</b></div>
+          </div>
+          <div style={{display:'flex',gap:10,marginTop:14,alignItems:'center',flexWrap:'wrap'}}>
+            <span className="muted" style={{fontSize:13}}>Add today's weight manually:</span>
+            <input type="number" step="0.1" placeholder="75.9" value={wInput} onChange={e=>setWInput(e.target.value)} style={{width:90}}/>
+            <span className="muted">kg</span>
+            <button className="btn" onClick={addWeight}>Add</button>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== correlation explorer ===== */}
+      <section>
+        <div className="sec-label">Correlation explorer</div>
+        <div className="panel pad">
+          <div className="explorer-controls">
+            <select value={xKey} onChange={e=>setXKey(e.target.value)}>{Object.entries(METRICS).map(([k,m])=><option key={k} value={k}>{m.label}</option>)}</select>
+            <span className="muted">vs</span>
+            <select value={yKey} onChange={e=>setYKey(e.target.value)}>{Object.entries(METRICS).map(([k,m])=><option key={k} value={k}>{m.label}</option>)}</select>
+            <span className="rval" style={{marginLeft:'auto'}}>r = <b style={{color:Math.abs(expR.r)>=0.4?'var(--text)':'var(--dim)'}}>{round(expR.r,2)}</b> · n = {expR.n}{expR.n<40 && <span className="lowconf">low confidence</span>}</span>
+          </div>
+          <div className="grid2-13" style={{alignItems:'center'}}>
+            <Scatter xs={xs} ys={ys} xLabel={METRICS[xKey].label} yLabel={METRICS[yKey].label} xColor={METRICS[xKey].color} yColor={METRICS[yKey].color}/>
+            <div className="interp">
+              {interp(expR.r)}
+              {expR.n<40 && <div className="muted" style={{fontSize:13,marginTop:10}}>Based on only {expR.n} overlapping days — treat as a hint, not a finding.</div>}
+              {xKey==='sleep'&&yKey==='stress' && <div className="act" style={{fontSize:14,marginTop:10,color:COL.sleep}}>This is your strongest relationship — improving sleep is the highest-leverage change you can make.</div>}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== weekly digest ===== */}
+      <section>
+        <div className="sec-label">Weekly digest</div>
+        <div className="panel pad digest">
+          <p>This week was a <span className="accent">recovery story going the wrong way</span>. Sleep slipped to a 62 average and bottomed at 51 last night, dragging stress up 7% and nudging resting heart rate a touch above your 55 baseline.</p>
+          <p>The good news: HRV held <span className="accent">balanced</span> and training stayed <span className="accent">productive</span> — your fitness base is intact, and VO₂ max is still creeping up.</p>
+          <p>The one thing worth your attention: <span className="accent">bedtime consistency</span>. Your data is unambiguous that sleep is your biggest lever on stress — and steps are well under goal, so an easy daily walk would help both energy and mood without adding training load.</p>
+        </div>
+      </section>
+
+      <div style={{textAlign:'center',color:'var(--faint)',fontSize:12,marginTop:40}}>Mockup · all data is generated &amp; internally consistent · time range drives every section</div>
+    </div>
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

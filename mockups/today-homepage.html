@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Today · personal launchpad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=UnifrakturCook:wght@700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0c0d11; --panel:#14161d; --panel-2:#191c25; --panel-3:#20232d;
+    --line:rgba(220,225,235,.08); --line-2:rgba(220,225,235,.16);
+    --text:#e9e7e1; --dim:#8b8e99; --faint:#5d616c;
+    --serif:'Fraunces', Georgia, serif; --sans:'Inter', system-ui, sans-serif; --black:'UnifrakturCook','Fraunces',serif;
+    --good:#74c79a; --watch:#d8a24f; --over:#e0697a; --accent:#b23a5b;
+    --sing:#d96aa8; --guitar:#4fb0c6; --writing:#9a78d6; --reading:#d8a24f; --mobility:#74c79a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1200px 460px at 50% -10%, rgba(178,58,91,.07), transparent 70%), var(--bg); color:var(--text); font-family:var(--sans); font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1500px; margin:0 auto; padding:0 26px 80px;}
+
+  /* top bar */
+  .topbar{position:sticky; top:0; z-index:30; background:rgba(12,13,17,.92); border-bottom:1px solid var(--line);}
+  .topbar-in{max-width:1500px; margin:0 auto; padding:13px 26px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;}
+  .wordmark{font-family:var(--black); font-size:24px; letter-spacing:.3px;}
+  .nav{display:flex; gap:4px;}
+  .nav a{font-family:var(--serif); font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); text-decoration:none; padding:6px 12px; border-bottom:2px solid transparent;}
+  .nav a:hover{color:var(--text);}
+  .nav a.on{color:var(--accent); border-bottom-color:var(--accent);}
+  .tod{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:2px;}
+  .tod button{border:0; background:none; color:var(--dim); font-family:var(--sans); font-weight:600; font-size:11.5px; letter-spacing:.05em; padding:5px 11px; border-radius:6px; cursor:pointer;}
+  .tod button.on{background:rgba(178,58,91,.18); color:#e7b6c2;}
+
+  /* day header */
+  .dayhead{display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin:26px 0 18px; flex-wrap:wrap;}
+  .dayname{font-family:var(--serif); font-weight:500; font-size:46px; line-height:1; letter-spacing:.5px;}
+  .daydate{font-family:var(--serif); font-style:italic; color:var(--dim); font-size:18px; margin-top:6px;}
+  .framing{font-size:14px; color:var(--dim); margin-top:10px; max-width:640px;}
+  .framing b{color:var(--text);}
+  .weather{display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px; font-size:14px; color:var(--dim);}
+  .weather b{color:var(--text); font-size:17px;}
+
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px;}
+  .pad{padding:18px 20px;}
+  .sec{font-family:var(--sans); text-transform:uppercase; letter-spacing:.22em; font-size:11px; font-weight:700; color:var(--faint); margin:0 0 13px;}
+  .sec a{color:var(--faint); text-decoration:none; float:right; letter-spacing:.12em;}
+  .sec a:hover{color:var(--accent);}
+
+  /* now + next */
+  .nownext{display:grid; grid-template-columns:1.1fr 1fr auto; gap:0; margin-bottom:20px; overflow:hidden;}
+  .nn-cell{padding:18px 22px; border-right:1px solid var(--line);}
+  .nn-cell:last-child{border-right:0;}
+  .nn-k{font-family:var(--sans); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:700;}
+  .nn-k.next{color:var(--dim);}
+  .nn-act{font-family:var(--serif); font-size:26px; margin:6px 0 4px; line-height:1.1;}
+  .nn-meta{font-size:13px; color:var(--dim);}
+  .nn-right{min-width:230px; display:flex; flex-direction:column; justify-content:center; gap:8px; background:var(--panel-2);}
+  .prog{height:6px; border-radius:4px; background:var(--panel-3); overflow:hidden;}
+  .prog > i{display:block; height:100%; background:linear-gradient(90deg,var(--accent),#d98aa0);}
+  .nn-tom{font-size:12.5px; color:var(--dim);}
+  .nn-tom b{color:var(--text);}
+
+  /* stat strip */
+  .strip{display:grid; grid-template-columns:auto 1fr; gap:0; margin-bottom:24px; overflow:hidden;}
+  .cluster{padding:14px 18px;}
+  .cluster.health{border-right:1px solid var(--line); background:linear-gradient(180deg, rgba(79,176,198,.04), transparent);}
+  .cl-label{font-family:var(--sans); text-transform:uppercase; letter-spacing:.18em; font-size:10px; font-weight:700; color:var(--faint); margin-bottom:12px;}
+  .cl-label a{float:right; color:var(--faint); text-decoration:none; letter-spacing:.1em;}
+  .cl-row{display:flex; gap:26px; flex-wrap:wrap; align-items:center;}
+  .read{display:flex; align-items:center; gap:12px;}
+  .read .ring{width:54px; height:54px; border-radius:50%; display:grid; place-items:center; font-family:var(--serif); font-size:20px; font-weight:600;}
+  .read .lab{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim);}
+  .read .lab b{display:block; font-family:var(--serif); font-size:15px; letter-spacing:0; text-transform:none; color:var(--text); margin-top:2px;}
+  .metric .m-name{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim);}
+  .metric .m-val{font-family:var(--serif); font-size:22px; font-weight:600; margin-top:3px;}
+  .metric .m-val small{font-size:12px; color:var(--dim); font-family:var(--sans); margin-left:3px;}
+  .metric .m-ctx{font-size:11.5px; margin-top:1px;}
+  .trend{font-weight:600;}
+  .health-row{display:flex; gap:20px; align-items:center;}
+  .htiles{display:flex; gap:22px; flex-wrap:wrap;}
+  .htile .ht-name{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim);}
+  .htile .ht-val{font-family:var(--serif); font-size:19px; font-weight:600; margin:2px 0 5px;}
+  .htile .ht-val small{font-family:var(--sans); font-size:11px; color:var(--dim); font-weight:400;}
+  .htile .ht-val span{font-size:11px; font-weight:600;}
+  .health-narr{font-family:var(--serif); font-style:italic; font-size:13.5px; color:#cfd2d9; margin-top:14px; line-height:1.5; max-width:580px;}
+  .health-narr b{color:var(--text); font-style:normal;}
+  .energy-row{margin-top:16px; border-top:1px solid var(--line); padding-top:13px;}
+  .er-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:8px; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); font-weight:700;}
+  .er-head b{font-family:var(--serif); font-size:16px; color:var(--text); letter-spacing:0;}
+  .er-head span:last-child{letter-spacing:.04em; text-transform:none; color:var(--dim); font-weight:400;}
+  .prod-cards{display:flex; gap:14px; flex-wrap:wrap;}
+  .pcard{flex:1; min-width:120px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:11px 14px; text-decoration:none; color:inherit;}
+  .pcard:hover{border-color:var(--line-2);}
+  .pcard .pc-name{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim);}
+  .pcard .pc-val{font-family:var(--serif); font-size:24px; font-weight:600; margin-top:3px;}
+  .pcard.alert{border-color:rgba(224,105,122,.5); background:rgba(224,105,122,.08);}
+  .pcard .pc-sub{font-size:11.5px; margin-top:1px;}
+
+  /* two columns */
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;}
+  @media (max-width:900px){ .cols{grid-template-columns:1fr;} .nownext,.strip{grid-template-columns:1fr;} }
+  .stack{display:flex; flex-direction:column; gap:20px;}
+
+  /* to-do */
+  .todo-add{display:flex; gap:8px; margin-bottom:12px;}
+  .todo-add input{flex:1; background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; padding:8px 11px; color:var(--text); font-family:var(--sans); font-size:14px;}
+  .todo-add button{background:rgba(178,58,91,.16); color:#e7b6c2; border:1px solid rgba(178,58,91,.4); border-radius:8px; padding:8px 14px; font-weight:600; cursor:pointer; font-family:var(--sans);}
+  .titem{display:flex; align-items:center; gap:11px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px;}
+  .titem:last-child{border-bottom:0;}
+  .titem .box{width:18px; height:18px; border-radius:5px; border:1.5px solid var(--line-2); cursor:pointer; flex:0 0 auto; display:grid; place-items:center; font-size:12px;}
+  .titem.done .box{background:var(--good); border-color:var(--good); color:#0c0d11;}
+  .titem.done span{color:var(--dim); text-decoration:line-through;}
+  .titem .x{margin-left:auto; color:var(--faint); cursor:pointer; font-size:13px; opacity:0; }
+  .titem:hover .x{opacity:1;}
+
+  /* practice */
+  .practice{display:flex; gap:9px; flex-wrap:wrap;}
+  .pbtn{flex:1; min-width:96px; background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--c); border-radius:9px; padding:10px 12px; cursor:pointer; text-align:left; color:inherit; font-family:var(--sans); transition:background .15s, border-color .15s;}
+  .pbtn:hover{border-color:var(--line-2);}
+  .pbtn.done{background:rgba(255,255,255,.04);}
+  .pbtn .pb-top{display:flex; align-items:center; justify-content:space-between;}
+  .pbtn .pb-name{font-family:var(--serif); font-size:14.5px;}
+  .pbtn .pb-chk{width:17px; height:17px; border-radius:50%; border:1.5px solid var(--c); display:grid; place-items:center; font-size:11px; color:var(--c);}
+  .pbtn.done .pb-chk{background:var(--c); color:#0c0d11;}
+  .pbtn .pb-cnt{font-size:11.5px; color:var(--dim); margin-top:4px;}
+
+  /* weekly grid */
+  .wgrid{display:grid; grid-template-columns:auto repeat(7,1fr); gap:7px 8px; align-items:center; margin-top:4px;}
+  .wg-head{font-size:10px; color:var(--faint); text-align:center; letter-spacing:.05em;}
+  .wg-name{font-family:var(--serif); font-size:13.5px; color:var(--text);}
+  .wg-dot{width:17px; height:17px; border-radius:5px; justify-self:center; background:var(--panel-3); position:relative;}
+  .wg-dot.hit{background:var(--c);}
+  .wg-dot.today{outline:2px solid var(--line-2); outline-offset:1px;}
+  .wg-dot.miss{background:var(--panel-3); border:1px solid var(--line);}
+
+  /* momentum */
+  .mom{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .mom .big{font-family:var(--serif); font-size:30px; font-weight:600;}
+  .mom .lab{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin-top:2px;}
+  .mom .sub{font-size:12px; color:var(--dim); margin-top:4px;}
+  .wins{font-family:var(--serif); font-style:italic; color:#cfd2d9; font-size:14.5px; line-height:1.5; border-top:1px solid var(--line); margin-top:14px; padding-top:12px;}
+
+  /* calendar */
+  .cal-item{display:flex; align-items:center; gap:11px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .cal-item:last-child{border-bottom:0;}
+  .cal-dot{width:8px; height:8px; border-radius:2px; background:var(--accent); flex:0 0 auto;}
+  .cal-item .ct{margin-left:auto; color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px;}
+
+  /* schedule */
+  .sched-body{}
+  .earlier{display:flex; align-items:center; gap:8px; width:100%; background:none; border:0; border-bottom:1px dashed var(--line-2); color:var(--dim); font-family:var(--sans); font-size:12.5px; padding:8px 0; cursor:pointer; letter-spacing:.04em;}
+  .earlier:hover{color:var(--text);}
+  .nowline{display:flex; align-items:center; gap:8px; margin:10px 0; color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.14em;}
+  .nowline .bar{flex:1; height:1px; background:var(--accent);}
+  .sblock{display:flex; gap:11px; padding:7px 0; border-bottom:1px solid var(--line); align-items:flex-start;}
+  .sblock:last-child{border-bottom:0;}
+  .sblock .st{width:48px; flex:0 0 auto; font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--dim); padding-top:1px;}
+  .sblock .sd{width:8px; height:8px; border-radius:50%; flex:0 0 auto; margin-top:5px; background:var(--dim);}
+  .sblock .sa{font-size:14px;}
+  .sblock .sn{font-size:12px; color:var(--dim);}
+  .sblock.past{opacity:.42;}
+  .sblock.now{background:rgba(178,58,91,.07); border-radius:8px; margin:0 -8px; padding:7px 8px;}
+  .sblock.now .sd{background:var(--accent);}
+  .sblock.cal{background:rgba(178,58,91,.1); border:1px solid rgba(178,58,91,.32); border-radius:8px; margin:4px -2px; padding:8px 10px;}
+  .sblock.cal .sa{font-family:var(--serif);}
+  .cal-tag{font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); border:1px solid rgba(178,58,91,.4); border-radius:4px; padding:1px 5px; margin-left:7px;}
+
+  /* tasks */
+  .tgroup-label{font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:14px 0 7px;}
+  .tgroup-label.over{color:var(--over);}
+  .tgroup-label:first-child{margin-top:0;}
+  .task{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .task:last-child{border-bottom:0;}
+  .task.over{border-left:2px solid var(--over); padding-left:10px; margin-left:-12px;}
+  .task .td{margin-left:auto; font-size:12px; font-variant-numeric:tabular-nums;}
+  .task .td.over{color:var(--over); font-weight:600;}
+  .task .td.up{color:var(--dim);}
+  .muted{color:var(--dim);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+const {useState, useRef, useEffect} = React;
+
+/* ---------------- data ---------------- */
+const fmtTime = m => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+const fmtDur = m => m>=60 ? `${Math.floor(m/60)}h ${m%60?`${m%60}m`:''}`.trim() : `${m}m`;
+
+const CAT = { routine:'#6b7280', training:'#74c79a', music:'#9a78d6', meal:'#d8a24f', work:'#4fb0c6', personal:'#d96aa8', sleep:'#7e8aa0' };
+// planned time-blocks (Sunday)
+const PLAN = [
+  [420,5,'Wake · water','routine'],[425,10,'Mobility','training'],[435,25,'Vocal warmup + technique','music'],
+  [460,25,'Guitar technique','music'],[485,15,'Coffee + light breakfast','meal'],[500,60,'Zone 2 cardio','training'],
+  [560,30,'Shower + snack','routine'],[590,60,'Song refinement','music'],[650,30,'Break + coffee','routine'],
+  [680,45,'Weekly review','work'],[725,60,'Guitar lead / improv','music'],[785,60,'Lunch + rest','meal'],
+  [845,90,'Light activity / reading','personal'],[935,25,'Dinner prep','meal'],[960,60,'Dinner + early wind-down','meal'],
+  [1020,90,'Partner time / social','personal'],[1110,120,'Light reading / stretch','personal'],[1230,150,'Evening — decompress, early sleep','sleep'],
+].map(([start,dur,act,cat])=>({start,end:start+dur,dur,act,cat,kind:'plan'}));
+// calendar events — each ONE spanning block (the bug was stamping these onto every overlapped sub-block)
+const CAL = [
+  {start:720,end:765,title:'Doctor',kind:'cal'},
+  {start:1140,end:1260,title:'Dinner with friends',kind:'cal'},
+];
+const TOMORROW = { firstBlock:[420,'Wake · water'], firstEvent:[570,'Standup (work)'] };
+
+const PRACTICE0 = [
+  {name:'Singing', v:'--sing', c:24, streak:5, week:[1,1,0,1,1,1,0]},
+  {name:'Guitar',  v:'--guitar', c:27, streak:9, week:[1,1,1,1,0,1,0]},
+  {name:'Writing', v:'--writing', c:25, streak:4, week:[1,0,1,1,1,1,0]},
+  {name:'Reading', v:'--reading', c:28, streak:12, week:[1,1,1,1,1,1,1]},
+  {name:'Mobility',v:'--mobility', c:23, streak:3, week:[0,1,1,0,1,1,1]},
+];
+const TODOS0 = [
+  {id:1,t:'Warm up voice 10 min',done:false},{id:2,t:'Run alternate-picking drill',done:false},
+  {id:3,t:'Write one verse',done:false},{id:4,t:'Read 20 pages',done:false},{id:5,t:'Hydrate 2L',done:true},
+];
+const TASKS = [
+  {t:'Back up sensor',due:'Jun 3',over:4},{t:'Calculate bus',due:'Jun 4',over:3},{t:'Copy port',due:'Jun 5',over:2},
+  {t:'Transmit driver',due:'Jun 5',over:2},{t:'Navigate sensor',due:'Jun 5',over:2},{t:'Parse pixel',due:'Jun 7',over:0},
+];
+const MODES = {morning:490, midday:780, evening:1203};
+
+// health summary sparklines (last 14 days, internally consistent)
+const HSPARK = {
+  sleep:[68,70,65,67,63,66,60,62,58,61,55,57,53,51],
+  rhr:[56,57,55,58,57,56,58,57,56,57,58,57,56,57],
+  steps:[6800,7400,5200,8100,6900,7600,7000,8200,6500,7200,7800,6900,7300,7200],
+};
+
+function Spark({data, goal, baseline, color, w=98, h=28}){
+  const lo=Math.min(...data, goal??Infinity, baseline??Infinity);
+  const hi=Math.max(...data, goal??-Infinity, baseline??-Infinity);
+  const X=i=>2+i/(data.length-1)*(w-4), Y=v=>2+(1-(v-lo)/((hi-lo)||1))*(h-4);
+  const d=data.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  return <svg viewBox={`0 0 ${w} ${h}`} style={{width:w,height:h,display:'block'}}>
+    {goal!=null && <line x1="2" x2={w-2} y1={Y(goal)} y2={Y(goal)} stroke="var(--good)" strokeWidth="1" strokeDasharray="3 3" opacity=".6"/>}
+    {baseline!=null && <line x1="2" x2={w-2} y1={Y(baseline)} y2={Y(baseline)} stroke={color} strokeWidth="1" strokeDasharray="2 3" opacity=".4"/>}
+    <path d={d} fill="none" stroke={color} strokeWidth="1.7" strokeLinejoin="round"/>
+  </svg>;
+}
+function Gauge({score,label,color,size=96}){
+  const r=(size-12)/2, c=2*Math.PI*r, off=c*(1-score/100);
+  return <div style={{position:'relative',width:size,height:size,flex:'0 0 auto'}}>
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--panel-3)" strokeWidth="7"/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform={`rotate(-90 ${size/2} ${size/2})`}/>
+    </svg>
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+      <b style={{fontFamily:'var(--serif)',fontSize:26,fontWeight:600,lineHeight:1}}>{score}</b>
+      <span style={{fontSize:9.5,letterSpacing:'.14em',textTransform:'uppercase',color:'var(--dim)',marginTop:3}}>{label}</span>
+    </div>
+  </div>;
+}
+
+// intraday Body Battery (energy) — charges overnight, peaks at wake, drains through day
+const BB_DAY=[
+  {t:0,v:36},{t:120,v:52},{t:240,v:69},{t:360,v:84},{t:420,v:90},{t:495,v:85},{t:560,v:78},
+  {t:620,v:73},{t:690,v:70},{t:720,v:66},{t:765,v:64},{t:805,v:71},{t:900,v:66},{t:1000,v:61},
+  {t:1080,v:60},{t:1140,v:61},{t:1203,v:62},
+];
+function EnergyMini({data, now, w=720, h=84}){
+  const pts=data.filter(p=>p.t<=now); if(pts.length<2) pts.push(data[1]||data[0]);
+  const P={l:4,r:4,t:8,b:16};
+  const X=t=>P.l+(t/1440)*(w-P.l-P.r), Y=v=>P.t+(1-v/100)*(h-P.t-P.b);
+  const line=pts.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+  const area=`M${X(pts[0].t).toFixed(1)},${h-P.b} `+pts.map(p=>`L${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)} `).join('')+`L${X(pts[pts.length-1].t).toFixed(1)},${h-P.b} Z`;
+  const cur=pts[pts.length-1];
+  const lab=t=>{const hh=Math.floor(t/60);return hh===0?'12a':hh<12?hh+'a':hh===12?'12p':(hh-12)+'p';};
+  return <svg viewBox={`0 0 ${w} ${h}`} style={{width:'100%',height:'auto',display:'block'}}>
+    <defs><linearGradient id="emini" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#74c79a" stopOpacity=".30"/><stop offset="100%" stopColor="#74c79a" stopOpacity="0"/></linearGradient></defs>
+    <line x1={P.l} x2={w-P.r} y1={Y(50)} y2={Y(50)} stroke="var(--line-2)" strokeDasharray="2 3" opacity=".5"/>
+    <path d={area} fill="url(#emini)"/>
+    <path d={line} fill="none" stroke="#74c79a" strokeWidth="2" strokeLinejoin="round"/>
+    <line x1={X(now)} x2={X(now)} y1={P.t} y2={h-P.b} stroke="var(--accent)" strokeWidth="1.3" opacity=".8"/>
+    <circle cx={X(cur.t)} cy={Y(cur.v)} r="4" fill="#fff" stroke="var(--accent)" strokeWidth="2.2"/>
+    {[0,360,720,1080,1440].map(t=><text key={t} x={X(t)} y={h-4} textAnchor="middle" fill="var(--faint)" style={{fontSize:9}}>{lab(t)}</text>)}
+  </svg>;
+}
+
+/* ---------------- app ---------------- */
+function App(){
+  const [mode,setMode] = useState('evening');
+  const now = MODES[mode];
+  const [todos,setTodos] = useState(TODOS0);
+  const [draft,setDraft] = useState('');
+  const [prac,setPrac] = useState(PRACTICE0);
+  const [showPast,setShowPast] = useState(false);
+
+  const doneToday = prac.filter(p=>p.week[6]).length;
+  const todosLeft = todos.filter(t=>!t.done).length;
+  const overdue = TASKS.filter(t=>t.over>0);
+  const ePts = BB_DAY.filter(p=>p.t<=now);
+  const curEnergy = ePts.length ? ePts[ePts.length-1].v : BB_DAY[0].v;
+  const prevE = ePts.length>1 ? ePts[ePts.length-2].v : curEnergy;
+  const eTrend = curEnergy>=prevE ? '▲ charging' : '▾ draining';
+
+  // schedule merge
+  const items = [...PLAN, ...CAL].sort((a,b)=>a.start-b.start);
+  const past = items.filter(i=>i.end<=now);
+  const rest = items.filter(i=>i.end>now);
+  const current = PLAN.find(p=>p.start<=now && now<p.end);
+  const nextBlock = PLAN.find(p=>p.start>now);
+  const doneBlocks = PLAN.filter(p=>p.end<=now).length;
+
+  function addTodo(e){e.preventDefault(); if(!draft.trim())return; setTodos([...todos,{id:Date.now(),t:draft.trim(),done:false}]); setDraft('');}
+  function toggleTodo(id){setTodos(todos.map(t=>t.id===id?{...t,done:!t.done}:t));}
+  function delTodo(id){setTodos(todos.filter(t=>t.id!==id));}
+  function logPractice(i){setPrac(prac.map((p,k)=>{ if(k!==i)return p; const on=p.week[6]; const week=p.week.slice(); week[6]=on?0:1; return {...p,week,c:p.c+(on?-1:1),streak:on?Math.max(0,p.streak-1):p.streak+1};}));}
+
+  const framing = {
+    morning: <>Good morning. <b>{overdue.length} tasks overdue</b>, {todosLeft} to-dos, 2 calendar events · first block <b>{fmtTime(PLAN[0].start)} {PLAN[0].act}</b>, first event <b>12:00 Doctor</b>.</>,
+    midday: <>Midday. <b>{doneBlocks} of {PLAN.length} blocks</b> done, {todosLeft} to-dos left · next event <b>19:00 Dinner with friends</b>.</>,
+    evening: <>Winding down. <b>{todosLeft} to-dos</b> left and <b>{overdue.length} tasks overdue</b> · early sleep recommended — tomorrow starts {fmtTime(TOMORROW.firstBlock[0])}.</>,
+  }[mode];
+
+  const weekPct = Math.round(prac.reduce((s,p)=>s+p.week.reduce((a,b)=>a+b,0),0)/(prac.length*7)*100);
+  const longest = prac.reduce((m,p)=>p.streak>m.streak?p:m, prac[0]);
+
+  return <>
+    <div className="topbar"><div className="topbar-in">
+      <div className="wordmark">Personal Dashboard</div>
+      <div className="nav">
+        <a className="on" href="#">Today</a><a href="#">Health</a><a href="#">Schedule</a><a href="#">Habits</a><a href="#">Tasks</a>
+      </div>
+      <div style={{display:'flex',gap:12,alignItems:'center'}}>
+        <span className="weather">☁ <b>14°</b> <span>cloudy · rain pm</span></span>
+        <div className="tod">{Object.keys(MODES).map(m=><button key={m} className={mode===m?'on':''} onClick={()=>setMode(m)}>{m[0].toUpperCase()+m.slice(1)}</button>)}</div>
+      </div>
+    </div></div>
+
+    <div className="wrap">
+      <div className="dayhead">
+        <div>
+          <div className="dayname">Sunday</div>
+          <div className="daydate">June 7</div>
+          <div className="framing">{framing}</div>
+        </div>
+      </div>
+
+      {/* now + next */}
+      <div className="panel nownext">
+        <div className="nn-cell">
+          <div className="nn-k">● Now {fmtTime(now)}</div>
+          {current
+            ? <><div className="nn-act">{current.act}</div><div className="nn-meta">started {fmtDur(now-current.start)} ago · ~{fmtDur(current.end-now)} left</div></>
+            : <><div className="nn-act">Open block</div><div className="nn-meta">nothing scheduled right now</div></>}
+        </div>
+        <div className="nn-cell">
+          <div className="nn-k next">Next{nextBlock?` · ${fmtTime(nextBlock.start)}`:''}</div>
+          {nextBlock
+            ? <><div className="nn-act" style={{color:'#cfd2d9'}}>{nextBlock.act}</div><div className="nn-meta">in {fmtDur(nextBlock.start-now)}</div></>
+            : <><div className="nn-act" style={{color:'#cfd2d9'}}>Day complete</div><div className="nn-meta">no more blocks today</div></>}
+        </div>
+        <div className="nn-cell nn-right">
+          <div style={{fontSize:12.5,color:'var(--dim)'}}><b style={{color:'var(--text)'}}>{doneBlocks} of {PLAN.length}</b> blocks done</div>
+          <div className="prog"><i style={{width:(doneBlocks/PLAN.length*100)+'%'}}></i></div>
+          <div className="nn-tom">{mode==='evening'?<>Tomorrow · <b>{fmtTime(TOMORROW.firstBlock[0])}</b> {TOMORROW.firstBlock[1]} · first event <b>{fmtTime(TOMORROW.firstEvent[0])}</b> {TOMORROW.firstEvent[1]}</>:<>2 calendar events today</>}</div>
+        </div>
+      </div>
+
+      {/* stat strip */}
+      <div className="panel strip">
+        <div className="cluster health">
+          <div className="cl-label">Health <a href="#">full page →</a></div>
+          <div className="health-row">
+            <Gauge score={64} label="Steady" color="var(--watch)"/>
+            <div className="htiles">
+              <div className="htile"><div className="ht-name">Sleep</div><div className="ht-val">51 <small>/ 70</small> <span style={{color:'var(--over)'}}>▼8%</span></div><Spark data={HSPARK.sleep} goal={70} color="#4fb0c6"/></div>
+              <div className="htile"><div className="ht-name">Resting HR</div><div className="ht-val">57 <small>≈ 55</small> <span style={{color:'var(--good)'}}>flat</span></div><Spark data={HSPARK.rhr} baseline={55} color="#e0697a"/></div>
+              <div className="htile"><div className="ht-name">Steps</div><div className="ht-val">7.2k <small>/ 8k</small> <span className="muted">90%</span></div><Spark data={HSPARK.steps} goal={8000} color="#d8a24f"/></div>
+            </div>
+          </div>
+          <div className="health-narr">Steady recovery, but last night’s <b>51</b> pulled the 7-day sleep average under target — <b>sleep is today’s lever</b>.</div>
+          <div className="energy-row">
+            <div className="er-head"><span>Energy through the day · Body Battery</span><span><b>{curEnergy}</b> / 100 · {eTrend} · now {fmtTime(now)}</span></div>
+            <EnergyMini data={BB_DAY} now={now}/>
+          </div>
+        </div>
+        <div className="cluster">
+          <div className="cl-label">Productivity</div>
+          <div className="prod-cards">
+            <a className="pcard" href="#"><div className="pc-name">To-do today</div><div className="pc-val">{todos.filter(t=>t.done).length}/{todos.length}</div><div className="pc-sub muted">{todosLeft} left</div></a>
+            <a className="pcard" href="#"><div className="pc-name">Habits today</div><div className="pc-val">{doneToday}/{prac.length}</div><div className="pc-sub muted">{weekPct}% this week</div></a>
+            <a className="pcard alert" href="#"><div className="pc-name" style={{color:'var(--over)'}}>Tasks overdue</div><div className="pc-val" style={{color:'var(--over)'}}>{overdue.length}</div><div className="pc-sub" style={{color:'var(--over)'}}>of {TASKS.length} due</div></a>
+          </div>
+        </div>
+      </div>
+
+      {/* two columns */}
+      <div className="cols">
+        {/* LEFT — Do */}
+        <div className="stack">
+          <div className="panel pad">
+            <div className="sec">Today's to-do</div>
+            <form className="todo-add" onSubmit={addTodo}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Add a to-do for today…"/><button type="submit">Add</button></form>
+            {todos.map(t=><div key={t.id} className={t.done?'titem done':'titem'}>
+              <div className="box" onClick={()=>toggleTodo(t.id)}>{t.done?'✓':''}</div>
+              <span>{t.t}</span><span className="x" onClick={()=>delTodo(t.id)}>✕</span>
+            </div>)}
+          </div>
+
+          <div className="panel pad">
+            <div className="sec">Quick log · practice <a href="#">habits →</a></div>
+            <div className="practice">
+              {prac.map((p,i)=><button key={p.name} className={p.week[6]?'pbtn done':'pbtn'} style={{['--c']:`var(${p.v})`}} onClick={()=>logPractice(i)}>
+                <div className="pb-top"><span className="pb-name">{p.name}</span><span className="pb-chk">{p.week[6]?'✓':''}</span></div>
+                <div className="pb-cnt">{p.c}/30 days · {p.streak}d streak</div>
+              </button>)}
+            </div>
+            {/* weekly grid */}
+            <div className="wgrid" style={{marginTop:18}}>
+              <div></div>{['M','T','W','T','F','S','S'].map((d,i)=><div key={i} className="wg-head">{d}</div>)}
+              {prac.map(p=>[<div key={p.name+'n'} className="wg-name">{p.name}</div>,
+                ...p.week.map((h,i)=><div key={p.name+i} className={`wg-dot ${h?'hit':'miss'} ${i===6?'today':''}`} style={{['--c']:`var(${p.v})`}}></div>)])}
+            </div>
+          </div>
+
+          <div className="panel pad">
+            <div className="sec">Momentum</div>
+            <div className="mom">
+              <div><div className="big" style={{color:'var(--good)'}}>{weekPct}%</div><div className="lab">This week</div><div className="sub">{prac.reduce((s,p)=>s+p.week.reduce((a,b)=>a+b,0),0)}/{prac.length*7} sessions</div></div>
+              <div><div className="big">{longest.streak}d</div><div className="lab">Longest streak</div><div className="sub">{longest.name} · going strong</div></div>
+            </div>
+            <div className="wins">A clean week on Reading (7/7) and Guitar’s back to a 9-day run. Mobility is the one slipping — two misses. Small nudge tomorrow keeps the set intact.</div>
+          </div>
+        </div>
+
+        {/* RIGHT — Plan */}
+        <div className="stack">
+          <div className="panel pad">
+            <div className="sec">Calendar today</div>
+            {CAL.map(c=><div key={c.title} className="cal-item"><span className="cal-dot"></span><span>{c.title}</span><span className="ct">{fmtTime(c.start)}–{fmtTime(c.end)}</span></div>)}
+          </div>
+
+          <div className="panel pad">
+            <div className="sec">Today's schedule <a href="#">full →</a></div>
+            <div className="sched-body">
+              {past.length>0 && <button className="earlier" onClick={()=>setShowPast(!showPast)}>{showPast?'▾':'▸'} Earlier today · {past.length} blocks done</button>}
+              {showPast && past.map((it,i)=> it.kind==='cal'
+                ? <div key={'p'+i} className="sblock cal past"><span className="st">{fmtTime(it.start)}</span><span><span className="sa">{it.title}<span className="cal-tag">calendar</span></span><div className="sn">{fmtTime(it.start)}–{fmtTime(it.end)}</div></span></div>
+                : <div key={'p'+i} className="sblock past"><span className="st">{fmtTime(it.start)}</span><span className="sd" style={{background:CAT[it.cat]}}></span><span><div className="sa">{it.act}</div></span></div>)}
+
+              <div className="nowline"><span>NOW {fmtTime(now)}</span><span className="bar"></span></div>
+
+              {rest.map((it,i)=> it.kind==='cal'
+                ? <div key={'r'+i} className="sblock cal" title={`${it.title} · ${fmtTime(it.start)}–${fmtTime(it.end)}`}><span className="st">{fmtTime(it.start)}</span><span><span className="sa">{it.title}<span className="cal-tag">calendar</span></span><div className="sn">{fmtTime(it.start)}–{fmtTime(it.end)} · spans {fmtDur(it.end-it.start)}</div></span></div>
+                : <div key={'r'+i} className={'sblock'+(current&&it.start===current.start?' now':'')} title={`${it.act} · ${fmtTime(it.start)}–${fmtTime(it.end)}`}><span className="st">{fmtTime(it.start)}</span><span className="sd" style={{background:CAT[it.cat]}}></span><span><div className="sa">{it.act}</div><div className="sn">{fmtDur(it.dur)}</div></span></div>)}
+            </div>
+          </div>
+
+          <div className="panel pad">
+            <div className="sec">Tasks due soon <a href="#">all tasks →</a></div>
+            <div className="tgroup-label over">Overdue · {overdue.length}</div>
+            {overdue.map((t,i)=><div key={i} className="task over"><span>{t.t}</span><span className="td over">{t.due} · {t.over}d late</span></div>)}
+            <div className="tgroup-label">Upcoming</div>
+            {TASKS.filter(t=>t.over===0).map((t,i)=><div key={i} className="task"><span>{t.t}</span><span className="td up">due {t.due}</span></div>)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{textAlign:'center',color:'var(--faint)',fontSize:12,marginTop:36}}>Mockup · dummy data · toggle Morning / Midday / Evening (top-right) to see the time-aware framing &amp; Now+Next shift</div>
+    </div>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

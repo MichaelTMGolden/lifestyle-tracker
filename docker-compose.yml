@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: personal-dashboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: dashboard
+      POSTGRES_DB: personal_dashboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard -d personal_dashboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Optional web UI for poking at the database — http://localhost:8080
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: personal-dashboard-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

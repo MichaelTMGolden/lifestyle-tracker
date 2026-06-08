@@ -1,0 +1,348 @@
+// Thin typed client over the C# API. In dev, Vite proxies "/api" to :5080.
+
+export interface CalendarEvent {
+  id: number
+  title: string
+  startsAt: string
+  endsAt: string
+  allDay: boolean
+  location: string | null
+}
+
+export interface Summary {
+  latestWeightKg: number | null
+  latestRestingHr: number | null
+  avgSleepHoursThisWeek: number | null
+  stepsThisWeek: number
+  workoutsThisWeek: number
+  habitsCompletedToday: number
+  habitsTotal: number
+  openTodos: number
+  upcomingEvents: CalendarEvent[]
+}
+
+export interface SleepNight {
+  date: string
+  deep: number
+  light: number
+  rem: number
+  awake: number
+  score: number | null
+}
+
+export interface MetricPoint {
+  recordedAt: string
+  value: number
+  unit: string | null
+}
+
+export interface Habit {
+  id: number
+  name: string
+  cadence: string
+  tracksTime: boolean
+  last30Completed: number
+  doneToday: boolean
+  minutesToday: number
+  totalMinutes: number
+  totalCompletions: number
+  currentStreak: number
+}
+
+export interface Todo {
+  id: number
+  title: string
+  notes: string | null
+  priority: number
+  createdAt: string
+  dueAt: string | null
+  completedAt: string | null
+}
+
+export interface Workout {
+  id: number
+  type: string
+  startedAt: string
+  durationMinutes: number
+  distanceMeters: number | null
+  calories: number | null
+  averageHeartRate: number | null
+}
+
+export interface CurrentBlock {
+  activity: string
+  startMinutes: number
+  durationMinutes: number | null
+  category: string
+}
+export interface NextBlock {
+  activity: string
+  startMinutes: number
+  category: string
+}
+
+export interface Today {
+  stepsToday: number
+  caloriesInToday: number
+  restingHr: number | null
+  lastSleepScore: number | null
+  sleepAvg14: number | null
+  sleepSpark: number[]
+  rhrSpark: number[]
+  stepsSpark: number[]
+  readiness: number
+  readinessLabel: string
+  habitsCompletedToday: number
+  habitsTotal: number
+  todosDueToday: number
+  todosOverdue: number
+  nowMinutes: number
+  current: CurrentBlock | null
+  next: NextBlock | null
+  tomorrowFirst: { activity: string; startMinutes: number } | null
+}
+
+export interface ScheduleBlock {
+  id: number
+  startMinutes: number
+  durationMinutes: number | null
+  activity: string
+  notes: string | null
+  category: string
+  protected: boolean
+  overlapped?: boolean
+}
+
+export interface ScheduleToday {
+  day: string
+  blocks: ScheduleBlock[]
+  events: CalendarEvent[]
+}
+
+export interface ScheduleDay {
+  day: string
+  blocks: ScheduleBlock[]
+}
+
+export interface MetricKey {
+  key: string
+  unit: string | null
+  count: number
+}
+
+export interface HabitHeatmap {
+  id: number
+  name: string
+  tracksTime: boolean
+  /** active days with their accumulated minutes (drives intensity shading) */
+  days: { date: string; minutes: number }[]
+  /** kept for backward compatibility */
+  completedDates: string[]
+}
+
+export interface GoalSource {
+  habitId: number
+  name: string
+  minutes: number
+}
+
+export interface Goal {
+  id: number
+  name: string
+  targetMinutes: number
+  colorHex: string | null
+  startDate: string | null
+  accumulatedMinutes: number
+  progress: number
+  remainingMinutes: number
+  weeklyMinutes: number
+  etaWeeks: number | null
+  sources: GoalSource[]
+}
+
+export interface GoalInput {
+  name: string
+  targetHours: number
+  colorHex?: string | null
+  startDate?: string | null
+  sourceHabitIds: number[]
+}
+
+export interface Connection {
+  kind: string
+  name: string
+  mode: string
+  configured: boolean
+  status: string
+  lastSyncedAt: string | null
+  records: number
+}
+export interface SyncResult { ok: boolean; records: number; message: string }
+
+export interface DailyTodo {
+  id: number
+  date: string
+  title: string
+  done: boolean
+  createdAt: string
+}
+
+export interface MacroSet { kcal: number; protein: number; carbs: number; fat: number }
+export interface MicroSet {
+  fiberG: number; sugarG: number; satFatG: number
+  sodiumMg: number; potassiumMg: number; calciumMg: number; ironMg: number
+}
+
+export interface FoodSearchResult {
+  name: string
+  brand: string | null
+  source: string // SourceKind name: "OpenFoodFacts" | "Usda"
+  externalRef: string | null
+  servingDescription: string | null
+  per100g: MacroSet
+  perServing: MacroSet | null
+  microsPer100g: MicroSet
+  microsPerServing: MicroSet | null
+}
+
+export interface FoodEntry {
+  id: number
+  dataSourceId: number
+  date: string
+  loggedAt: string
+  name: string
+  brand: string | null
+  externalRef: string | null
+  servingDescription: string | null
+  quantity: number
+  grams: number | null
+  meal: string // MealType name
+  source: string // SourceKind name of the originating food DB
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  fiberG: number
+  sugarG: number
+  satFatG: number
+  sodiumMg: number
+  potassiumMg: number
+  calciumMg: number
+  ironMg: number
+}
+
+export interface NutritionTotals {
+  calories: number; proteinG: number; carbsG: number; fatG: number
+  fiberG: number; sugarG: number; satFatG: number
+  sodiumMg: number; potassiumMg: number; calciumMg: number; ironMg: number
+}
+
+export interface NutritionDay {
+  date: string
+  entries: FoodEntry[]
+  totals: NutritionTotals
+  targets: { proteinG: number; calories: number }
+}
+
+export interface FoodEntryInput {
+  date?: string
+  meal?: string
+  name: string
+  brand?: string | null
+  source: string
+  externalRef?: string | null
+  servingDescription?: string | null
+  quantity: number
+  grams?: number | null
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  fiberG?: number
+  sugarG?: number
+  satFatG?: number
+  sodiumMg?: number
+  potassiumMg?: number
+  calciumMg?: number
+  ironMg?: number
+}
+
+// Send the device's current UTC offset so the API resolves "today/now" in the
+// user's local timezone — correct even while travelling.
+const tzHeaders = () => ({ 'X-Tz-Offset': String(new Date().getTimezoneOffset()) })
+
+async function get<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: tzHeaders() })
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...tzHeaders() },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+const post = <T>(url: string, body?: unknown) => send<T>('POST', url, body)
+
+export interface TodoInput {
+  title: string
+  notes?: string | null
+  priority: number
+  dueAt?: string | null
+}
+
+export const api = {
+  summary: () => get<Summary>('/api/summary'),
+  metric: (key: string, days = 90) => get<MetricPoint[]>(`/api/metrics/${key}?days=${days}`),
+  metricKeys: () => get<MetricKey[]>('/api/metrics'),
+  sleep: (days = 30) => get<SleepNight[]>(`/api/sleep?days=${days}`),
+  today: () => get<Today>('/api/today'),
+  scheduleToday: () => get<ScheduleToday>('/api/schedule/today'),
+  scheduleWeek: () => get<ScheduleDay[]>('/api/schedule/week'),
+  workouts: () => get<Workout[]>('/api/workouts'),
+  habits: () => get<Habit[]>('/api/habits'),
+  habitsHeatmap: (days = 182) => get<HabitHeatmap[]>(`/api/habits/heatmap?days=${days}`),
+  toggleHabit: (id: number) => post(`/api/habits/${id}/toggle`),
+  logHabitTime: (id: number, minutes: number) => post(`/api/habits/${id}/log-time`, { minutes }),
+  setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
+  toggleHabitTracksTime: (id: number) => post<{ id: number; tracksTime: boolean }>(`/api/habits/${id}/tracks-time`),
+
+  goals: () => get<Goal[]>('/api/goals'),
+  createGoal: (input: GoalInput) => post<{ id: number }>('/api/goals', input),
+  updateGoal: (id: number, input: GoalInput) => send<{ id: number }>('PUT', `/api/goals/${id}`, input),
+  deleteGoal: (id: number) => send<void>('DELETE', `/api/goals/${id}`),
+  todos: () => get<Todo[]>('/api/todos'),
+  toggleTodo: (id: number) => post<Todo>(`/api/todos/${id}/toggle`),
+  createTodo: (input: TodoInput) => post<Todo>('/api/todos', input),
+  updateTodo: (id: number, input: TodoInput) => send<Todo>('PUT', `/api/todos/${id}`, input),
+  deleteTodo: (id: number) => send<void>('DELETE', `/api/todos/${id}`),
+
+  addWeight: (value: number) => post<{ ok: boolean; value: number }>('/api/weight', { value }),
+
+  connections: () => get<Connection[]>('/api/connections'),
+  syncConnection: (kind: string) => post<SyncResult>(`/api/connections/${kind}/sync`),
+  importGarmin: async (files: File[]) => {
+    const fd = new FormData()
+    files.forEach((f) => fd.append('files', f))
+    const res = await fetch('/api/connections/garmin/import', { method: 'POST', headers: tzHeaders(), body: fd })
+    if (!res.ok) throw new Error(`import -> ${res.status}`)
+    return res.json() as Promise<{ ok: boolean; filesSaved: number; records: number; message: string }>
+  },
+
+  foodSearch: (q: string, country = 'ie') =>
+    get<FoodSearchResult[]>(`/api/food/search?q=${encodeURIComponent(q)}&country=${encodeURIComponent(country)}`),
+  nutritionDay: (date?: string) => get<NutritionDay>(`/api/nutrition/day${date ? `?date=${date}` : ''}`),
+  createFoodEntry: (input: FoodEntryInput) => post<FoodEntry>('/api/nutrition/entries', input),
+  updateFoodEntry: (id: number, input: FoodEntryInput) => send<FoodEntry>('PUT', `/api/nutrition/entries/${id}`, input),
+  deleteFoodEntry: (id: number) => send<void>('DELETE', `/api/nutrition/entries/${id}`),
+
+  dailyTodos: () => get<DailyTodo[]>('/api/daily-todos'),
+  createDailyTodo: (title: string) => post<DailyTodo>('/api/daily-todos', { title }),
+  toggleDailyTodo: (id: number) => post<DailyTodo>(`/api/daily-todos/${id}/toggle`),
+  deleteDailyTodo: (id: number) => send<void>('DELETE', `/api/daily-todos/${id}`),
+}

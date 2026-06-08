@@ -1,0 +1,24 @@
+# Render Blueprint — provisions the database + web service from this repo.
+# In Render: New → Blueprint → pick this repo → Apply.
+databases:
+  - name: dashboard-db
+    databaseName: personal_dashboard
+    user: dashboard
+    plan: free            # free Postgres expires after ~90 days; bump to a paid plan to keep it
+
+services:
+  - type: web
+    name: personal-dashboard
+    runtime: docker
+    plan: free            # free web services sleep when idle (cold starts); fine for personal use
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true       # redeploy on every push to the connected branch
+    envVars:
+      - key: ConnectionStrings__Postgres
+        fromDatabase:
+          name: dashboard-db
+          property: connectionString
+      - key: Usda__ApiKey
+        sync: false        # set this secret in the Render dashboard (optional — enables USDA food search)

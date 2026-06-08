@@ -1,0 +1,56 @@
+/* Fonts are loaded via <link> in index.html (non-blocking) — not @import here. */
+:root {
+  /* gothic · blood crimson on obsidian */
+  --bg: #0a0a0c;
+  --bg-1: #101013;
+  --bg-2: #16161b;
+  --bg-3: #1e1e25;
+  --line: rgba(231, 226, 216, 0.08);
+  --line-strong: rgba(231, 226, 216, 0.16);
+
+  --text: #e6e1d6;     /* bone */
+  --text-dim: #8c867a;
+
+  --crimson: #b23a5b;       /* accent (legible on dark) */
+  --crimson-deep: #7c1832;  /* deep oxblood */
+  --crimson-soft: rgba(178, 58, 91, 0.13);
+
+  --good: #7faf93;   /* muted sage — positive trend */
+  --watch: #d8a24f;  /* amber — caution */
+  --bad: #c45a68;    /* muted rose — negative trend */
+
+  --font-head: 'Cinzel', Georgia, serif;
+  --font-body: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --font-black: 'UnifrakturCook', 'Cinzel', serif;
+
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--text);
+  /* mostly flat obsidian with one faint crimson vignette up top */
+  background:
+    radial-gradient(1100px 420px at 50% -8%, rgba(124, 24, 50, 0.10), transparent 70%),
+    var(--bg);
+}
+
+#root { width: 100%; }
+
+a { color: inherit; }
+
+::selection { background: var(--crimson-deep); color: #f3ece0; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #24242b; border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #2f2f38; }
