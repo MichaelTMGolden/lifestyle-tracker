@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<ScheduleBlock> ScheduleBlocks => Set<ScheduleBlock>();
     public DbSet<DailyTodo> DailyTodos => Set<DailyTodo>();
     public DbSet<FoodEntry> FoodEntries => Set<FoodEntry>();
+    public DbSet<Alert> Alerts => Set<Alert>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -56,5 +57,9 @@ public class AppDbContext : DbContext
         b.Entity<FoodEntry>()
             .HasOne(x => x.DataSource).WithMany()
             .HasForeignKey(x => x.DataSourceId).OnDelete(DeleteBehavior.Restrict);
+
+        // Regeneration upserts by DedupeKey instead of duplicating.
+        b.Entity<Alert>().HasIndex(x => x.DedupeKey).IsUnique();
+        b.Entity<Alert>().HasIndex(x => x.Status);
     }
 }

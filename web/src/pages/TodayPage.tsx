@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  api, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
+  api, type Alert, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
   type ScheduleBlock, type ScheduleToday, type Today, type Todo,
 } from '../api'
-import { categoryColor, fmtMinutes, habitColor } from '../lib'
+import { alertSeverity, categoryColor, fmtMinutes, habitColor } from '../lib'
 import { Ring, Spark, STATUS } from '../charts'
 import { useIsMobile, usePersistentToggle } from '../hooks'
 import { useTimer } from '../timer/TimerContext'
@@ -27,6 +27,7 @@ export default function TodayPage() {
   const [heat, setHeat] = useState<HabitHeatmap[]>([])
   const [tasks, setTasks] = useState<Todo[]>([])
   const [daily, setDaily] = useState<DailyTodo[]>([])
+  const [alerts, setAlerts] = useState<Alert[]>([])
   const [newDaily, setNewDaily] = useState('')
   const [showPast, setShowPast] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,12 +37,14 @@ export default function TodayPage() {
 
   async function load() {
     try {
-      const [t, s, h, hm, tk, d] = await Promise.all([
+      const [t, s, h, hm, tk, d, al] = await Promise.all([
         api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
+        api.alerts().catch(() => [] as Alert[]),
       ])
-      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d)
+      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al)
     } catch (e) { setError(String(e)) }
   }
+  async function dismissAlert(id: number) { setAlerts((a) => a.filter((x) => x.id !== id)); await api.dismissAlert(id) }
   useEffect(() => { load() }, [])
   // Refetch when a timer is logged or a to-do is quick-added from the sticky bar.
   useEffect(() => { if (dataTick) load() }, [dataTick]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -114,6 +117,8 @@ export default function TodayPage() {
         {dayHead}
         <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
 
+        <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
+
         <section className="card quick-actions">
           <h2>Quick actions</h2>
           {addForm}
@@ -152,6 +157,8 @@ export default function TodayPage() {
     <>
       {dayHead}
       <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
+
+      <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
 
       <section className="panel strip">
         <HealthCluster today={today} hasHealth={hasHealth} />
@@ -225,6 +232,29 @@ function NowNext({ today, now, blocksDone, blocksTotal }: { today: Today; now: n
         <div className="prog"><i style={{ width: `${blocksTotal ? (blocksDone / blocksTotal) * 100 : 0}%` }} /></div>
         {today.tomorrowFirst && <div className="nn-tom">Tomorrow · <b>{fmtMinutes(today.tomorrowFirst.startMinutes)}</b> {today.tomorrowFirst.activity}</div>}
       </div>
+    </section>
+  )
+}
+
+// Top 1–3 active alerts, severity-sorted (API already sorts). Hidden when empty —
+// no "all good" noise. Each row taps through to the relevant page and is dismissable.
+function AttentionStrip({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id: number) => void }) {
+  if (alerts.length === 0) return null
+  return (
+    <section className="attention">
+      {alerts.slice(0, 3).map((a) => {
+        const sev = alertSeverity(a.severity)
+        const href = a.subjectType === 'Goal' || a.subjectType === 'Habit' ? '/habits' : '/health'
+        return (
+          <div key={a.id} className={`alert-row${sev.loud ? ' loud' : ''}`} style={{ ['--sev' as string]: sev.color }}>
+            <Link to={href} className="alert-main">
+              <span className="alert-dot" />
+              <span className="alert-text"><b>{a.title}</b><span className="alert-detail">{a.detail}</span></span>
+            </Link>
+            <button className="alert-x" onClick={() => onDismiss(a.id)} aria-label="Dismiss">✕</button>
+          </div>
+        )
+      })}
     </section>
   )
 }

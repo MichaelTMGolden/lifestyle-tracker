@@ -152,11 +152,20 @@ export interface Goal {
   targetMinutes: number
   colorHex: string | null
   startDate: string | null
+  targetDate: string | null
   accumulatedMinutes: number
   progress: number
   remainingMinutes: number
   weeklyMinutes: number
-  etaWeeks: number | null
+  dailyRateMinutes: number
+  lifetimeDailyRateMinutes: number
+  projectedDate: string | null
+  requiredDailyRateMinutes: number | null
+  paceStatus: 'ahead' | 'behind' | null
+  paceDeltaMinutesPerDay: number | null
+  expectedFraction: number | null
+  projectedVsTargetDays: number | null
+  state: 'active' | 'complete' | 'overdue' | 'stalled'
   sources: GoalSource[]
 }
 
@@ -165,7 +174,24 @@ export interface GoalInput {
   targetHours: number
   colorHex?: string | null
   startDate?: string | null
+  targetDate?: string | null
   sourceHabitIds: number[]
+}
+
+export interface Alert {
+  id: number
+  kind: string
+  severity: 'Info' | 'Watch' | 'Urgent'
+  subjectType: 'Metric' | 'Goal' | 'Habit'
+  subjectKey: string
+  title: string
+  detail: string
+  value: number | null
+  expectedLow: number | null
+  expectedHigh: number | null
+  forDate: string
+  detectedAt: string
+  status: string
 }
 
 export interface Connection {
@@ -356,6 +382,10 @@ export const api = {
   createFoodEntry: (input: FoodEntryInput) => post<FoodEntry>('/api/nutrition/entries', input),
   updateFoodEntry: (id: number, input: FoodEntryInput) => send<FoodEntry>('PUT', `/api/nutrition/entries/${id}`, input),
   deleteFoodEntry: (id: number) => send<void>('DELETE', `/api/nutrition/entries/${id}`),
+
+  alerts: (status?: string) => get<Alert[]>(`/api/alerts${status ? `?status=${status}` : ''}`),
+  refreshAlerts: () => post<Alert[]>('/api/alerts/refresh'),
+  dismissAlert: (id: number) => post<void>(`/api/alerts/${id}/dismiss`),
 
   dailyTodos: () => get<DailyTodo[]>('/api/daily-todos'),
   createDailyTodo: (title: string) => post<DailyTodo>('/api/daily-todos', { title }),

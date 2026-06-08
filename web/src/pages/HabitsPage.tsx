@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput } from '../api'
-import { habitColor, fmtHours, fmtElapsed, intensityLevel } from '../lib'
+import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDaySpan, intensityLevel } from '../lib'
 import { useTimer } from '../timer/TimerContext'
 
 const WEEKS = 26
@@ -257,10 +257,28 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete }: {
 }) {
   const pct = Math.round(goal.progress * 100)
   const accent = goal.colorHex || 'var(--crimson)'
+
+  // ETA line from the projection + state.
+  const etaLine =
+    goal.state === 'complete' ? 'Complete'
+    : goal.state === 'stalled' ? 'Stalled — no recent practice'
+    : goal.projectedDate ? `~${fmtMonthYear(goal.projectedDate)} at your 4-week pace`
+    : 'No recent pace to project from'
+
+  // Ahead/behind pill (only when a target date is set and goal isn't done).
+  const pace = goal.targetDate && goal.state !== 'complete'
+    ? goal.projectedVsTargetDays != null
+      ? { ahead: goal.projectedVsTargetDays < 0, text: `${fmtDaySpan(goal.projectedVsTargetDays)} ${goal.projectedVsTargetDays < 0 ? 'ahead' : 'behind'}` }
+      : { ahead: goal.paceStatus === 'ahead', text: goal.paceStatus === 'ahead' ? 'on pace' : 'behind' }
+    : null
+
   return (
     <div className={`goal-card${hero ? ' goal-hero' : ''}`} style={{ ['--goal' as string]: accent }}>
       <div className="goal-top">
-        <h3 className="goal-name">{goal.name}</h3>
+        <div className="goal-titlewrap">
+          <h3 className="goal-name">{goal.name}</h3>
+          {pace && <span className={`pace-pill ${pace.ahead ? 'ahead' : 'behind'}`}>{pace.text}</span>}
+        </div>
         <div className="goal-actions">
           <button className="icon-btn" title="Edit" onClick={onEdit}>✎</button>
           <button className="icon-btn" title="Delete" onClick={onDelete}>✕</button>
@@ -280,10 +298,15 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete }: {
             title={`${s.name}: ${fmtHours(s.minutes)}`}
           />
         ))}
+        {goal.expectedFraction != null && (
+          <span className="goal-marker" style={{ left: `${goal.expectedFraction * 100}%` }}
+            title={`Where you'd need to be today to hit ${goal.targetDate ? fmtMonthYear(goal.targetDate) : 'target'}`} />
+        )}
       </div>
       <div className="goal-meta">
         <span>{fmtHours(goal.remainingMinutes)} to go</span>
-        {goal.etaWeeks != null && <span className="goal-eta">~{goal.etaWeeks}w at current pace</span>}
+        <span className="goal-eta">{etaLine}</span>
+        {goal.targetDate && <span className="goal-target-date">target {fmtMonthYear(goal.targetDate)}</span>}
       </div>
       <div className="goal-feeders">
         {goal.sources.map((s) => {
@@ -309,6 +332,7 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
   const [name, setName] = useState(goal?.name ?? '')
   const [hours, setHours] = useState(goal ? String(Math.round(goal.targetMinutes / 60)) : '100')
   const [color, setColor] = useState(goal?.colorHex ?? '#b23a5b')
+  const [targetDate, setTargetDate] = useState(goal?.targetDate ?? '')
   const [feeders, setFeeders] = useState<number[]>(goal ? goal.sources.map((s) => s.habitId) : [])
 
   const toggleFeeder = (id: number) =>
@@ -318,7 +342,11 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
     e.preventDefault()
     const targetHours = parseInt(hours, 10) || 0
     if (!name.trim() || feeders.length === 0 || targetHours <= 0) return
-    onSubmit({ name: name.trim(), targetHours, colorHex: color, sourceHabitIds: feeders })
+    onSubmit({
+      name: name.trim(), targetHours, colorHex: color, sourceHabitIds: feeders,
+      targetDate: targetDate || null,
+      startDate: goal?.startDate ?? null, // preserve existing start on edit
+    })
   }
 
   return (
@@ -336,6 +364,13 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
           <span>Color</span>
           <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
         </label>
+      </div>
+      <div className="gf-row">
+        <label className="gf-field gf-grow">
+          <span>Target date (optional)</span>
+          <input type="date" value={targetDate ?? ''} onChange={(e) => setTargetDate(e.target.value)} />
+        </label>
+        {targetDate && <button type="button" className="btn btn-ghost btn-sm gf-clear" onClick={() => setTargetDate('')}>Clear date</button>}
       </div>
       <div className="gf-feeders">
         <span className="gf-label">Feeder skills</span>

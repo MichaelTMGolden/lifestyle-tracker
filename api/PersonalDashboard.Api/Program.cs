@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.ResponseCompression;
+using PersonalDashboard.Api.Alerts;
 using Microsoft.EntityFrameworkCore;
 using PersonalDashboard.Api.Data;
 using PersonalDashboard.Api.Domain;
@@ -61,6 +62,13 @@ builder.Services.AddHttpClient("off", c =>
 });
 builder.Services.AddHttpClient("usda", c => c.Timeout = TimeSpan.FromSeconds(6));
 builder.Services.AddSingleton<FoodSearchService>();
+
+// Anomaly/pattern alert detectors. Adding a detector = register it here (one line).
+builder.Services.AddSingleton<IAlertDetector, MetricAnomalyDetector>();
+builder.Services.AddSingleton<IAlertDetector, SleepDebtDetector>();
+builder.Services.AddSingleton<IAlertDetector, StreakBreakDetector>();
+builder.Services.AddSingleton<IAlertDetector, GoalOffPaceDetector>();
+builder.Services.AddSingleton<AlertService>();
 
 // Data-source providers. Garmin import is live today; the rest are labelled
 // seams that go live by implementing IDataProvider + flipping Configured.

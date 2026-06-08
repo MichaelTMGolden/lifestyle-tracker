@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type MetricPoint, type SleepNight, type Today, type Workout } from '../api'
+import { api, type Alert, type MetricPoint, type SleepNight, type Today, type Workout } from '../api'
 import { fmtDay } from '../lib'
 import {
   AnnotatedLine, mean, movingAvg, pearson, Ring, round, Scatter, Spark, StackedBars, STATUS,
@@ -41,7 +41,7 @@ interface Bundle {
   today: Today; sleepScore: MetricPoint[]; stress: MetricPoint[]; rhr: MetricPoint[]
   steps: MetricPoint[]; weight: MetricPoint[]; calIn: MetricPoint[]; active: MetricPoint[]
   protein: MetricPoint[]; carbs: MetricPoint[]; fat: MetricPoint[]
-  sleep: SleepNight[]; workouts: Workout[]; keys: string[]
+  sleep: SleepNight[]; workouts: Workout[]; keys: string[]; alerts: Alert[]
 }
 
 export default function HealthDashboard() {
@@ -55,15 +55,15 @@ export default function HealthDashboard() {
 
   async function load() {
     try {
-      const [today, sleepScore, stress, rhr, steps, weight, calIn, active, protein, carbs, fat, sleep, keyList, workouts] = await Promise.all([
+      const [today, sleepScore, stress, rhr, steps, weight, calIn, active, protein, carbs, fat, sleep, keyList, workouts, alerts] = await Promise.all([
         api.today(),
         api.metric('sleep_score', fetchN), api.metric('stress_avg', fetchN), api.metric('resting_hr', fetchN),
         api.metric('steps', fetchN), api.metric('weight_kg', fetchN), api.metric('calories_in', fetchN),
         api.metric('active_calories', fetchN),
         api.metric('protein_g', fetchN), api.metric('carbs_g', fetchN), api.metric('fat_g', fetchN),
-        api.sleep(days), api.metricKeys(), api.workouts(),
+        api.sleep(days), api.metricKeys(), api.workouts(), api.alerts().catch(() => [] as Alert[]),
       ])
-      setB({ today, sleepScore, stress, rhr, steps, weight, calIn, active, protein, carbs, fat, sleep, workouts, keys: keyList.map((k) => k.key) })
+      setB({ today, sleepScore, stress, rhr, steps, weight, calIn, active, protein, carbs, fat, sleep, workouts, keys: keyList.map((k) => k.key), alerts })
     } catch (e) { setError(String(e)) }
   }
   useEffect(() => { load() }, [days]) // eslint-disable-line
@@ -82,6 +82,10 @@ export default function HealthDashboard() {
 
   // Any real Garmin-sourced signals yet? Drives honest empty states.
   const hasHealth = b.sleepScore.length > 0 || b.rhr.length > 0 || b.stress.length > 0 || b.steps.length > 0
+  // Metric keys with an active anomaly alert → show an inline marker on that vital.
+  const anomalyKeys = new Set(
+    b.alerts.filter((a) => a.kind === 'MetricSpike' || a.kind === 'MetricDrop').map((a) => a.subjectKey),
+  )
 
   // readiness from available signals
   const sleepToday = b.today.lastSleepScore ?? latest(b.sleepScore) ?? 60
@@ -208,15 +212,15 @@ export default function HealthDashboard() {
       <div className="vitals">
         <Vital to="sleep_score" name="Sleep Score" value={Math.round(sleepToday)} valSub="today"
           sub={`14-day avg ${round(sleep14, 0)}`} target={sleep14 >= 70 ? 'within 70+ target' : 'below 70+ target'}
-          tStatus={sleep14 >= 70 ? 'good' : 'off'} t={tSleep} betterHigher
+          tStatus={sleep14 >= 70 ? 'good' : 'off'} t={tSleep} betterHigher anomaly={anomalyKeys.has('sleep_score')}
           spark={<Spark data={V(sleepD)} color={C.sleep} goal={70} />} />
         <Vital to="resting_hr" name="Resting HR" value={Math.round(rhrNow)} valSub="bpm" sub="baseline 55"
           target={rhrNow <= 58 ? 'near baseline' : 'above baseline'} tStatus={rhrNow <= 58 ? 'good' : 'watch'}
-          t={tRhr} betterHigher={false} spark={<Spark data={V(rhrD)} color={C.rhr} baseline={55} />} />
+          t={tRhr} betterHigher={false} anomaly={anomalyKeys.has('resting_hr')} spark={<Spark data={V(rhrD)} color={C.rhr} baseline={55} />} />
         <StubVital name="HRV" note="awaiting Garmin" />
         <Vital to="stress_avg" name="Stress" value={Math.round(avgLast(b.stress, 14))} valSub="avg" sub="lower is better"
           target={avgLast(b.stress, 14) < 45 ? 'calm' : 'elevated'} tStatus={avgLast(b.stress, 14) < 45 ? 'good' : 'watch'}
-          t={tStress} betterHigher={false} spark={<Spark data={V(stressD)} color={C.stress} />} />
+          t={tStress} betterHigher={false} anomaly={anomalyKeys.has('stress_avg')} spark={<Spark data={V(stressD)} color={C.stress} />} />
         <Vital to="steps" name="Steps" value={Math.round(avgLast(b.steps, 7)).toLocaleString()} valSub="7-day avg"
           sub="goal 8,000" target={avgLast(b.steps, 7) >= 8000 ? 'at goal' : `${Math.round((1 - avgLast(b.steps, 7) / 8000) * 100)}% under goal`}
           tStatus={avgLast(b.steps, 7) >= 8000 ? 'good' : 'off'} t={tSteps} betterHigher spark={<Spark data={V(stepsD)} color={C.steps} goal={8000} />} />
@@ -394,13 +398,13 @@ function Chip({ s, children }: { s: 'good' | 'watch' | 'off' | 'stub'; children:
   return <span className={s === 'stub' ? 'chip stub' : 'chip'}><span className="dot" style={{ background: color }} />{children}</span>
 }
 
-function Vital({ to, name, value, valSub, sub, target, tStatus, t, spark }: {
+function Vital({ to, name, value, valSub, sub, target, tStatus, t, spark, anomaly }: {
   to: string; name: string; value: string | number; valSub?: string; sub?: string; target?: string
-  tStatus?: 'good' | 'watch' | 'off'; t: Trend | null; betterHigher?: boolean | null; spark: ReactNode
+  tStatus?: 'good' | 'watch' | 'off'; t: Trend | null; betterHigher?: boolean | null; spark: ReactNode; anomaly?: boolean
 }) {
   return (
-    <Link to={`/health/${to}`} className="card vcard">
-      <div className="v-top"><span className="v-name">{name}</span><TrendBadge t={t} /></div>
+    <Link to={`/health/${to}`} className={`card vcard${anomaly ? ' vcard-anomaly' : ''}`}>
+      <div className="v-top"><span className="v-name">{name}{anomaly && <span className="v-anomaly" title="Unusual today — see alert">!</span>}</span><TrendBadge t={t} /></div>
       <div className="v-val">{value}{valSub && <small>{valSub}</small>}</div>
       {sub && <div className="v-sub">{sub}</div>}
       {target && <div className="v-target" style={{ color: tStatus ? STATUS[tStatus] : 'var(--dim)' }}>{target}</div>}

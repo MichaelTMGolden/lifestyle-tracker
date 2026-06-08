@@ -46,19 +46,24 @@ public static class DataSeeder
         db.DataSources.AddRange(manual, garmin, mfp, spotify, gcal);
         await db.SaveChangesAsync();
 
-        // --- Daily metrics: weight, resting HR, steps, sleep, calories in ---
+        // --- Daily metrics: weight, calories, + (for the dummy DB only) resting HR
+        // and sleep so the alert detectors have something to fire on. On a real
+        // deploy these come from the Garmin import instead. ---
         var weight = 78.0;
         var samples = new List<MetricSample>();
         for (var d = 0; d < Days; d++)
         {
             var day = start.AddDays(d);
             weight += Randomizer.Seed.NextDouble() * 0.4 - 0.22; // slow downward drift + noise
-            // Steps, resting HR and sleep come from the real Garmin import
-            // (GarminCsvImporter), so they're intentionally not faked here.
-            // Weight and calories aren't in the Garmin export, so keep them.
             samples.Add(Sample(manual.Id, "weight_kg", day.AddHours(7), Math.Round(weight, 1), "kg"));
             samples.Add(Sample(mfp.Id, "calories_in", day.AddHours(21), Randomizer.Seed.Next(1700, 2900), "kcal"));
+            samples.Add(Sample(garmin.Id, "resting_hr", day.AddHours(6), 50 + Randomizer.Seed.Next(0, 5), "bpm"));
+            // ~6.3–7h/night → a steady sleep deficit vs an 8h target (fires SleepDebt).
+            samples.Add(Sample(garmin.Id, "sleep_total_min", day.AddHours(6), 380 + Randomizer.Seed.Next(0, 40), "min"));
         }
+        // Today: a resting-HR spike (vs the ~52 baseline → MetricSpike) and a short night.
+        samples.Add(Sample(garmin.Id, "resting_hr", today.AddHours(6), 64, "bpm"));
+        samples.Add(Sample(garmin.Id, "sleep_total_min", today.AddHours(6), 360, "min"));
         db.MetricSamples.AddRange(samples);
 
         // --- Workouts (~4/week) ---
@@ -157,6 +162,14 @@ public static class DataSeeder
                     Minutes = h.TracksTime ? Randomizer.Seed.Next(20, 91) : 0,
                 });
             }
+        }
+        // Break Reading's streak: drop its last two days so a ≥5-day streak ended
+        // 2 days ago (fires StreakBreak). Reading is otherwise near-daily.
+        var readingId = habits.FirstOrDefault(h => h.Name == "Reading")?.Id;
+        if (readingId is int rid)
+        {
+            var t0 = DateOnly.FromDateTime(today);
+            logs.RemoveAll(l => l.HabitId == rid && (l.Date == t0 || l.Date == t0.AddDays(-1)));
         }
         db.HabitLogs.AddRange(logs);
 
@@ -345,6 +358,7 @@ public static class DataSeeder
                 TargetMinutes = 6000,
                 ColorHex = "#2fe6d6",
                 StartDate = today.AddDays(-45),
+                TargetDate = today.AddDays(400), // far out → comfortably ahead of pace
                 Sources = new() { new GoalSource { HabitId = guitar } },
             });
         }
@@ -359,6 +373,7 @@ public static class DataSeeder
                 Name = "Frontman \u00B7 1000h", // · = middot; escaped so source encoding can't mojibake it
                 TargetMinutes = 60000,
                 ColorHex = "#ff3d8b",
+                TargetDate = today.AddDays(150), // near deadline → clearly behind pace (fires GoalOffPace)
                 Sources = frontmanFeeders,
             });
         }

@@ -11,6 +11,27 @@ export function fmtMinutes(min: number): string {
 export const fmtDay = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 
+/** Alert severity → display treatment. Urgent is the only loud one. */
+export function alertSeverity(sev: string): { color: string; loud: boolean } {
+  switch (sev) {
+    case 'Urgent': return { color: 'var(--bad)', loud: true }
+    case 'Watch': return { color: 'var(--watch)', loud: false }
+    default: return { color: 'var(--text-dim)', loud: false }
+  }
+}
+
+/** ISO date → "Mar 2027" (for goal ETA / projected completion). */
+export const fmtMonthYear = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+
+/** A day count → human span: "8 days" / "2 weeks" / "3 months". */
+export function fmtDaySpan(days: number): string {
+  const d = Math.abs(Math.round(days))
+  if (d < 14) return `${d} day${d === 1 ? '' : 's'}`
+  if (d < 60) return `${Math.round(d / 7)} weeks`
+  return `${Math.round(d / 30)} months`
+}
+
 /** Grams → "31 g" (rounded). */
 export const fmtMacro = (g: number) => `${Math.round(g)} g`
 /** kcal → "1,718" (rounded, thousands-separated). */

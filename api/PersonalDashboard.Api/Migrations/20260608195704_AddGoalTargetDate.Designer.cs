@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PersonalDashboard.Api.Data;
@@ -11,9 +12,11 @@ using PersonalDashboard.Api.Data;
 namespace PersonalDashboard.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260608195704_AddGoalTargetDate")]
+    partial class AddGoalTargetDate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,74 +24,6 @@ namespace PersonalDashboard.Api.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("PersonalDashboard.Api.Domain.Alert", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("DedupeKey")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Detail")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("DetectedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DismissedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<double?>("ExpectedHigh")
-                        .HasColumnType("double precision");
-
-                    b.Property<double?>("ExpectedLow")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateOnly>("ForDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Severity")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SubjectKey")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SubjectType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<double?>("Value")
-                        .HasColumnType("double precision");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DedupeKey")
-                        .IsUnique();
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("Alerts");
-                });
 
             modelBuilder.Entity("PersonalDashboard.Api.Domain.CalendarEvent", b =>
                 {

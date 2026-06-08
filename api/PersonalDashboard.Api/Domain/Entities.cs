@@ -130,6 +130,8 @@ public class Goal
     public string? ColorHex { get; set; }
     /// <summary>Only count feeder minutes on/after this date; null = count all-time.</summary>
     public DateOnly? StartDate { get; set; }
+    /// <summary>Optional deadline. When set, the goal shows ahead/behind pace vs a linear plan.</summary>
+    public DateOnly? TargetDate { get; set; }
     public bool Archived { get; set; }
 
     public List<GoalSource> Sources { get; set; } = new();
@@ -143,6 +145,30 @@ public class GoalSource
     public Goal? Goal { get; set; }
     public int HabitId { get; set; }
     public Habit? Habit { get; set; }
+}
+
+/// <summary>
+/// An anomaly / pattern alert surfaced to the user. Kind/Severity/SubjectType/Status
+/// are free strings (extensible — a new detector adds new Kinds without a migration).
+/// DedupeKey makes regeneration idempotent (unique index → upsert, not duplicate).
+/// </summary>
+public class Alert
+{
+    public long Id { get; set; }
+    public required string Kind { get; set; }        // MetricSpike, MetricDrop, SleepDebt, StreakBreak, Inactivity, GoalOffPace, DeclineTrend
+    public required string Severity { get; set; }     // Info | Watch | Urgent
+    public required string SubjectType { get; set; }  // Metric | Goal | Habit
+    public required string SubjectKey { get; set; }   // metric key / goal id / habit id
+    public required string Title { get; set; }
+    public required string Detail { get; set; }
+    public double? Value { get; set; }
+    public double? ExpectedLow { get; set; }
+    public double? ExpectedHigh { get; set; }
+    public DateOnly ForDate { get; set; }
+    public DateTimeOffset DetectedAt { get; set; }
+    public required string DedupeKey { get; set; }    // e.g. "MetricSpike:resting_hr:2026-06-08"
+    public string Status { get; set; } = "New";       // New | Seen | Dismissed
+    public DateTimeOffset? DismissedAt { get; set; }
 }
 
 public enum MealType { Breakfast = 0, Lunch = 1, Dinner = 2, Snack = 3, Other = 4 }

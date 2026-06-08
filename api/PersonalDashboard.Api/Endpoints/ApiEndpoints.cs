@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using PersonalDashboard.Api;
 using PersonalDashboard.Api.Data;
 using PersonalDashboard.Api.Domain;
+using PersonalDashboard.Api.Alerts;
 using PersonalDashboard.Api.Garmin;
+using PersonalDashboard.Api.Goals;
 using PersonalDashboard.Api.Integrations;
 using PersonalDashboard.Api.Nutrition;
 using PersonalDashboard.Api.Schedule;
@@ -12,7 +14,7 @@ namespace PersonalDashboard.Api.Endpoints;
 public record WeightInput(double Value);
 public record LoginInput(string Password);
 public record MinutesInput(int Minutes);
-public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds);
+public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
     string? ServingDescription, double Quantity, double? Grams,
@@ -45,6 +47,11 @@ public static class ApiEndpoints
         while (set.Contains(cursor)) { n++; cursor = cursor.AddDays(-1); }
         return n;
     }
+
+    private static int SeverityRank(string severity) => severity switch
+    {
+        "Urgent" => 3, "Watch" => 2, "Info" => 1, _ => 0,
+    };
 
     private static SourceKind ParseFoodSource(string? source) => source switch
     {
@@ -631,56 +638,8 @@ public static class ApiEndpoints
         });
 
         // --- Goals (hour targets fed by one or more skills) ---
-        api.MapGet("/goals", async (AppDbContext db, HttpRequest req) =>
-        {
-            var today = ClientClock.From(req).Today;
-            var weekAgo = today.AddDays(-7);
-
-            // Load goals + feeders + their logs; compute rollups in memory (small).
-            var goals = await db.Goals
-                .Where(g => !g.Archived)
-                .Include(g => g.Sources).ThenInclude(s => s.Habit).ThenInclude(h => h!.Logs)
-                .OrderByDescending(g => g.TargetMinutes)
-                .ToListAsync();
-
-            return goals.Select(g =>
-            {
-                var sources = g.Sources
-                    .Where(s => s.Habit is not null)
-                    .Select(s =>
-                    {
-                        var minutes = s.Habit!.Logs
-                            .Where(l => g.StartDate == null || l.Date >= g.StartDate)
-                            .Sum(l => l.Minutes);
-                        return new { habitId = s.HabitId, name = s.Habit!.Name, minutes };
-                    })
-                    .OrderByDescending(s => s.minutes)
-                    .ToList();
-
-                var accumulated = sources.Sum(s => s.minutes);
-                var weekly = g.Sources.Where(s => s.Habit is not null)
-                    .SelectMany(s => s.Habit!.Logs)
-                    .Where(l => l.Date >= weekAgo && (g.StartDate == null || l.Date >= g.StartDate))
-                    .Sum(l => l.Minutes);
-                var remaining = Math.Max(0, g.TargetMinutes - accumulated);
-                double? etaWeeks = weekly > 0 && remaining > 0 ? Math.Round(remaining / (double)weekly, 1) : null;
-
-                return new
-                {
-                    g.Id,
-                    g.Name,
-                    g.TargetMinutes,
-                    g.ColorHex,
-                    g.StartDate,
-                    accumulatedMinutes = accumulated,
-                    progress = g.TargetMinutes > 0 ? Math.Min(1.0, accumulated / (double)g.TargetMinutes) : 0,
-                    remainingMinutes = remaining,
-                    weeklyMinutes = weekly,
-                    etaWeeks,
-                    sources,
-                };
-            });
-        });
+        api.MapGet("/goals", (AppDbContext db, HttpRequest req) =>
+            GoalPacingService.ComputeAsync(db, ClientClock.From(req).Today));
 
         api.MapPost("/goals", async (GoalInput input, AppDbContext db) =>
         {
@@ -690,6 +649,7 @@ public static class ApiEndpoints
                 TargetMinutes = Math.Max(0, input.TargetHours) * 60,
                 ColorHex = input.ColorHex,
                 StartDate = input.StartDate,
+                TargetDate = input.TargetDate,
                 Sources = (input.SourceHabitIds ?? new())
                     .Distinct().Select(hid => new GoalSource { HabitId = hid }).ToList(),
             };
@@ -707,6 +667,7 @@ public static class ApiEndpoints
             goal.TargetMinutes = Math.Max(0, input.TargetHours) * 60;
             goal.ColorHex = input.ColorHex;
             goal.StartDate = input.StartDate;
+            goal.TargetDate = input.TargetDate;
 
             db.GoalSources.RemoveRange(goal.Sources);
             goal.Sources = (input.SourceHabitIds ?? new())
@@ -721,6 +682,34 @@ public static class ApiEndpoints
             var goal = await db.Goals.FindAsync(id);
             if (goal is null) return Results.NotFound();
             db.Goals.Remove(goal);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // --- Alerts (anomaly / pattern detection) ---
+        // GET runs a staleness-guarded regeneration (≤ once/hour); refresh forces it.
+        api.MapGet("/alerts", async (AppDbContext db, AlertService alerts, HttpRequest req, string? status) =>
+        {
+            await alerts.GenerateIfStaleAsync(db, ClientClock.From(req));
+            var query = db.Alerts.AsNoTracking();
+            if (status != "all") query = query.Where(a => a.Status != "Dismissed");
+            var list = await query.ToListAsync();
+            return list.OrderByDescending(a => SeverityRank(a.Severity)).ThenByDescending(a => a.DetectedAt);
+        });
+
+        api.MapPost("/alerts/refresh", async (AppDbContext db, AlertService alerts, HttpRequest req) =>
+        {
+            await alerts.GenerateAlertsAsync(db, ClientClock.From(req));
+            var list = await db.Alerts.AsNoTracking().Where(a => a.Status != "Dismissed").ToListAsync();
+            return Results.Ok(list.OrderByDescending(a => SeverityRank(a.Severity)).ThenByDescending(a => a.DetectedAt));
+        });
+
+        api.MapPost("/alerts/{id:long}/dismiss", async (long id, AppDbContext db) =>
+        {
+            var a = await db.Alerts.FindAsync(id);
+            if (a is null) return Results.NotFound();
+            a.Status = "Dismissed";
+            a.DismissedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
