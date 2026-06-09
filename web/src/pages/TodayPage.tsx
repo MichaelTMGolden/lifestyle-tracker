@@ -122,7 +122,7 @@ export default function TodayPage() {
         <section className="card quick-actions">
           <h2>Quick actions</h2>
           {addForm}
-          <SkillChips habits={habits} onSkill={mobileSkill} runningId={timer?.habitId} />
+          <SkillChips habits={habits} onSkill={mobileSkill} runningId={timer?.habitId} hideMeta />
         </section>
 
         <section className="card">
@@ -353,7 +353,7 @@ function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean 
   )
 }
 
-function SkillChips({ habits, onSkill, runningId }: { habits: Habit[]; onSkill: (h: Habit) => void; runningId?: number }) {
+function SkillChips({ habits, onSkill, runningId, hideMeta }: { habits: Habit[]; onSkill: (h: Habit) => void; runningId?: number; hideMeta?: boolean }) {
   return (
     <div className="skill-grid">
       {habits.map((h, idx) => {
@@ -362,7 +362,7 @@ function SkillChips({ habits, onSkill, runningId }: { habits: Habit[]; onSkill: 
         return (
           <button key={h.id} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
             <span className="skill-name">{h.name}<span className="skill-check">{running ? '●' : h.doneToday ? '✓' : ''}</span></span>
-            <span className="skill-meta">{running ? 'timing…' : `${h.last30Completed}/30 days`}</span>
+            {!hideMeta && <span className="skill-meta">{running ? 'timing…' : `${h.last30Completed}/30 days`}</span>}
           </button>
         )
       })}
