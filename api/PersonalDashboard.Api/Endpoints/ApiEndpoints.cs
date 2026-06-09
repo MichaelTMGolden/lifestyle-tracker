@@ -13,6 +13,7 @@ namespace PersonalDashboard.Api.Endpoints;
 
 public record WeightInput(double Value);
 public record LoginInput(string Password);
+public record HabitInput(string Name, bool TracksTime);
 public record MinutesInput(int Minutes);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
@@ -635,6 +636,29 @@ public static class ApiEndpoints
             habit.TracksTime = !habit.TracksTime;
             await db.SaveChangesAsync();
             return Results.Ok(new { habit.Id, habit.TracksTime });
+        });
+
+        // Add a new tracked practice (e.g. "Exercise").
+        api.MapPost("/habits", async (HabitInput input, AppDbContext db) =>
+        {
+            var name = input.Name?.Trim();
+            if (string.IsNullOrEmpty(name)) return Results.BadRequest(new { error = "Name required" });
+            if (await db.Habits.AnyAsync(h => h.Name == name && !h.Archived))
+                return Results.Conflict(new { error = "A habit with that name already exists" });
+            var habit = new Habit { Name = name, TracksTime = input.TracksTime };
+            db.Habits.Add(habit);
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/habits/{habit.Id}", new { habit.Id, habit.Name, habit.TracksTime });
+        });
+
+        // Remove a habit (cascades its logs and goal-feeder links).
+        api.MapDelete("/habits/{id:int}", async (int id, AppDbContext db) =>
+        {
+            var habit = await db.Habits.FindAsync(id);
+            if (habit is null) return Results.NotFound();
+            db.Habits.Remove(habit);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         // --- Goals (hour targets fed by one or more skills) ---

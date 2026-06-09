@@ -33,6 +33,9 @@ export default function HabitsPage() {
   const [custom, setCustom] = useState<Record<number, string>>({})
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [showNewSkill, setShowNewSkill] = useState(false)
+  const [skillName, setSkillName] = useState('')
+  const [skillTimed, setSkillTimed] = useState(true)
 
   // Running-timer state lives in shared context (also driven by the sticky bar).
   const { timer, elapsedMs, start, stop, dataTick } = useTimer()
@@ -57,6 +60,16 @@ export default function HabitsPage() {
   }
   async function toggle(id: number) { await api.toggleHabit(id); await load() }
   async function flipTracksTime(id: number) { await api.toggleHabitTracksTime(id); await load() }
+  async function createSkill(e: FormEvent) {
+    e.preventDefault()
+    if (!skillName.trim()) return
+    await api.createHabit(skillName.trim(), skillTimed)
+    setSkillName(''); setSkillTimed(true); setShowNewSkill(false); await load()
+  }
+  async function removeHabit(id: number, name: string) {
+    if (!confirm(`Delete "${name}" and all its logs? This can't be undone.`)) return
+    await api.deleteHabit(id); await load()
+  }
 
   async function createGoal(input: GoalInput) { await api.createGoal(input); setShowNew(false); await load() }
   async function saveGoal(id: number, input: GoalInput) { await api.updateGoal(id, input); setEditingId(null); await load() }
@@ -132,7 +145,26 @@ export default function HabitsPage() {
       {/* ---- Skills: heatmap + per-skill controls ---- */}
       <div className="section-head">
         <h2 className="section-title">Skills</h2>
+        {!showNewSkill && <button className="btn btn-ghost" onClick={() => setShowNewSkill(true)}>+ New skill</button>}
       </div>
+      {showNewSkill && (
+        <form className="goal-form card skill-form" onSubmit={createSkill}>
+          <div className="gf-row">
+            <label className="gf-field gf-grow">
+              <span>Skill name</span>
+              <input value={skillName} onChange={(e) => setSkillName(e.target.value)} placeholder="e.g. Exercise" autoFocus />
+            </label>
+            <label className="gf-check skill-timed">
+              <input type="checkbox" checked={skillTimed} onChange={(e) => setSkillTimed(e.target.checked)} />
+              Track time (log minutes)
+            </label>
+          </div>
+          <div className="gf-actions">
+            <button type="submit" className="btn">Add skill</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setShowNewSkill(false)}>Cancel</button>
+          </div>
+        </form>
+      )}
       <div className="habit-stack">
         {habits.map((h) => {
           const color = colorOf(h.name)
@@ -234,9 +266,12 @@ export default function HabitsPage() {
                       {h.doneToday ? '✓ Logged today' : 'Log today'}
                     </button>
                   )}
-                  <button className="track-toggle" onClick={() => flipTracksTime(h.id)}>
-                    {h.tracksTime ? 'Switch to simple' : 'Track time'}
-                  </button>
+                  <div className="skill-foot">
+                    <button className="track-toggle" onClick={() => flipTracksTime(h.id)}>
+                      {h.tracksTime ? 'Switch to simple' : 'Track time'}
+                    </button>
+                    <button className="track-toggle danger" onClick={() => removeHabit(h.id, h.name)}>Delete</button>
+                  </div>
                 </div>
               </div>
             </section>

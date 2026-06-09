@@ -350,6 +350,8 @@ export const api = {
   habits: () => get<Habit[]>('/api/habits'),
   habitsHeatmap: (days = 182) => get<HabitHeatmap[]>(`/api/habits/heatmap?days=${days}`),
   toggleHabit: (id: number) => post(`/api/habits/${id}/toggle`),
+  createHabit: (name: string, tracksTime: boolean) => post<Habit>('/api/habits', { name, tracksTime }),
+  deleteHabit: (id: number) => send<void>('DELETE', `/api/habits/${id}`),
   logHabitTime: (id: number, minutes: number) => post(`/api/habits/${id}/log-time`, { minutes }),
   setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
   toggleHabitTracksTime: (id: number) => post<{ id: number; tracksTime: boolean }>(`/api/habits/${id}/tracks-time`),
