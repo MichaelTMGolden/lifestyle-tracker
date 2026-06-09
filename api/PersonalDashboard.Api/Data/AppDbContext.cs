@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<DailyTodo> DailyTodos => Set<DailyTodo>();
     public DbSet<FoodEntry> FoodEntries => Set<FoodEntry>();
     public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<BingoBoard> BingoBoards => Set<BingoBoard>();
+    public DbSet<BingoSquare> BingoSquares => Set<BingoSquare>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -61,5 +63,12 @@ public class AppDbContext : DbContext
         // Regeneration upserts by DedupeKey instead of duplicating.
         b.Entity<Alert>().HasIndex(x => x.DedupeKey).IsUnique();
         b.Entity<Alert>().HasIndex(x => x.Status);
+
+        // One bingo board per year; one square per position; squares cascade with the board.
+        b.Entity<BingoBoard>().HasIndex(x => x.Year).IsUnique();
+        b.Entity<BingoSquare>().HasIndex(x => new { x.BoardId, x.Position }).IsUnique();
+        b.Entity<BingoSquare>()
+            .HasOne(x => x.Board).WithMany(bd => bd.Squares)
+            .HasForeignKey(x => x.BoardId).OnDelete(DeleteBehavior.Cascade);
     }
 }

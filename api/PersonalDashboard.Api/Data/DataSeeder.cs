@@ -206,6 +206,41 @@ public static class DataSeeder
 
         // Sources now exist — seed the recent sample food entries + rollups.
         await SeedFoodAsync(db);
+        // Demo bingo board (dummy path only — production starts with a blank board).
+        await SeedBingoAsync(db);
+    }
+
+    /// <summary>
+    /// Seeds the current-year bingo board with example milestones, arranged so the
+    /// top row is one square away from completing (easy to see line detection +
+    /// celebration). No-op if a board for the year already exists.
+    /// </summary>
+    public static async Task SeedBingoAsync(AppDbContext db)
+    {
+        var year = DateTime.UtcNow.Year;
+        if (await db.BingoBoards.AnyAsync(b => b.Year == year)) return;
+
+        var labels = new Dictionary<int, string>
+        {
+            [0] = "Play a live show", [1] = "Hit a V5 boulder", [2] = "Release an EP", [3] = "Run a 10k", [4] = "Read 12 books",
+            [5] = "Write 20 songs", [6] = "Deadlift 140kg", [8] = "Visit 3 new countries",
+            [12] = "Learn 5 covers", [16] = "Reach 1000h total", [18] = "Cook 10 new recipes", [24] = "Record an album",
+        };
+        var done = new HashSet<int> { 0, 1, 2, 3, 12, 18 }; // top row needs pos 4 → one away
+
+        var board = new BingoBoard { Year = year, Title = $"{year} Milestones", CreatedAt = DateTimeOffset.UtcNow };
+        for (var p = 0; p < 25; p++)
+        {
+            var label = labels.GetValueOrDefault(p, "");
+            var completed = label.Length > 0 && done.Contains(p);
+            board.Squares.Add(new BingoSquare
+            {
+                Position = p, Label = label, Completed = completed,
+                CompletedAt = completed ? DateTimeOffset.UtcNow.AddDays(-(p + 1) * 7) : null,
+            });
+        }
+        db.BingoBoards.Add(board);
+        await db.SaveChangesAsync();
     }
 
     /// <summary>

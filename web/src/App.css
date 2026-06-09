@@ -423,6 +423,59 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .login-card input:focus { outline: none; border-color: var(--crimson); }
 .login-err { color: var(--bad); font-size: 0.85rem; margin: 0; }
 
+/* ---------- bingo board ---------- */
+.bingo-head { align-items: flex-start; }
+.bingo-title { cursor: pointer; }
+.bingo-title-input { font-family: var(--font-head); font-size: 1.6rem; background: var(--bg);
+  border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text); padding: 0.2rem 0.5rem; }
+.bingo-controls { display: flex; gap: 0.6rem; align-items: center; }
+.bingo-controls select { background: var(--bg); border: 1px solid var(--line-strong); border-radius: 6px;
+  color: var(--text); padding: 0.45rem 0.6rem; font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+
+.bingo-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-width: 740px; }
+.bingo-cell { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  text-align: center; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  color: var(--text); padding: 0.5rem; font-family: var(--font-body); font-size: 0.82rem; line-height: 1.2;
+  overflow: hidden; transition: border-color 0.15s, background 0.15s, transform 0.08s, box-shadow 0.2s; }
+.bingo-cell:hover { border-color: var(--text-dim); }
+.bingo-cell:active { transform: scale(0.97); }
+.bingo-cell.blank { border-style: dashed; }
+.bingo-add { font-size: 0.74rem; color: var(--text-dim); }
+.bingo-label { position: relative; z-index: 1; }
+.bingo-cell.done { background: radial-gradient(120% 120% at 50% 0%, rgba(216, 162, 79, 0.18), transparent 70%), var(--bg-2);
+  border-color: #d8a24f88; color: #f0e4cf; }
+.bingo-stamp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-head); font-size: 2.6rem; color: rgba(216, 162, 79, 0.5); pointer-events: none; }
+.bingo-cell.in-line { border-color: var(--watch); box-shadow: inset 0 0 0 2px #d8a24f, 0 0 14px rgba(216, 162, 79, 0.25); }
+.bingo-note-dot { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); }
+.bingo-hint { margin-top: 0.9rem; font-size: 0.82rem; max-width: 740px; }
+
+.bingo-editor { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 61; width: min(420px, 92vw); }
+.bingo-editor form { display: flex; flex-direction: column; gap: 0.8rem; }
+
+.bingo-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 70;
+  background: var(--bg-1); border: 1px solid #d8a24f; color: #f0e4cf; border-radius: 10px; padding: 0.8rem 1.4rem;
+  font-family: var(--font-head); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9rem;
+  box-shadow: 0 6px 30px rgba(216, 162, 79, 0.3); }
+.bingo-toast.blackout { font-size: 1.2rem; border-color: var(--crimson); box-shadow: 0 8px 40px rgba(178, 58, 91, 0.4); }
+@media (prefers-reduced-motion: no-preference) {
+  .bingo-toast { animation: bingo-pop 0.3s ease; }
+  .bingo-cell.in-line { animation: line-glow 0.6s ease; }
+}
+@keyframes bingo-pop { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes line-glow {
+  0% { box-shadow: inset 0 0 0 2px #d8a24f, 0 0 0 rgba(216, 162, 79, 0); }
+  50% { box-shadow: inset 0 0 0 2px #d8a24f, 0 0 26px rgba(216, 162, 79, 0.65); }
+  100% { box-shadow: inset 0 0 0 2px #d8a24f, 0 0 14px rgba(216, 162, 79, 0.25); }
+}
+@media (max-width: 640px) {
+  .bingo-grid { gap: 5px; }
+  .bingo-cell { font-size: 0.6rem; padding: 0.2rem; border-radius: 6px; }
+  .bingo-add { font-size: 0.56rem; }
+  .bingo-stamp { font-size: 1.7rem; }
+  .bingo-head { flex-direction: column; }
+}
+
 /* ---------- attention strip (alerts on Today) ---------- */
 .attention { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.1rem; }
 .alert-row { --sev: var(--text-dim); display: flex; align-items: stretch; gap: 0.5rem;

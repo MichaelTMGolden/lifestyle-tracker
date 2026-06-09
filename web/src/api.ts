@@ -178,6 +178,24 @@ export interface GoalInput {
   sourceHabitIds: number[]
 }
 
+export interface BingoSquare {
+  id: number
+  position: number
+  label: string
+  note: string | null
+  completed: boolean
+  completedAt: string | null
+}
+
+export interface BingoBoard {
+  year: number
+  title: string | null
+  squares: BingoSquare[]
+  completedCount: number
+  completedLines: number[]
+  blackout: boolean
+}
+
 export interface Alert {
   id: number
   kind: string
@@ -384,6 +402,12 @@ export const api = {
   createFoodEntry: (input: FoodEntryInput) => post<FoodEntry>('/api/nutrition/entries', input),
   updateFoodEntry: (id: number, input: FoodEntryInput) => send<FoodEntry>('PUT', `/api/nutrition/entries/${id}`, input),
   deleteFoodEntry: (id: number) => send<void>('DELETE', `/api/nutrition/entries/${id}`),
+
+  bingo: (year?: number) => get<BingoBoard>(`/api/bingo${year ? `?year=${year}` : ''}`),
+  bingoYears: () => get<number[]>('/api/bingo/years'),
+  editBingoSquare: (id: number, input: { label?: string; note?: string }) => send<BingoBoard>('PUT', `/api/bingo/squares/${id}`, input),
+  toggleBingoSquare: (id: number) => post<BingoBoard>(`/api/bingo/squares/${id}/toggle`),
+  renameBingoBoard: (year: number, title: string) => send<BingoBoard>('PUT', `/api/bingo/board/${year}`, { title }),
 
   alerts: (status?: string) => get<Alert[]>(`/api/alerts${status ? `?status=${status}` : ''}`),
   refreshAlerts: () => post<Alert[]>('/api/alerts/refresh'),

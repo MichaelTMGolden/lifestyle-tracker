@@ -260,3 +260,30 @@ public class TodoItem
     public DateTimeOffset? DueAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }
+
+/// <summary>
+/// A yearly "milestone bingo" board — achieve-once goals (vs the hour-goals which
+/// track accumulation). One board per year; past years remain as a record.
+/// Squares are manual free text the user fills in and X's off; they're not linked
+/// to hour-goals (a possible future option).
+/// </summary>
+public class BingoBoard
+{
+    public int Id { get; set; }
+    public int Year { get; set; }
+    public string? Title { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<BingoSquare> Squares { get; set; } = new();
+}
+
+public class BingoSquare
+{
+    public int Id { get; set; }
+    public int BoardId { get; set; }
+    public BingoBoard? Board { get; set; }
+    public int Position { get; set; }              // 0–24 (row = pos/5, col = pos%5)
+    public string Label { get; set; } = "";        // empty = blank square (can't be completed)
+    public string? Note { get; set; }
+    public bool Completed { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
