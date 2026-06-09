@@ -610,6 +610,38 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 
 .meal-card { margin-bottom: 0.9rem; }
 .meal-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem; }
+.meal-head-right { display: inline-flex; align-items: baseline; gap: 0.8rem; }
+.link-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-dim); font-size: 0.74rem;
+  text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--crimson); }
+
+/* remembered foods */
+.remembered-tabs { width: 100%; margin-bottom: 0.6rem; }
+.remembered-tabs button { flex: 1; }
+.remembered-list { display: flex; flex-direction: column; margin-top: 0.4rem; }
+.remembered-row { display: flex; align-items: stretch; gap: 0.2rem; border-top: 1px solid var(--line); }
+.remembered-row:first-child { border-top: none; }
+.rem-add { flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer; color: var(--text);
+  padding: 0.5rem 0.2rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.rem-add:hover { background: var(--bg-2); }
+.rem-name { font-size: 0.92rem; }
+.rem-macros { font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.rem-star { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 1.05rem; padding: 0 0.4rem; }
+.rem-star.on { color: var(--watch); }
+.rem-star:hover { color: var(--watch); }
+
+/* quick meals */
+.qm-list { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
+.qm-row { display: flex; align-items: stretch; gap: 0.2rem; border-top: 1px solid var(--line); }
+.qm-row:first-child { border-top: none; }
+.qm-log { flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer; color: var(--text);
+  padding: 0.55rem 0.2rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.qm-log:hover { background: var(--bg-2); }
+.qm-name { font-size: 0.95rem; }
+.qm-meta { font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.qm-new { width: 100%; }
+.qm-builder { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.4rem; }
+.qm-items { margin: 0; }
 .meal-head h3 { font-family: var(--font-head); margin: 0; font-size: 1rem; letter-spacing: 0.02em; }
 .entry { display: flex; align-items: center; gap: 0.7rem; padding: 0.45rem 0; border-top: 1px solid var(--line); }
 .entry:first-of-type { border-top: none; }

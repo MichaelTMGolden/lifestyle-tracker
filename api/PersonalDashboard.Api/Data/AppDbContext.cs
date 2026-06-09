@@ -23,6 +23,9 @@ public class AppDbContext : DbContext
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<BingoBoard> BingoBoards => Set<BingoBoard>();
     public DbSet<BingoSquare> BingoSquares => Set<BingoSquare>();
+    public DbSet<SavedFood> SavedFoods => Set<SavedFood>();
+    public DbSet<QuickMeal> QuickMeals => Set<QuickMeal>();
+    public DbSet<QuickMealItem> QuickMealItems => Set<QuickMealItem>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -63,6 +66,12 @@ public class AppDbContext : DbContext
         // Regeneration upserts by DedupeKey instead of duplicating.
         b.Entity<Alert>().HasIndex(x => x.DedupeKey).IsUnique();
         b.Entity<Alert>().HasIndex(x => x.Status);
+
+        // Remembered foods dedupe on (Name, Brand, ExternalRef) — repeats increment instead of duplicating.
+        b.Entity<SavedFood>().HasIndex(x => new { x.Name, x.Brand, x.ExternalRef }).IsUnique();
+        b.Entity<QuickMealItem>()
+            .HasOne(x => x.QuickMeal).WithMany(m => m.Items)
+            .HasForeignKey(x => x.QuickMealId).OnDelete(DeleteBehavior.Cascade);
 
         // One bingo board per year; one square per position; squares cascade with the board.
         b.Entity<BingoBoard>().HasIndex(x => x.Year).IsUnique();

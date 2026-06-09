@@ -16,6 +16,15 @@ public record LoginInput(string Password);
 public record HabitInput(string Name, bool TracksTime);
 public record BingoSquareInput(string? Label, string? Note);
 public record BingoTitleInput(string? Title);
+public record SavedFoodLogInput(DateOnly? Date, MealType? Meal, double? Quantity);
+public record QuickMealItemInput(
+    string Name, string? Brand, int? DataSourceId, string? ExternalRef, string? ServingDescription,
+    double Quantity, double? Grams, double Calories, double ProteinG, double CarbsG, double FatG,
+    double FiberG = 0, double SugarG = 0, double SatFatG = 0,
+    double SodiumMg = 0, double PotassiumMg = 0, double CalciumMg = 0, double IronMg = 0);
+public record QuickMealInput(string Name, MealType? DefaultMeal, List<QuickMealItemInput>? Items);
+public record QuickMealFromLogInput(string Name, DateOnly Date, MealType Meal);
+public record QuickMealLogInput(DateOnly? Date, MealType? Meal);
 public record MinutesInput(int Minutes);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
@@ -168,6 +177,57 @@ public static class ApiEndpoints
             Value = Math.Round(r.Item2, 1), Unit = r.Item3,
         }));
     }
+
+    /// <summary>Build a FoodEntry from any macro snapshot, scaling the as-eaten macros by <paramref name="scale"/>.</summary>
+    private static FoodEntry ScaledEntry(IFoodMacros m, int dataSourceId, DateOnly date, MealType meal, double quantity, double? grams, double scale)
+    {
+        static double R1(double v) => Math.Round(v, 1);
+        return new FoodEntry
+        {
+            DataSourceId = dataSourceId, Date = date, LoggedAt = DateTimeOffset.UtcNow, Meal = meal,
+            Name = m.Name, Brand = m.Brand, ExternalRef = m.ExternalRef, ServingDescription = m.ServingDescription,
+            Quantity = quantity, Grams = grams,
+            Calories = Math.Round(m.Calories * scale), ProteinG = R1(m.ProteinG * scale), CarbsG = R1(m.CarbsG * scale), FatG = R1(m.FatG * scale),
+            FiberG = R1(m.FiberG * scale), SugarG = R1(m.SugarG * scale), SatFatG = R1(m.SatFatG * scale),
+            SodiumMg = Math.Round(m.SodiumMg * scale), PotassiumMg = Math.Round(m.PotassiumMg * scale),
+            CalciumMg = Math.Round(m.CalciumMg * scale), IronMg = R1(m.IronMg * scale),
+        };
+    }
+
+    /// <summary>
+    /// Auto-remember a logged food: upsert its SavedFood by (Name, Brand, ExternalRef),
+    /// refresh the stored snapshot (last-logged wins), bump UseCount + LastUsedAt.
+    /// </summary>
+    private static async Task RememberFoodAsync(AppDbContext db, FoodEntry e)
+    {
+        var sf = await db.SavedFoods.FirstOrDefaultAsync(f => f.Name == e.Name && f.Brand == e.Brand && f.ExternalRef == e.ExternalRef);
+        if (sf is null) { sf = new SavedFood { Name = e.Name }; db.SavedFoods.Add(sf); }
+        sf.Brand = e.Brand; sf.ExternalRef = e.ExternalRef; sf.DataSourceId = e.DataSourceId;
+        sf.ServingDescription = e.ServingDescription; sf.DefaultQuantity = e.Quantity; sf.Grams = e.Grams;
+        sf.Calories = e.Calories; sf.ProteinG = e.ProteinG; sf.CarbsG = e.CarbsG; sf.FatG = e.FatG;
+        sf.FiberG = e.FiberG; sf.SugarG = e.SugarG; sf.SatFatG = e.SatFatG;
+        sf.SodiumMg = e.SodiumMg; sf.PotassiumMg = e.PotassiumMg; sf.CalciumMg = e.CalciumMg; sf.IronMg = e.IronMg;
+        sf.UseCount += 1; sf.LastUsedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    private static QuickMealItem ItemFromInput(QuickMealItemInput i) => new()
+    {
+        Name = i.Name.Trim(), Brand = i.Brand, DataSourceId = i.DataSourceId, ExternalRef = i.ExternalRef,
+        ServingDescription = i.ServingDescription, Quantity = i.Quantity <= 0 ? 1 : i.Quantity, Grams = i.Grams,
+        Calories = i.Calories, ProteinG = i.ProteinG, CarbsG = i.CarbsG, FatG = i.FatG,
+        FiberG = i.FiberG, SugarG = i.SugarG, SatFatG = i.SatFatG,
+        SodiumMg = i.SodiumMg, PotassiumMg = i.PotassiumMg, CalciumMg = i.CalciumMg, IronMg = i.IronMg,
+    };
+
+    private static QuickMealItem ItemFromEntry(FoodEntry e) => new()
+    {
+        Name = e.Name, Brand = e.Brand, DataSourceId = e.DataSourceId, ExternalRef = e.ExternalRef,
+        ServingDescription = e.ServingDescription, Quantity = e.Quantity, Grams = e.Grams,
+        Calories = e.Calories, ProteinG = e.ProteinG, CarbsG = e.CarbsG, FatG = e.FatG,
+        FiberG = e.FiberG, SugarG = e.SugarG, SatFatG = e.SatFatG,
+        SodiumMg = e.SodiumMg, PotassiumMg = e.PotassiumMg, CalciumMg = e.CalciumMg, IronMg = e.IronMg,
+    };
 
     public static void MapApiEndpoints(this IEndpointRouteBuilder app)
     {
@@ -979,6 +1039,7 @@ public static class ApiEndpoints
             db.FoodEntries.Add(entry);
             await db.SaveChangesAsync();
             await RecomputeDayRollupAsync(db, date);
+            await RememberFoodAsync(db, entry); // recents/frequents populate with no explicit save
             return Results.Created($"/api/nutrition/entries/{entry.Id}", entry);
         });
 
@@ -1013,6 +1074,149 @@ public static class ApiEndpoints
             await db.SaveChangesAsync();
             await RecomputeDayRollupAsync(db, date);
             return Results.NoContent();
+        });
+
+        // --- Remembered foods (recents / frequents / favorites) ---
+        api.MapGet("/foods/remembered", async (AppDbContext db, string? tab, string? q) =>
+        {
+            var query = db.SavedFoods.AsNoTracking().AsQueryable();
+            if (tab == "favorite") query = query.Where(f => f.Favorite);
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var qq = q.Trim().ToLower();
+                query = query.Where(f => f.Name.ToLower().Contains(qq) || (f.Brand != null && f.Brand.ToLower().Contains(qq)));
+            }
+            query = tab == "frequent"
+                ? query.OrderByDescending(f => f.UseCount).ThenByDescending(f => f.LastUsedAt)
+                : query.OrderByDescending(f => f.LastUsedAt).ThenByDescending(f => f.UseCount);
+            return await query.Take(40).ToListAsync();
+        });
+
+        api.MapPost("/foods/{id:int}/log", async (int id, SavedFoodLogInput body, AppDbContext db, HttpRequest req) =>
+        {
+            var sf = await db.SavedFoods.FindAsync(id);
+            if (sf is null) return Results.NotFound();
+            var date = body.Date ?? ClientClock.From(req).Today;
+            var reqQty = body.Quantity is double q && q > 0 ? q : sf.DefaultQuantity;
+            var scale = sf.DefaultQuantity > 0 ? reqQty / sf.DefaultQuantity : 1;
+            var dataSourceId = sf.DataSourceId ?? (await GetFoodSourceAsync(db, SourceKind.Manual)).Id;
+            var entry = ScaledEntry(sf, dataSourceId, date, body.Meal ?? MealType.Other, reqQty, sf.Grams, scale);
+            db.FoodEntries.Add(entry);
+            sf.UseCount += 1; sf.LastUsedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            await RecomputeDayRollupAsync(db, date);
+            return Results.Created($"/api/nutrition/entries/{entry.Id}", entry);
+        });
+
+        api.MapPost("/foods/{id:int}/favorite", async (int id, AppDbContext db) =>
+        {
+            var sf = await db.SavedFoods.FindAsync(id);
+            if (sf is null) return Results.NotFound();
+            sf.Favorite = !sf.Favorite;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { sf.Id, sf.Favorite });
+        });
+
+        api.MapDelete("/foods/{id:int}", async (int id, AppDbContext db) =>
+        {
+            var sf = await db.SavedFoods.FindAsync(id);
+            if (sf is null) return Results.NotFound();
+            db.SavedFoods.Remove(sf);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // --- Quick meals (reusable bundles) ---
+        api.MapGet("/quick-meals", async (AppDbContext db) =>
+        {
+            var meals = await db.QuickMeals.AsNoTracking().Include(m => m.Items)
+                .OrderByDescending(m => m.LastUsedAt).ThenBy(m => m.Name).ToListAsync();
+            return meals.Select(m => new
+            {
+                m.Id, m.Name, m.DefaultMeal, m.UseCount, m.LastUsedAt,
+                itemCount = m.Items.Count,
+                totalCalories = Math.Round(m.Items.Sum(i => i.Calories)),
+                totalProteinG = Math.Round(m.Items.Sum(i => i.ProteinG), 1),
+                totalCarbsG = Math.Round(m.Items.Sum(i => i.CarbsG), 1),
+                totalFatG = Math.Round(m.Items.Sum(i => i.FatG), 1),
+            });
+        });
+
+        api.MapGet("/quick-meals/{id:int}", async (int id, AppDbContext db) =>
+        {
+            var m = await db.QuickMeals.AsNoTracking().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+            if (m is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                m.Id, m.Name, m.DefaultMeal, m.UseCount, m.LastUsedAt,
+                items = m.Items.OrderBy(i => i.Id).Select(i => new
+                {
+                    i.Id, i.Name, i.Brand, i.DataSourceId, i.ExternalRef, i.ServingDescription, i.Quantity, i.Grams,
+                    i.Calories, i.ProteinG, i.CarbsG, i.FatG,
+                    i.FiberG, i.SugarG, i.SatFatG, i.SodiumMg, i.PotassiumMg, i.CalciumMg, i.IronMg,
+                }),
+            });
+        });
+
+        api.MapPost("/quick-meals", async (QuickMealInput input, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(input.Name)) return Results.BadRequest(new { error = "Name required" });
+            var meal = new QuickMeal { Name = input.Name.Trim(), DefaultMeal = input.DefaultMeal };
+            foreach (var i in input.Items ?? new()) meal.Items.Add(ItemFromInput(i));
+            db.QuickMeals.Add(meal);
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/quick-meals/{meal.Id}", new { meal.Id });
+        });
+
+        api.MapPost("/quick-meals/from-log", async (QuickMealFromLogInput input, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(input.Name)) return Results.BadRequest(new { error = "Name required" });
+            var entries = await db.FoodEntries.Where(e => e.Date == input.Date && e.Meal == input.Meal).ToListAsync();
+            if (entries.Count == 0) return Results.BadRequest(new { error = "No foods logged in that meal" });
+            var meal = new QuickMeal { Name = input.Name.Trim(), DefaultMeal = input.Meal };
+            foreach (var e in entries) meal.Items.Add(ItemFromEntry(e));
+            db.QuickMeals.Add(meal);
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/quick-meals/{meal.Id}", new { meal.Id });
+        });
+
+        api.MapPut("/quick-meals/{id:int}", async (int id, QuickMealInput input, AppDbContext db) =>
+        {
+            var meal = await db.QuickMeals.Include(m => m.Items).FirstOrDefaultAsync(m => m.Id == id);
+            if (meal is null) return Results.NotFound();
+            if (!string.IsNullOrWhiteSpace(input.Name)) meal.Name = input.Name.Trim();
+            meal.DefaultMeal = input.DefaultMeal;
+            if (input.Items is not null)
+            {
+                db.QuickMealItems.RemoveRange(meal.Items);
+                meal.Items = input.Items.Select(ItemFromInput).ToList();
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok(new { meal.Id });
+        });
+
+        api.MapDelete("/quick-meals/{id:int}", async (int id, AppDbContext db) =>
+        {
+            var meal = await db.QuickMeals.FindAsync(id);
+            if (meal is null) return Results.NotFound();
+            db.QuickMeals.Remove(meal);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        api.MapPost("/quick-meals/{id:int}/log", async (int id, QuickMealLogInput body, AppDbContext db, HttpRequest req) =>
+        {
+            var meal = await db.QuickMeals.Include(m => m.Items).FirstOrDefaultAsync(m => m.Id == id);
+            if (meal is null) return Results.NotFound();
+            var date = body.Date ?? ClientClock.From(req).Today;
+            var slot = body.Meal ?? meal.DefaultMeal ?? MealType.Other;
+            var manualId = (await GetFoodSourceAsync(db, SourceKind.Manual)).Id;
+            foreach (var i in meal.Items)
+                db.FoodEntries.Add(ScaledEntry(i, i.DataSourceId ?? manualId, date, slot, i.Quantity, i.Grams, 1));
+            meal.UseCount += 1; meal.LastUsedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            await RecomputeDayRollupAsync(db, date); // recompute once after all inserts
+            return Results.Ok(new { logged = meal.Items.Count, date = date.ToString("yyyy-MM-dd") });
         });
     }
 }

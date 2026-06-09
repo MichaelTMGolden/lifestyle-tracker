@@ -206,8 +206,58 @@ public static class DataSeeder
 
         // Sources now exist — seed the recent sample food entries + rollups.
         await SeedFoodAsync(db);
+        // Backfill remembered foods + a quick meal from those entries (demo only).
+        await SeedRememberedAsync(db);
         // Demo bingo board (dummy path only — production starts with a blank board).
         await SeedBingoAsync(db);
+    }
+
+    /// <summary>
+    /// Backfill SavedFood from the seeded FoodEntries (so recents/frequents aren't
+    /// empty), star a couple, and build a "Usual breakfast" quick meal. No-op if
+    /// remembered foods already exist.
+    /// </summary>
+    public static async Task SeedRememberedAsync(AppDbContext db)
+    {
+        if (await db.SavedFoods.AnyAsync()) return;
+        var entries = await db.FoodEntries.ToListAsync();
+        if (entries.Count == 0) return;
+
+        foreach (var g in entries.GroupBy(e => new { e.Name, e.Brand, e.ExternalRef }))
+        {
+            var latest = g.OrderByDescending(e => e.LoggedAt).First();
+            db.SavedFoods.Add(new SavedFood
+            {
+                Name = latest.Name, Brand = latest.Brand, ExternalRef = latest.ExternalRef, DataSourceId = latest.DataSourceId,
+                ServingDescription = latest.ServingDescription, DefaultQuantity = latest.Quantity, Grams = latest.Grams,
+                Calories = latest.Calories, ProteinG = latest.ProteinG, CarbsG = latest.CarbsG, FatG = latest.FatG,
+                FiberG = latest.FiberG, SugarG = latest.SugarG, SatFatG = latest.SatFatG,
+                SodiumMg = latest.SodiumMg, PotassiumMg = latest.PotassiumMg, CalciumMg = latest.CalciumMg, IronMg = latest.IronMg,
+                UseCount = g.Count(), LastUsedAt = latest.LoggedAt,
+            });
+        }
+        await db.SaveChangesAsync();
+
+        foreach (var f in await db.SavedFoods.OrderByDescending(f => f.UseCount).Take(2).ToListAsync())
+            f.Favorite = true;
+
+        var lastDate = entries.Max(e => e.Date);
+        var breakfast = entries.Where(e => e.Date == lastDate && e.Meal == MealType.Breakfast).ToList();
+        if (breakfast.Count > 0)
+        {
+            var qm = new QuickMeal { Name = "Usual breakfast", DefaultMeal = MealType.Breakfast };
+            foreach (var e in breakfast)
+                qm.Items.Add(new QuickMealItem
+                {
+                    Name = e.Name, Brand = e.Brand, DataSourceId = e.DataSourceId, ExternalRef = e.ExternalRef,
+                    ServingDescription = e.ServingDescription, Quantity = e.Quantity, Grams = e.Grams,
+                    Calories = e.Calories, ProteinG = e.ProteinG, CarbsG = e.CarbsG, FatG = e.FatG,
+                    FiberG = e.FiberG, SugarG = e.SugarG, SatFatG = e.SatFatG,
+                    SodiumMg = e.SodiumMg, PotassiumMg = e.PotassiumMg, CalciumMg = e.CalciumMg, IronMg = e.IronMg,
+                });
+            db.QuickMeals.Add(qm);
+        }
+        await db.SaveChangesAsync();
     }
 
     /// <summary>

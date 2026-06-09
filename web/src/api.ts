@@ -281,6 +281,59 @@ export interface NutritionTotals {
   sodiumMg: number; potassiumMg: number; calciumMg: number; ironMg: number
 }
 
+export interface SavedFood {
+  id: number
+  name: string
+  brand: string | null
+  dataSourceId: number | null
+  externalRef: string | null
+  servingDescription: string | null
+  defaultQuantity: number
+  grams: number | null
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  favorite: boolean
+  useCount: number
+  lastUsedAt: string | null
+}
+
+export interface QuickMealItem {
+  id?: number
+  name: string
+  brand?: string | null
+  dataSourceId?: number | null
+  externalRef?: string | null
+  servingDescription?: string | null
+  quantity: number
+  grams?: number | null
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}
+
+export interface QuickMeal {
+  id: number
+  name: string
+  defaultMeal: string | null
+  useCount: number
+  lastUsedAt: string | null
+  itemCount: number
+  totalCalories: number
+  totalProteinG: number
+  totalCarbsG: number
+  totalFatG: number
+}
+
+export interface QuickMealDetail {
+  id: number
+  name: string
+  defaultMeal: string | null
+  items: QuickMealItem[]
+}
+
 export interface NutritionDay {
   date: string
   entries: FoodEntry[]
@@ -399,6 +452,25 @@ export const api = {
   foodSearch: (q: string, country = 'ie') =>
     get<FoodSearchResult[]>(`/api/food/search?q=${encodeURIComponent(q)}&country=${encodeURIComponent(country)}`),
   nutritionDay: (date?: string) => get<NutritionDay>(`/api/nutrition/day${date ? `?date=${date}` : ''}`),
+
+  rememberedFoods: (tab?: string, q?: string) => {
+    const p = new URLSearchParams()
+    if (tab) p.set('tab', tab)
+    if (q) p.set('q', q)
+    const qs = p.toString()
+    return get<SavedFood[]>(`/api/foods/remembered${qs ? `?${qs}` : ''}`)
+  },
+  logSavedFood: (id: number, body: { date?: string; meal?: string; quantity?: number }) => post<FoodEntry>(`/api/foods/${id}/log`, body),
+  favoriteSavedFood: (id: number) => post<{ id: number; favorite: boolean }>(`/api/foods/${id}/favorite`),
+  deleteSavedFood: (id: number) => send<void>('DELETE', `/api/foods/${id}`),
+
+  quickMeals: () => get<QuickMeal[]>('/api/quick-meals'),
+  quickMeal: (id: number) => get<QuickMealDetail>(`/api/quick-meals/${id}`),
+  createQuickMeal: (body: { name: string; defaultMeal?: string | null; items: QuickMealItem[] }) => post<{ id: number }>('/api/quick-meals', body),
+  quickMealFromLog: (body: { name: string; date: string; meal: string }) => post<{ id: number }>('/api/quick-meals/from-log', body),
+  updateQuickMeal: (id: number, body: { name: string; defaultMeal?: string | null; items?: QuickMealItem[] }) => send<{ id: number }>('PUT', `/api/quick-meals/${id}`, body),
+  deleteQuickMeal: (id: number) => send<void>('DELETE', `/api/quick-meals/${id}`),
+  logQuickMeal: (id: number, body: { date?: string; meal?: string }) => post<{ logged: number; date: string }>(`/api/quick-meals/${id}/log`, body),
   createFoodEntry: (input: FoodEntryInput) => post<FoodEntry>('/api/nutrition/entries', input),
   updateFoodEntry: (id: number, input: FoodEntryInput) => send<FoodEntry>('PUT', `/api/nutrition/entries/${id}`, input),
   deleteFoodEntry: (id: number) => send<void>('DELETE', `/api/nutrition/entries/${id}`),

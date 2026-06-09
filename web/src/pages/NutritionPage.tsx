@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, type FoodSearchResult, type FoodEntry, type NutritionDay, type FoodEntryInput, type MicroSet, type MetricPoint } from '../api'
-import { fmtKcal, fmtMacro, sourceLabel } from '../lib'
+import { api, type FoodSearchResult, type FoodEntry, type NutritionDay, type FoodEntryInput, type MicroSet, type MetricPoint, type SavedFood, type QuickMeal, type QuickMealItem } from '../api'
+import { fmtKcal, fmtMacro, macroSummary, sourceLabel } from '../lib'
 
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'] as const
 type Meal = (typeof MEALS)[number]
@@ -53,11 +53,22 @@ export default function NutritionPage() {
   const [searchErr, setSearchErr] = useState<string | null>(null)
   const [addMeal, setAddMeal] = useState<Meal>('Snack')
 
+  const [remembered, setRemembered] = useState<SavedFood[]>([])
+  const [rTab, setRTab] = useState<'recent' | 'frequent' | 'favorite'>('recent')
+  const [rQuery, setRQuery] = useState('')
+  const [quickMeals, setQuickMeals] = useState<QuickMeal[]>([])
+
   const load = () =>
     Promise.all([api.nutritionDay(date), api.metric('active_calories', 2).catch(() => [] as MetricPoint[])])
       .then(([d, active]) => { setDay(d); setActiveKcal(active.length ? active[active.length - 1].value : null) })
       .catch((e) => setError(String(e)))
+  const reloadRemembered = () => api.rememberedFoods(rTab, rQuery.trim() || undefined).then(setRemembered).catch(() => {})
+  const reloadQuick = () => api.quickMeals().then(setQuickMeals).catch(() => {})
+  const afterChange = async () => { await load(); reloadRemembered(); reloadQuick() }
+
   useEffect(() => { load() }, [date]) // eslint-disable-line
+  useEffect(() => { reloadRemembered() }, [rTab, rQuery]) // eslint-disable-line
+  useEffect(() => { reloadQuick() }, []) // eslint-disable-line
 
   // Debounced search as you type (≥2 chars).
   useEffect(() => {
@@ -85,11 +96,28 @@ export default function NutritionPage() {
       calciumMg: Math.round(m.calciumMg), ironMg: round1(m.ironMg),
     }
     await api.createFoodEntry(input)
-    await load()
+    await afterChange()
   }
-  async function addManual(input: FoodEntryInput) { await api.createFoodEntry(input); await load() }
-  async function saveEntry(id: number, input: FoodEntryInput) { await api.updateFoodEntry(id, input); await load() }
-  async function removeEntry(id: number) { await api.deleteFoodEntry(id); await load() }
+  async function addManual(input: FoodEntryInput) { await api.createFoodEntry(input); await afterChange() }
+  async function saveEntry(id: number, input: FoodEntryInput) { await api.updateFoodEntry(id, input); await afterChange() }
+  async function removeEntry(id: number) { await api.deleteFoodEntry(id); await afterChange() }
+
+  // Remembered foods + quick meals actions
+  async function logSaved(f: SavedFood) { await api.logSavedFood(f.id, { date, meal: addMeal }); await afterChange() }
+  async function toggleFav(f: SavedFood) { await api.favoriteSavedFood(f.id); reloadRemembered() }
+  async function forgetSaved(f: SavedFood) { if (!confirm(`Forget "${f.name}"?`)) return; await api.deleteSavedFood(f.id); reloadRemembered() }
+  async function logQuick(m: QuickMeal) { await api.logQuickMeal(m.id, { date }); await afterChange() }
+  async function removeQuick(m: QuickMeal) { if (!confirm(`Delete quick meal "${m.name}"?`)) return; await api.deleteQuickMeal(m.id); reloadQuick() }
+  async function saveMealAsQuick(meal: Meal) {
+    const name = prompt(`Save ${meal} as a reusable quick meal — name it:`, `${meal} – usual`)
+    if (!name?.trim()) return
+    await api.quickMealFromLog({ name: name.trim(), date, meal })
+    reloadQuick()
+  }
+  async function createScratchMeal(name: string, defaultMeal: string, items: QuickMealItem[]) {
+    await api.createQuickMeal({ name, defaultMeal, items })
+    reloadQuick()
+  }
 
   if (error) return <p className="error">Couldn't load nutrition ({error}).</p>
 
@@ -152,7 +180,10 @@ export default function NutritionPage() {
               <section className="card meal-card" key={meal}>
                 <div className="meal-head">
                   <h3>{meal}</h3>
-                  <span className="muted">{fmtKcal(cals)} kcal</span>
+                  <span className="meal-head-right">
+                    <button className="link-btn" title="Save this meal as a reusable quick meal" onClick={() => saveMealAsQuick(meal)}>save as meal</button>
+                    <span className="muted">{fmtKcal(cals)} kcal</span>
+                  </span>
                 </div>
                 {items.map((e) => (
                   <EntryRow key={e.id} entry={e} onSave={saveEntry} onDelete={removeEntry} />
@@ -188,9 +219,118 @@ export default function NutritionPage() {
 
           <div className="section-head"><h2 className="section-title">Manual entry</h2></div>
           <ManualForm meal={addMeal} date={date} onSubmit={addManual} />
+
+          <div className="section-head"><h2 className="section-title">Remembered</h2></div>
+          <RememberedPanel foods={remembered} tab={rTab} setTab={setRTab} query={rQuery} setQuery={setRQuery}
+            addMeal={addMeal} onLog={logSaved} onFav={toggleFav} onForget={forgetSaved} />
+
+          <div className="section-head"><h2 className="section-title">Quick meals</h2></div>
+          <QuickMealsPanel meals={quickMeals} addMeal={addMeal} onLog={logQuick} onDelete={removeQuick} onCreate={createScratchMeal} />
         </div>
       </div>
     </>
+  )
+}
+
+/* ---------- remembered foods (recents / frequents / favorites) ---------- */
+function RememberedPanel({ foods, tab, setTab, query, setQuery, addMeal, onLog, onFav, onForget }: {
+  foods: SavedFood[]; tab: 'recent' | 'frequent' | 'favorite'; setTab: (t: 'recent' | 'frequent' | 'favorite') => void
+  query: string; setQuery: (s: string) => void; addMeal: Meal
+  onLog: (f: SavedFood) => void; onFav: (f: SavedFood) => void; onForget: (f: SavedFood) => void
+}) {
+  const tabs: ['recent' | 'frequent' | 'favorite', string][] = [['recent', 'Recent'], ['frequent', 'Frequent'], ['favorite', 'Favorites']]
+  return (
+    <section className="card">
+      <div className="seg sm remembered-tabs">
+        {tabs.map(([t, label]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{label}</button>)}
+      </div>
+      <input className="food-search" type="search" placeholder="Filter remembered…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      {foods.length === 0 && <p className="muted srch-note">{tab === 'favorite' ? 'No favorites yet — tap a star to add one.' : 'Nothing here yet — logged foods show up automatically.'}</p>}
+      <div className="remembered-list">
+        {foods.map((f) => (
+          <div key={f.id} className="remembered-row">
+            <button className="rem-add" title={`Add to ${addMeal}`} onClick={() => onLog(f)}>
+              <span className="rem-name">{f.name}{f.brand && <span className="muted"> · {f.brand}</span>}</span>
+              <span className="rem-macros muted">{macroSummary(f)}{f.servingDescription ? ` · ${f.servingDescription}` : ''}</span>
+            </button>
+            <button className={`rem-star${f.favorite ? ' on' : ''}`} title="Favorite" onClick={() => onFav(f)}>{f.favorite ? '★' : '☆'}</button>
+            <button className="icon-btn danger" title="Forget" onClick={() => onForget(f)}>✕</button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ---------- quick meals (reusable bundles) ---------- */
+function QuickMealsPanel({ meals, addMeal, onLog, onDelete, onCreate }: {
+  meals: QuickMeal[]; addMeal: Meal
+  onLog: (m: QuickMeal) => void; onDelete: (m: QuickMeal) => void
+  onCreate: (name: string, defaultMeal: string, items: QuickMealItem[]) => void
+}) {
+  const [building, setBuilding] = useState(false)
+  return (
+    <section className="card">
+      {meals.length === 0 && !building && <p className="muted srch-note">No quick meals yet. Use “save as meal” on a logged meal, or build one below.</p>}
+      <div className="qm-list">
+        {meals.map((m) => (
+          <div key={m.id} className="qm-row">
+            <button className="qm-log" title="Log this meal" onClick={() => onLog(m)}>
+              <span className="qm-name">{m.name}</span>
+              <span className="qm-meta muted">{m.itemCount} item{m.itemCount === 1 ? '' : 's'} · {Math.round(m.totalCalories)} kcal{m.defaultMeal ? ` · ${m.defaultMeal}` : ''}</span>
+            </button>
+            <button className="icon-btn danger" title="Delete" onClick={() => onDelete(m)}>✕</button>
+          </div>
+        ))}
+      </div>
+      {building
+        ? <QuickMealBuilder defaultMeal={addMeal} onSave={(name, meal, items) => { onCreate(name, meal, items); setBuilding(false) }} onCancel={() => setBuilding(false)} />
+        : <button className="btn btn-ghost btn-sm qm-new" onClick={() => setBuilding(true)}>+ New quick meal</button>}
+    </section>
+  )
+}
+
+function QuickMealBuilder({ defaultMeal, onSave, onCancel }: {
+  defaultMeal: Meal; onSave: (name: string, meal: string, items: QuickMealItem[]) => void; onCancel: () => void
+}) {
+  const [name, setName] = useState('')
+  const [meal, setMeal] = useState<Meal>(defaultMeal)
+  const [items, setItems] = useState<QuickMealItem[]>([])
+  const [f, setF] = useState({ name: '', cal: '', p: '', c: '', fat: '' })
+
+  const addItem = () => {
+    if (!f.name.trim()) return
+    setItems((it) => [...it, { name: f.name.trim(), quantity: 1, calories: +f.cal || 0, proteinG: +f.p || 0, carbsG: +f.c || 0, fatG: +f.fat || 0 }])
+    setF({ name: '', cal: '', p: '', c: '', fat: '' })
+  }
+  const submit = (e: FormEvent) => { e.preventDefault(); if (!name.trim() || items.length === 0) return; onSave(name.trim(), meal, items) }
+
+  return (
+    <form className="qm-builder" onSubmit={submit}>
+      <div className="mf-row">
+        <input className="mf-name" placeholder="Meal name (e.g. Usual lunch)" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <select value={meal} onChange={(e) => setMeal(e.target.value as Meal)}>{MEALS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+      </div>
+      <ul className="list qm-items">
+        {items.length === 0 && <li className="muted">Add items below.</li>}
+        {items.map((it, idx) => (
+          <li key={idx}><span>{it.name}</span><span className="muted">{Math.round(it.calories)} kcal
+            <button type="button" className="icon-btn danger" onClick={() => setItems(items.filter((_, i) => i !== idx))}>✕</button></span></li>
+        ))}
+      </ul>
+      <div className="mf-macros">
+        <label><span>Item</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+        <label><span>Cal</span><input type="number" value={f.cal} onChange={(e) => setF({ ...f, cal: e.target.value })} /></label>
+        <label><span>P</span><input type="number" value={f.p} onChange={(e) => setF({ ...f, p: e.target.value })} /></label>
+        <label><span>C</span><input type="number" value={f.c} onChange={(e) => setF({ ...f, c: e.target.value })} /></label>
+        <label><span>F</span><input type="number" value={f.fat} onChange={(e) => setF({ ...f, fat: e.target.value })} /></label>
+      </div>
+      <div className="gf-actions">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={addItem}>+ Add item</button>
+        <button type="submit" className="btn btn-sm" disabled={!name.trim() || items.length === 0}>Save meal</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   )
 }
 

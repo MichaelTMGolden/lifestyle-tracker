@@ -173,6 +173,100 @@ public class Alert
 
 public enum MealType { Breakfast = 0, Lunch = 1, Dinner = 2, Snack = 3, Other = 4 }
 
+/// <summary>Macro snapshot shared by FoodEntry, SavedFood and QuickMealItem (lets one helper build a FoodEntry from any of them).</summary>
+public interface IFoodMacros
+{
+    string Name { get; }
+    string? Brand { get; }
+    string? ExternalRef { get; }
+    string? ServingDescription { get; }
+    double Calories { get; }
+    double ProteinG { get; }
+    double CarbsG { get; }
+    double FatG { get; }
+    double FiberG { get; }
+    double SugarG { get; }
+    double SatFatG { get; }
+    double SodiumMg { get; }
+    double PotassiumMg { get; }
+    double CalciumMg { get; }
+    double IronMg { get; }
+}
+
+/// <summary>
+/// A remembered food: powers recents (LastUsedAt), frequents (UseCount) and
+/// favorites (Favorite star). Auto-upserted whenever a FoodEntry is logged, keyed
+/// on (Name, Brand, ExternalRef) so repeats increment rather than duplicate. The
+/// macro snapshot is for DefaultQuantity servings; logging scales from it.
+/// </summary>
+public class SavedFood : IFoodMacros
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public string? Brand { get; set; }
+    public int? DataSourceId { get; set; }
+    public string? ExternalRef { get; set; }
+
+    public string? ServingDescription { get; set; }
+    public double DefaultQuantity { get; set; } = 1;
+    public double? Grams { get; set; }
+
+    public double Calories { get; set; }
+    public double ProteinG { get; set; }
+    public double CarbsG { get; set; }
+    public double FatG { get; set; }
+    public double FiberG { get; set; }
+    public double SugarG { get; set; }
+    public double SatFatG { get; set; }
+    public double SodiumMg { get; set; }
+    public double PotassiumMg { get; set; }
+    public double CalciumMg { get; set; }
+    public double IronMg { get; set; }
+
+    public bool Favorite { get; set; }
+    public int UseCount { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
+}
+
+/// <summary>A reusable meal = a named bundle of food snapshots that expand into FoodEntry rows when logged.</summary>
+public class QuickMeal
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public MealType? DefaultMeal { get; set; }
+    public int UseCount { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
+    public List<QuickMealItem> Items { get; set; } = new();
+}
+
+/// <summary>A frozen food snapshot inside a QuickMeal (not an FK to SavedFood, so editing a food later doesn't shift saved meals).</summary>
+public class QuickMealItem : IFoodMacros
+{
+    public int Id { get; set; }
+    public int QuickMealId { get; set; }
+    public QuickMeal? QuickMeal { get; set; }
+
+    public required string Name { get; set; }
+    public string? Brand { get; set; }
+    public int? DataSourceId { get; set; }
+    public string? ExternalRef { get; set; }
+    public string? ServingDescription { get; set; }
+    public double Quantity { get; set; } = 1;
+    public double? Grams { get; set; }
+
+    public double Calories { get; set; }
+    public double ProteinG { get; set; }
+    public double CarbsG { get; set; }
+    public double FatG { get; set; }
+    public double FiberG { get; set; }
+    public double SugarG { get; set; }
+    public double SatFatG { get; set; }
+    public double SodiumMg { get; set; }
+    public double PotassiumMg { get; set; }
+    public double CalciumMg { get; set; }
+    public double IronMg { get; set; }
+}
+
 /// <summary>
 /// One logged food item on a given day. The day's rows are the source of truth;
 /// their daily macro totals are materialized into <see cref="MetricSample"/> rows
@@ -181,7 +275,7 @@ public enum MealType { Breakfast = 0, Lunch = 1, Dinner = 2, Snack = 3, Other = 
 /// daily sum is a plain aggregate. The food database is just another DataSource
 /// (Manual / OpenFoodFacts / Usda), exactly like Garmin or Spotify.
 /// </summary>
-public class FoodEntry
+public class FoodEntry : IFoodMacros
 {
     public long Id { get; set; }
     public int DataSourceId { get; set; }

@@ -49,6 +49,10 @@ export const fmtMacro = (g: number) => `${Math.round(g)} g`
 /** kcal → "1,718" (rounded, thousands-separated). */
 export const fmtKcal = (k: number) => Math.round(k).toLocaleString()
 
+/** Compact macro summary for chips/rows: "320 kcal · 12P / 52C / 7F". */
+export const macroSummary = (m: { calories: number; proteinG: number; carbsG: number; fatG: number }) =>
+  `${Math.round(m.calories)} kcal · ${Math.round(m.proteinG)}P / ${Math.round(m.carbsG)}C / ${Math.round(m.fatG)}F`
+
 /** Food-source key → human label for the source badge. */
 export function sourceLabel(source: string): string {
   switch (source) {
