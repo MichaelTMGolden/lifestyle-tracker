@@ -267,17 +267,27 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--crimson); }
 
 .btn {
-  font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.12em;
-  font-size: 0.74rem;
+  font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 0.74rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
   background: var(--crimson-soft); color: var(--crimson);
-  border: 1px solid rgba(178, 58, 91, 0.5); border-radius: 4px;
-  padding: 0.55rem 1.15rem; cursor: pointer; transition: all 0.18s;
+  border: 1px solid rgba(178, 58, 91, 0.5); border-radius: 6px;
+  padding: 0.6rem 1.2rem; cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.06s;
 }
-.btn:hover { background: var(--crimson); color: #f3ece0; }
+.btn:hover { background: linear-gradient(180deg, #c34a6b, var(--crimson)); color: #f6efe4;
+  border-color: var(--crimson); box-shadow: 0 4px 16px rgba(178, 58, 91, 0.3); }
+.btn:active { transform: translateY(1px); box-shadow: 0 1px 6px rgba(178, 58, 91, 0.3); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(178, 58, 91, 0.55); }
+.btn:disabled, .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.btn:disabled:hover { background: var(--crimson-soft); color: var(--crimson); border-color: rgba(178, 58, 91, 0.5); box-shadow: none; transform: none; }
+
 .btn-ghost { background: none; border-color: var(--line-strong); color: var(--text-dim); }
-.btn-ghost:hover { background: none; color: var(--text); border-color: var(--text-dim); }
+.btn-ghost:hover { background: var(--bg-3); color: var(--text); border-color: var(--text-dim); box-shadow: none; }
+.btn-ghost:active { transform: translateY(1px); }
+
 .btn-danger { color: var(--bad); border-color: rgba(196, 90, 104, 0.4); background: none; }
-.btn-danger:hover { background: var(--bad); color: #1a0d0f; }
+.btn-danger:hover { background: var(--bad); color: #1a0d0f; border-color: var(--bad); box-shadow: 0 4px 16px rgba(196, 90, 104, 0.25); }
 .icon-btn { background: none; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; color: var(--text-dim); padding: 0.3rem 0.5rem; font-size: 0.9rem; transition: all 0.15s; }
 .icon-btn:hover { color: var(--crimson); border-color: var(--crimson); }
 .icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
@@ -304,7 +314,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .section-head .section-title { margin-bottom: 0.5rem; }
 
-.btn-sm { padding: 0.28rem 0.6rem; font-size: 0.8rem; }
+.btn-sm { padding: 0.34rem 0.72rem; font-size: 0.72rem; }
 
 /* ---------- goals ---------- */
 .goals-section { margin-bottom: 0.6rem; }
