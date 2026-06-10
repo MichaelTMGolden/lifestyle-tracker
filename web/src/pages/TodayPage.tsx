@@ -55,7 +55,7 @@ export default function TodayPage() {
   const now = today.nowMinutes
   // Do we have any real Garmin-sourced health data yet? Drives honest empty states.
   const hasHealth = today.lastSleepScore != null || today.restingHr != null || today.stepsToday > 0
-  const dateLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+  const dateLabel = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long' })
   const openDaily = daily.filter((d) => !d.done)
   const dailyDone = daily.length - openDaily.length
   const overdue = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt) < new Date(new Date().toDateString()))
@@ -444,9 +444,9 @@ function TasksInner({ overdue, upcoming }: { overdue: Todo[]; upcoming: Todo[] }
   return (
     <>
       {overdue.length > 0 && <div className="tgroup over">Overdue · {overdue.length}</div>}
-      {overdue.map((t) => <div key={t.id} className="task over"><span>{t.title}</span><span className="muted" style={{ color: 'var(--bad)' }}>{t.dueAt && new Date(t.dueAt).toLocaleDateString()}</span></div>)}
+      {overdue.map((t) => <div key={t.id} className="task over"><span>{t.title}</span><span className="muted" style={{ color: 'var(--bad)' }}>{t.dueAt && new Date(t.dueAt).toLocaleDateString('en-IE')}</span></div>)}
       {upcoming.length > 0 && <div className="tgroup">Upcoming</div>}
-      {upcoming.map((t) => <div key={t.id} className="task"><span>{t.title}</span><span className="muted">{t.dueAt && new Date(t.dueAt).toLocaleDateString()}</span></div>)}
+      {upcoming.map((t) => <div key={t.id} className="task"><span>{t.title}</span><span className="muted">{t.dueAt && new Date(t.dueAt).toLocaleDateString('en-IE')}</span></div>)}
       {overdue.length === 0 && upcoming.length === 0 && <p className="muted">Nothing due.</p>}
     </>
   )

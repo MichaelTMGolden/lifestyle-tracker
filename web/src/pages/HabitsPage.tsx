@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput } from '../api'
-import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
+import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDate, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
 import { useTimer } from '../timer/TimerContext'
 import { Collapsible } from '../components/Collapsible'
 
@@ -177,7 +177,7 @@ export default function HabitsPage() {
                   <span className="done-trophy" aria-hidden>🏆</span>
                   <span className="done-name">{g.name}</span>
                   <span className="done-hours">{fmtHours(g.targetMinutes)}</span>
-                  <span className="done-date">{g.completedOn ? fmtMonthYear(g.completedOn) : ''}</span>
+                  <span className="done-date">{g.completedOn ? fmtDate(g.completedOn) : ''}</span>
                   <button className="link-btn" title="Move back to active goals" onClick={() => restoreGoal(g.id)}>restore</button>
                   <button className="icon-btn danger" title="Delete" onClick={() => removeGoal(g.id)}>✕</button>
                 </li>
@@ -261,7 +261,7 @@ export default function HabitsPage() {
                               key={k}
                               className={`heat-cell${level > 0 ? ' on' : ''}${future ? ' future' : ''}`}
                               style={level > 0 ? { background: color, opacity: ALPHA[level] } : undefined}
-                              title={`${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} — ${label}`}
+                              title={`${d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' })} — ${label}`}
                             />
                           )
                         })}
@@ -364,7 +364,7 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete, onRetire }: {
           <span className="goal-seg" style={{ width: '100%', background: accent }} />
         </div>
         <div className="goal-meta">
-          {goal.completedOn && <span>Completed {fmtMonthYear(goal.completedOn)}</span>}
+          {goal.completedOn && <span>Completed {fmtDate(goal.completedOn)}</span>}
           {goal.completedOn && goal.startDate && (
             <span className="goal-eta">in {fmtDaySpan(Math.max(1, daysBetween(goal.startDate, goal.completedOn)))}</span>
           )}
@@ -422,13 +422,13 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete, onRetire }: {
         ))}
         {goal.expectedFraction != null && (
           <span className="goal-marker" style={{ left: `${goal.expectedFraction * 100}%` }}
-            title={`Where you'd need to be today to hit ${goal.targetDate ? fmtMonthYear(goal.targetDate) : 'target'}`} />
+            title={`Where you'd need to be today to hit ${goal.targetDate ? fmtDate(goal.targetDate) : 'target'}`} />
         )}
       </div>
       <div className="goal-meta">
         <span>{fmtHours(goal.remainingMinutes)} to go</span>
         <span className="goal-eta">{etaLine}</span>
-        {goal.targetDate && <span className="goal-target-date">target {fmtMonthYear(goal.targetDate)}</span>}
+        {goal.targetDate && <span className="goal-target-date">target {fmtDate(goal.targetDate)}</span>}
       </div>
       <div className="goal-feeders">
         {goal.sources.map((s) => {

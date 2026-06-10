@@ -14,7 +14,7 @@ const shiftDay = (key: string, delta: number) => {
 }
 const prettyDate = (key: string) => {
   const [y, m, dd] = key.split('-').map(Number)
-  return new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+  return new Date(y, m - 1, dd).toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short' })
 }
 const mealOf = (s: string): Meal => (MEALS as readonly string[]).includes(s) ? (s as Meal) : 'Other'
 

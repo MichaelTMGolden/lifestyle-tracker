@@ -147,7 +147,7 @@ function TodoRow({ t, editing, edit, setEdit, onStartEdit, onSave, onCancel, onT
         {t.notes && <div className="ti-notes">{t.notes}</div>}
       </div>
       <span className={`pri pri-${t.priority}`}>{PRIORITIES.find((p) => p.v === t.priority)?.label}</span>
-      {t.dueAt && <span className={overdue ? 'ti-due overdue' : 'ti-due'}>{new Date(t.dueAt).toLocaleDateString()}</span>}
+      {t.dueAt && <span className={overdue ? 'ti-due overdue' : 'ti-due'}>{new Date(t.dueAt).toLocaleDateString('en-IE')}</span>}
       <div className="ti-actions">
         <button className="icon-btn" onClick={onStartEdit} title="Edit">✎</button>
         <button className="icon-btn danger" onClick={onDelete} title="Delete">🗑</button>

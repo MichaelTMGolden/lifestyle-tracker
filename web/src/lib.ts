@@ -7,9 +7,16 @@ export function fmtMinutes(min: number): string {
   return `${h}:${m.toString().padStart(2, '0')}`
 }
 
-/** ISO date → "Jun 7". */
+/** Locale used app-wide: Ireland → day/month/year ordering. */
+export const LOCALE = 'en-IE'
+
+/** ISO date → "7/6" (day/month, Irish order). */
 export const fmtDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  new Date(iso).toLocaleDateString(LOCALE, { day: 'numeric', month: 'numeric' })
+
+/** ISO date → "07/06/2026" (full Irish d/m/y). */
+export const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 /** The 12 bingo lines as position sets — mirrors the server geometry (line id = index). */
 export const BINGO_LINES: number[][] = [
@@ -34,7 +41,7 @@ export function alertSeverity(sev: string): { color: string; loud: boolean } {
 
 /** ISO date → "Mar 2027" (for goal ETA / projected completion). */
 export const fmtMonthYear = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+  new Date(iso).toLocaleDateString(LOCALE, { month: 'short', year: 'numeric' })
 
 /** Whole days between two ISO dates (b − a). */
 export const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)

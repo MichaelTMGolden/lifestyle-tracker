@@ -42,11 +42,14 @@ public static class GoalPacingService
         var newlyCompleted = false;
         foreach (var g in goals)
         {
+            // A goal only counts feeder minutes logged on/after it started — never any
+            // time banked before the goal existed. Start defaults to the creation date.
+            var start = g.StartDate ?? today;
             var feeders = g.Sources.Where(s => s.Habit is not null).ToList();
             var sources = feeders
                 .Select(s => new GoalSourceDto(
                     s.HabitId, s.Habit!.Name,
-                    s.Habit!.Logs.Where(l => g.StartDate == null || l.Date >= g.StartDate).Sum(l => l.Minutes)))
+                    s.Habit!.Logs.Where(l => l.Date >= start).Sum(l => l.Minutes)))
                 .OrderByDescending(s => s.Minutes)
                 .ToList();
 
@@ -55,13 +58,11 @@ public static class GoalPacingService
             var progress = g.TargetMinutes > 0 ? Math.Min(1.0, accumulated / (double)g.TargetMinutes) : 0;
 
             var logs = feeders.SelectMany(s => s.Habit!.Logs)
-                .Where(l => g.StartDate == null || l.Date >= g.StartDate).ToList();
+                .Where(l => l.Date >= start).ToList();
             var weekly = logs.Where(l => l.Date >= weekAgo).Sum(l => l.Minutes);
             var dailyRate = logs.Where(l => l.Date >= since28).Sum(l => l.Minutes) / 28.0;
 
-            var earliest = logs.Count > 0 ? logs.Min(l => l.Date) : (DateOnly?)null;
-            var planStart = g.StartDate ?? earliest ?? today;
-            var daysActive = Math.Max(1, today.DayNumber - planStart.DayNumber);
+            var daysActive = Math.Max(1, today.DayNumber - start.DayNumber);
             var lifetimeDailyRate = accumulated / (double)daysActive;
 
             DateOnly? projectedDate = remaining == 0 ? today
@@ -77,13 +78,9 @@ public static class GoalPacingService
                 requiredDaily = remaining / (double)daysUntil;
                 paceStatus = dailyRate >= requiredDaily ? "ahead" : "behind";
                 paceDelta = dailyRate - requiredDaily.Value;
-                // Expected-progress is measured from when the goal itself started — an
-                // explicit StartDate, else today. (planStart can reach back to the earliest
-                // feeder log for the lifetime rate, but anchoring the *schedule* there would
-                // treat a goal you just created as months overdue.)
-                var scheduleStart = g.StartDate ?? today;
-                var span = target.DayNumber - scheduleStart.DayNumber;
-                expectedFraction = span > 0 ? Math.Clamp((today.DayNumber - scheduleStart.DayNumber) / (double)span, 0, 1) : 1;
+                // Expected-progress is measured from when the goal started (its start date).
+                var span = target.DayNumber - start.DayNumber;
+                expectedFraction = span > 0 ? Math.Clamp((today.DayNumber - start.DayNumber) / (double)span, 0, 1) : 1;
                 if (projectedDate is DateOnly pd) projectedVsTarget = pd.DayNumber - target.DayNumber;
                 // Schedule-relative pace for the on-track pill: how many plan-days actual
                 // progress trails (+) or leads (-) the straight-line expected progress.
