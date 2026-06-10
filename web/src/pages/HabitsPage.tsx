@@ -301,9 +301,14 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete }: {
     : 'No recent pace to project from'
 
   // Ahead/behind pill (only when a target date is set and goal isn't done).
+  // Uses the schedule-relative gap (actual vs straight-line expected progress),
+  // which stays bounded — a freshly created goal reads "on pace", not wildly behind.
+  const gap = goal.paceGapDays
   const pace = goal.targetDate && goal.state !== 'complete'
-    ? goal.projectedVsTargetDays != null
-      ? { ahead: goal.projectedVsTargetDays < 0, text: `${fmtDaySpan(goal.projectedVsTargetDays)} ${goal.projectedVsTargetDays < 0 ? 'ahead' : 'behind'}` }
+    ? gap != null
+      ? Math.abs(gap) <= 3
+        ? { ahead: true, text: 'on pace' }
+        : { ahead: gap < 0, text: `${fmtDaySpan(gap)} ${gap < 0 ? 'ahead' : 'behind'}` }
       : { ahead: goal.paceStatus === 'ahead', text: goal.paceStatus === 'ahead' ? 'on pace' : 'behind' }
     : null
 

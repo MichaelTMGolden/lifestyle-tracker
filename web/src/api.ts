@@ -165,6 +165,7 @@ export interface Goal {
   paceDeltaMinutesPerDay: number | null
   expectedFraction: number | null
   projectedVsTargetDays: number | null
+  paceGapDays: number | null
   state: 'active' | 'complete' | 'overdue' | 'stalled'
   sources: GoalSource[]
 }

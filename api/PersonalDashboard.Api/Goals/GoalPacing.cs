@@ -17,7 +17,7 @@ public record GoalPacing(
     double DailyRateMinutes, double LifetimeDailyRateMinutes,
     DateOnly? ProjectedDate,
     double? RequiredDailyRateMinutes, string? PaceStatus, double? PaceDeltaMinutesPerDay,
-    double? ExpectedFraction, int? ProjectedVsTargetDays,
+    double? ExpectedFraction, int? ProjectedVsTargetDays, int? PaceGapDays,
     string State,
     List<GoalSourceDto> Sources);
 
@@ -70,16 +70,26 @@ public static class GoalPacingService
 
             double? requiredDaily = null, paceDelta = null, expectedFraction = null;
             string? paceStatus = null;
-            int? projectedVsTarget = null;
+            int? projectedVsTarget = null, paceGapDays = null;
             if (g.TargetDate is DateOnly target)
             {
                 var daysUntil = Math.Max(1, target.DayNumber - today.DayNumber);
                 requiredDaily = remaining / (double)daysUntil;
                 paceStatus = dailyRate >= requiredDaily ? "ahead" : "behind";
                 paceDelta = dailyRate - requiredDaily.Value;
-                var span = target.DayNumber - planStart.DayNumber;
-                expectedFraction = span > 0 ? Math.Clamp((today.DayNumber - planStart.DayNumber) / (double)span, 0, 1) : 1;
+                // Expected-progress is measured from when the goal itself started — an
+                // explicit StartDate, else today. (planStart can reach back to the earliest
+                // feeder log for the lifetime rate, but anchoring the *schedule* there would
+                // treat a goal you just created as months overdue.)
+                var scheduleStart = g.StartDate ?? today;
+                var span = target.DayNumber - scheduleStart.DayNumber;
+                expectedFraction = span > 0 ? Math.Clamp((today.DayNumber - scheduleStart.DayNumber) / (double)span, 0, 1) : 1;
                 if (projectedDate is DateOnly pd) projectedVsTarget = pd.DayNumber - target.DayNumber;
+                // Schedule-relative pace for the on-track pill: how many plan-days actual
+                // progress trails (+) or leads (-) the straight-line expected progress.
+                // Bounded by the goal span, so a brand-new goal reads "on pace" instead of
+                // extrapolating its full remaining target into an alarming projection.
+                if (span > 0) paceGapDays = (int)Math.Round((expectedFraction.Value - progress) * span);
             }
 
             var state = remaining == 0 ? "complete"
@@ -94,7 +104,7 @@ public static class GoalPacingService
                 projectedDate,
                 requiredDaily is double rd ? Math.Round(rd, 2) : null, paceStatus,
                 paceDelta is double pdm ? Math.Round(pdm, 2) : null,
-                expectedFraction is double ef ? Math.Round(ef, 4) : null, projectedVsTarget,
+                expectedFraction is double ef ? Math.Round(ef, 4) : null, projectedVsTarget, paceGapDays,
                 state, sources));
         }
         return result;
