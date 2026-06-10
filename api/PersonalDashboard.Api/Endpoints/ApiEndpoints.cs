@@ -689,8 +689,8 @@ public static class ApiEndpoints
         // marks the day done.
         api.MapPost("/habits/{id:int}/log-time", async (int id, MinutesInput body, AppDbContext db, HttpRequest req) =>
         {
-            if (body.Minutes <= 0 || body.Minutes > 1440)
-                return Results.BadRequest(new { message = "minutes must be between 1 and 1440" });
+            if (body.Minutes <= 0)
+                return Results.BadRequest(new { message = "minutes must be a positive value" });
             if (!await db.Habits.AnyAsync(h => h.Id == id)) return Results.NotFound();
 
             var today = ClientClock.From(req).Today;
@@ -712,8 +712,8 @@ public static class ApiEndpoints
         // Set today's minutes to an absolute value (corrections). Completed = minutes > 0.
         api.MapPut("/habits/{id:int}/today", async (int id, MinutesInput body, AppDbContext db, HttpRequest req) =>
         {
-            if (body.Minutes < 0 || body.Minutes > 1440)
-                return Results.BadRequest(new { message = "minutes must be between 0 and 1440" });
+            if (body.Minutes < 0)
+                return Results.BadRequest(new { message = "minutes cannot be negative" });
             if (!await db.Habits.AnyAsync(h => h.Id == id)) return Results.NotFound();
 
             var today = ClientClock.From(req).Today;
@@ -769,14 +769,14 @@ public static class ApiEndpoints
         api.MapGet("/goals", (AppDbContext db, HttpRequest req) =>
             GoalPacingService.ComputeAsync(db, ClientClock.From(req).Today));
 
-        api.MapPost("/goals", async (GoalInput input, AppDbContext db) =>
+        api.MapPost("/goals", async (GoalInput input, AppDbContext db, HttpRequest req) =>
         {
             var goal = new Goal
             {
                 Name = input.Name,
                 TargetMinutes = Math.Max(0, input.TargetHours) * 60,
                 ColorHex = input.ColorHex,
-                StartDate = input.StartDate,
+                StartDate = input.StartDate ?? ClientClock.From(req).Today,  // default: created-on date
                 TargetDate = input.TargetDate,
                 Sources = (input.SourceHabitIds ?? new())
                     .Distinct().Select(hid => new GoalSource { HabitId = hid }).ToList(),
