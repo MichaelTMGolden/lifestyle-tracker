@@ -18,7 +18,7 @@ public record GoalPacing(
     DateOnly? ProjectedDate,
     double? RequiredDailyRateMinutes, string? PaceStatus, double? PaceDeltaMinutesPerDay,
     double? ExpectedFraction, int? ProjectedVsTargetDays, int? PaceGapDays,
-    string State,
+    string State, DateOnly? CompletedOn, bool Archived,
     List<GoalSourceDto> Sources);
 
 public static class GoalPacingService
@@ -34,12 +34,12 @@ public static class GoalPacingService
         var weekAgo = today.AddDays(-7);
 
         var goals = await db.Goals
-            .Where(g => !g.Archived)
             .Include(g => g.Sources).ThenInclude(s => s.Habit).ThenInclude(h => h!.Logs)
             .OrderByDescending(g => g.TargetMinutes)
             .ToListAsync();
 
         var result = new List<GoalPacing>();
+        var newlyCompleted = false;
         foreach (var g in goals)
         {
             var feeders = g.Sources.Where(s => s.Habit is not null).ToList();
@@ -92,7 +92,12 @@ public static class GoalPacingService
                 if (span > 0) paceGapDays = (int)Math.Round((expectedFraction.Value - progress) * span);
             }
 
-            var state = remaining == 0 ? "complete"
+            // Stamp the completion date the first time the target is reached, so the
+            // achievement (and how long it took) is preserved even as feeders keep logging.
+            if (remaining == 0 && g.CompletedOn is null) { g.CompletedOn = today; newlyCompleted = true; }
+            else if (remaining > 0 && g.CompletedOn is not null && !g.Archived) { g.CompletedOn = null; newlyCompleted = true; }
+
+            var state = g.CompletedOn is not null ? "complete"
                 : g.TargetDate is DateOnly t && t < today ? "overdue"
                 : dailyRate == 0 ? "stalled"
                 : "active";
@@ -105,8 +110,9 @@ public static class GoalPacingService
                 requiredDaily is double rd ? Math.Round(rd, 2) : null, paceStatus,
                 paceDelta is double pdm ? Math.Round(pdm, 2) : null,
                 expectedFraction is double ef ? Math.Round(ef, 4) : null, projectedVsTarget, paceGapDays,
-                state, sources));
+                state, g.CompletedOn, g.Archived, sources));
         }
+        if (newlyCompleted) await db.SaveChangesAsync();
         return result;
     }
 }

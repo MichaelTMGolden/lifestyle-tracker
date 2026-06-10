@@ -132,6 +132,9 @@ public class Goal
     public DateOnly? StartDate { get; set; }
     /// <summary>Optional deadline. When set, the goal shows ahead/behind pace vs a linear plan.</summary>
     public DateOnly? TargetDate { get; set; }
+    /// <summary>Stamped the first time accumulated minutes reach the target. Drives the "complete" state.</summary>
+    public DateOnly? CompletedOn { get; set; }
+    /// <summary>Retired: hidden from the active grid, kept in the Completed section.</summary>
     public bool Archived { get; set; }
 
     public List<GoalSource> Sources { get; set; } = new();

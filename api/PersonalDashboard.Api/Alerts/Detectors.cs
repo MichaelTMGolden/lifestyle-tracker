@@ -172,7 +172,7 @@ public class GoalOffPaceDetector : IAlertDetector
         var alerts = new List<Alert>();
         foreach (var g in pacings)
         {
-            if (g.TargetDate is null || g.State == "complete") continue;
+            if (g.Archived || g.TargetDate is null || g.State == "complete") continue;
             if (g.AccumulatedMinutes == 0) continue; // not started yet — don't nag on untouched goals
             var lateDays = g.ProjectedVsTargetDays;
             var behind = (lateDays.HasValue && lateDays.Value > BufferDays) || g.PaceStatus == "behind";

@@ -36,6 +36,9 @@ export function alertSeverity(sev: string): { color: string; loud: boolean } {
 export const fmtMonthYear = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
 
+/** Whole days between two ISO dates (b − a). */
+export const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
+
 /** A day count → human span: "8 days" / "2 weeks" / "3 months". */
 export function fmtDaySpan(days: number): string {
   const d = Math.abs(Math.round(days))

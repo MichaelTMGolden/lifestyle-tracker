@@ -814,6 +814,26 @@ public static class ApiEndpoints
             return Results.NoContent();
         });
 
+        // Retire a completed goal into the Completed section (and back).
+        api.MapPut("/goals/{id:int}/archive", async (int id, AppDbContext db, HttpRequest req) =>
+        {
+            var goal = await db.Goals.FindAsync(id);
+            if (goal is null) return Results.NotFound();
+            goal.Archived = true;
+            goal.CompletedOn ??= ClientClock.From(req).Today; // retiring effectively marks it done
+            await db.SaveChangesAsync();
+            return Results.Ok(new { goal.Id, goal.Archived });
+        });
+
+        api.MapPut("/goals/{id:int}/unarchive", async (int id, AppDbContext db) =>
+        {
+            var goal = await db.Goals.FindAsync(id);
+            if (goal is null) return Results.NotFound();
+            goal.Archived = false;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { goal.Id, goal.Archived });
+        });
+
         // --- Alerts (anomaly / pattern detection) ---
         // GET runs a staleness-guarded regeneration (≤ once/hour); refresh forces it.
         api.MapGet("/alerts", async (AppDbContext db, AlertService alerts, HttpRequest req, string? status) =>

@@ -1,7 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput } from '../api'
-import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDaySpan, intensityLevel } from '../lib'
+import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
 import { useTimer } from '../timer/TimerContext'
+import { Collapsible } from '../components/Collapsible'
+
+// Goal ids whose completion has already been celebrated, so a 100% goal only
+// triggers the confetti once (not on every page load).
+const CELEB_KEY = 'pd:goals-celebrated'
+const loadCelebrated = (): number[] => { try { return JSON.parse(localStorage.getItem(CELEB_KEY) || '[]') } catch { return [] } }
+const markCelebrated = (id: number) => {
+  const s = new Set(loadCelebrated()); s.add(id)
+  localStorage.setItem(CELEB_KEY, JSON.stringify([...s]))
+}
 
 const WEEKS = 26
 const DAYS = WEEKS * 7
@@ -36,6 +46,7 @@ export default function HabitsPage() {
   const [showNewSkill, setShowNewSkill] = useState(false)
   const [skillName, setSkillName] = useState('')
   const [skillTimed, setSkillTimed] = useState(true)
+  const [celebrating, setCelebrating] = useState<Goal | null>(null)
 
   // Running-timer state lives in shared context (also driven by the sticky bar).
   const { timer, elapsedMs, start, stop, dataTick } = useTimer()
@@ -50,6 +61,20 @@ export default function HabitsPage() {
   useEffect(() => { load() }, [])
   // Refetch when a timer is logged (here or from the sticky bar).
   useEffect(() => { if (dataTick) load() }, [dataTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Fire the celebration once when a goal first shows up complete (and not yet retired).
+  useEffect(() => {
+    if (celebrating) return
+    const done = loadCelebrated()
+    const fresh = goals.find((g) => g.state === 'complete' && !g.archived && !done.includes(g.id))
+    if (fresh) setCelebrating(fresh)
+  }, [goals, celebrating])
+
+  const dismissCelebration = () => {
+    if (celebrating) markCelebrated(celebrating.id)
+    setCelebrating(null)
+  }
+  async function retireGoal(id: number) { await api.archiveGoal(id); await load() }
+  async function restoreGoal(id: number) { await api.unarchiveGoal(id); await load() }
 
   async function quickAdd(id: number, mins: number) { await api.logHabitTime(id, mins); await load() }
   async function addCustom(id: number) {
@@ -82,6 +107,8 @@ export default function HabitsPage() {
 
   const habitIndex = new Map(habits.map((h, i) => [h.name, i] as const))
   const colorOf = (name: string) => habitColor(name, habitIndex.get(name) ?? 0)
+  const activeGoals = goals.filter((g) => !g.archived)
+  const completedGoals = goals.filter((g) => g.archived)
   // habitId → (dateKey → minutes) for the active (completed) days
   const minsById = new Map(heat.map((h) => [h.id, new Map(h.days.map((d) => [d.date, d.minutes] as const))] as const))
 
@@ -116,7 +143,7 @@ export default function HabitsPage() {
         )}
 
         <div className="goal-grid">
-          {goals.map((g, i) =>
+          {activeGoals.map((g, i) =>
             editingId === g.id ? (
               <GoalForm
                 key={g.id}
@@ -129,18 +156,38 @@ export default function HabitsPage() {
               <GoalCard
                 key={g.id}
                 goal={g}
-                hero={i === 0 && g.targetMinutes >= 30000}
+                hero={i === 0 && g.state !== 'complete' && g.targetMinutes >= 30000}
                 colorOf={colorOf}
                 onEdit={() => { setShowNew(false); setEditingId(g.id) }}
                 onDelete={() => removeGoal(g.id)}
+                onRetire={() => retireGoal(g.id)}
               />
             ),
           )}
-          {goals.length === 0 && !showNew && (
+          {activeGoals.length === 0 && !showNew && (
             <p className="subtitle">No goals yet — create one to roll practice minutes into an hour target.</p>
           )}
         </div>
+
+        {completedGoals.length > 0 && (
+          <Collapsible title={`Completed (${completedGoals.length})`} storageKey="pd:goals-completed">
+            <ul className="done-list">
+              {completedGoals.map((g) => (
+                <li key={g.id} className="done-row" style={{ ['--goal' as string]: g.colorHex || 'var(--crimson)' }}>
+                  <span className="done-trophy" aria-hidden>🏆</span>
+                  <span className="done-name">{g.name}</span>
+                  <span className="done-hours">{fmtHours(g.targetMinutes)}</span>
+                  <span className="done-date">{g.completedOn ? fmtMonthYear(g.completedOn) : ''}</span>
+                  <button className="link-btn" title="Move back to active goals" onClick={() => restoreGoal(g.id)}>restore</button>
+                  <button className="icon-btn danger" title="Delete" onClick={() => removeGoal(g.id)}>✕</button>
+                </li>
+              ))}
+            </ul>
+          </Collapsible>
+        )}
       </section>
+
+      {celebrating && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
 
       {/* ---- Skills: heatmap + per-skill controls ---- */}
       <div className="section-head">
@@ -283,28 +330,63 @@ export default function HabitsPage() {
 }
 
 /* ---------- Goal card ---------- */
-function GoalCard({ goal, hero, colorOf, onEdit, onDelete }: {
+function GoalCard({ goal, hero, colorOf, onEdit, onDelete, onRetire }: {
   goal: Goal
   hero: boolean
   colorOf: (name: string) => string
   onEdit: () => void
   onDelete: () => void
+  onRetire: () => void
 }) {
   const pct = Math.round(goal.progress * 100)
   const accent = goal.colorHex || 'var(--crimson)'
 
-  // ETA line from the projection + state.
+  // Completed: a frozen "trophy" card — figures locked at the target, no live
+  // accumulation/projection, with a Retire action to tuck it into the Completed list.
+  if (goal.state === 'complete') {
+    return (
+      <div className="goal-card goal-done" style={{ ['--goal' as string]: accent }}>
+        <div className="goal-top">
+          <div className="goal-titlewrap">
+            <h3 className="goal-name">{goal.name}</h3>
+            <span className="pace-pill done">✓ Complete</span>
+          </div>
+          <div className="goal-actions">
+            <button className="icon-btn" title="Edit" onClick={onEdit}>✎</button>
+            <button className="icon-btn danger" title="Delete" onClick={onDelete}>✕</button>
+          </div>
+        </div>
+        <div className="goal-figures">
+          <span className="goal-acc">{fmtHours(goal.targetMinutes)}</span>
+          <span className="goal-pct">100%</span>
+        </div>
+        <div className="goal-bar goal-bar-done" title="Complete">
+          <span className="goal-seg" style={{ width: '100%', background: accent }} />
+        </div>
+        <div className="goal-meta">
+          {goal.completedOn && <span>Completed {fmtMonthYear(goal.completedOn)}</span>}
+          {goal.completedOn && goal.startDate && (
+            <span className="goal-eta">in {fmtDaySpan(Math.max(1, daysBetween(goal.startDate, goal.completedOn)))}</span>
+          )}
+        </div>
+        <div className="goal-feeders">
+          <button className="btn btn-ghost btn-sm" onClick={onRetire}>Retire to Completed</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ETA line from the projection + state. (Completed goals return early above.)
   const etaLine =
-    goal.state === 'complete' ? 'Complete'
-    : goal.state === 'stalled' ? 'Stalled — no recent practice'
+    goal.state === 'stalled' ? 'Stalled — no recent practice'
     : goal.projectedDate ? `~${fmtMonthYear(goal.projectedDate)} at your 4-week pace`
     : 'No recent pace to project from'
 
-  // Ahead/behind pill (only when a target date is set and goal isn't done).
+  // Ahead/behind pill (only when a target date is set).
   // Uses the schedule-relative gap (actual vs straight-line expected progress),
   // which stays bounded — a freshly created goal reads "on pace", not wildly behind.
   const gap = goal.paceGapDays
-  const pace = goal.targetDate && goal.state !== 'complete'
+  const pace = goal.targetDate
     ? gap != null
       ? Math.abs(gap) <= 3
         ? { ahead: true, text: 'on pace' }
@@ -428,5 +510,48 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
         <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
     </form>
+  )
+}
+
+/* ---------- Goal completion celebration ---------- */
+const SHARD_COLORS = ['var(--crimson)', 'var(--watch)', '#e8dcc8']
+function GoalCelebration({ goal, onDone }: { goal: Goal; onDone: () => void }) {
+  // Auto-dismiss after a beat; click anywhere also dismisses.
+  useEffect(() => {
+    const t = setTimeout(onDone, 4500)
+    return () => clearTimeout(t)
+  }, [onDone])
+
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const took = goal.completedOn && goal.startDate
+    ? `Achieved in ${fmtDaySpan(Math.max(1, daysBetween(goal.startDate, goal.completedOn)))}`
+    : 'Target reached'
+
+  return (
+    <div className="celebrate-overlay" onClick={onDone} role="dialog" aria-label={`${goal.name} complete`}>
+      {!reduced && (
+        <div className="celebrate-confetti" aria-hidden>
+          {Array.from({ length: 48 }).map((_, i) => (
+            <span
+              key={i}
+              className="shard"
+              style={{
+                left: `${(i * 97 % 100)}%`,
+                background: SHARD_COLORS[i % SHARD_COLORS.length],
+                animationDelay: `${(i % 12) * 0.13}s`,
+                animationDuration: `${2.4 + (i % 5) * 0.35}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+      <div className="celebrate-card" style={{ ['--goal' as string]: goal.colorHex || 'var(--crimson)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="celebrate-eyebrow">Goal complete</div>
+        <h2 className="celebrate-name">{goal.name}</h2>
+        <div className="celebrate-hours">{fmtHours(goal.targetMinutes)}</div>
+        <p className="celebrate-sub">{took}</p>
+        <button className="btn" onClick={onDone}>Mark it done</button>
+      </div>
+    </div>
   )
 }

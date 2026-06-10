@@ -167,6 +167,8 @@ export interface Goal {
   projectedVsTargetDays: number | null
   paceGapDays: number | null
   state: 'active' | 'complete' | 'overdue' | 'stalled'
+  completedOn: string | null
+  archived: boolean
   sources: GoalSource[]
 }
 
@@ -432,6 +434,8 @@ export const api = {
   createGoal: (input: GoalInput) => post<{ id: number }>('/api/goals', input),
   updateGoal: (id: number, input: GoalInput) => send<{ id: number }>('PUT', `/api/goals/${id}`, input),
   deleteGoal: (id: number) => send<void>('DELETE', `/api/goals/${id}`),
+  archiveGoal: (id: number) => send<{ id: number; archived: boolean }>('PUT', `/api/goals/${id}/archive`),
+  unarchiveGoal: (id: number) => send<{ id: number; archived: boolean }>('PUT', `/api/goals/${id}/unarchive`),
   todos: () => get<Todo[]>('/api/todos'),
   toggleTodo: (id: number) => post<Todo>(`/api/todos/${id}/toggle`),
   createTodo: (input: TodoInput) => post<Todo>('/api/todos', input),

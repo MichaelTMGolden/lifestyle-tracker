@@ -354,7 +354,48 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   padding: 0.12rem 0.5rem; border-radius: 20px; border: 1px solid; white-space: nowrap; }
 .pace-pill.ahead { color: var(--good); border-color: #7faf9380; }
 .pace-pill.behind { color: var(--watch); border-color: #d8a24f80; }
+.pace-pill.done { color: var(--watch); border-color: #d8a24f80; background: rgba(216, 162, 79, 0.12); }
 .gf-clear { align-self: end; }
+
+/* completed (frozen "trophy") goal card */
+.goal-done { background: radial-gradient(130% 120% at 100% 0%, rgba(216, 162, 79, 0.08), transparent 55%), var(--bg-1); }
+.goal-done .goal-acc { color: var(--watch); }
+.goal-bar-done { box-shadow: inset 0 0 0 1px rgba(216, 162, 79, 0.25); }
+
+/* completed-goals list (inside the collapsible) */
+.done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.done-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.2rem; border-top: 1px solid var(--line);
+  border-left: 3px solid var(--goal); padding-left: 0.7rem; }
+.done-row:first-child { border-top: none; }
+.done-trophy { font-size: 0.95rem; filter: saturate(0.85); }
+.done-name { font-family: var(--font-head); font-size: 0.98rem; }
+.done-hours { color: var(--watch); font-variant-numeric: tabular-nums; }
+.done-date { margin-left: auto; color: var(--text-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+/* completion celebration overlay */
+.celebrate-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 8, 10, 0.74); animation: celebrate-fade 0.25s ease; overflow: hidden; cursor: pointer; }
+.celebrate-card { --goal: var(--crimson); position: relative; text-align: center; padding: 2rem 2.6rem; border-radius: 12px;
+  background: var(--bg-1); border: 1px solid var(--line); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--goal) inset;
+  animation: celebrate-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.3); cursor: default; max-width: 90vw; }
+.celebrate-eyebrow { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.22em; font-size: 0.72rem; color: var(--watch); }
+.celebrate-name { font-family: var(--font-head); font-size: 1.9rem; margin: 0.4rem 0 0.2rem; }
+.celebrate-hours { font-family: var(--font-head); font-size: 3rem; line-height: 1; color: var(--goal); }
+.celebrate-sub { color: var(--text-dim); margin: 0.5rem 0 1.2rem; }
+.celebrate-confetti { position: absolute; inset: 0; pointer-events: none; }
+.shard { position: absolute; top: -6%; width: 8px; height: 14px; border-radius: 1px; opacity: 0; transform: translateY(0) rotate(0deg);
+  animation-name: shard-fall; animation-timing-function: ease-in; animation-iteration-count: 1; animation-fill-mode: both; }
+@keyframes shard-fall {
+  0% { opacity: 0; transform: translateY(-10vh) rotate(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(108vh) rotate(540deg); }
+}
+@keyframes celebrate-pop { from { opacity: 0; transform: scale(0.86) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes celebrate-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-card { animation: none; }
+  .celebrate-overlay { animation: none; }
+}
 .goal-feeders { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
 .feeder-chip { font-size: 0.72rem; padding: 0.12rem 0.5rem; border-radius: 20px; font-variant-numeric: tabular-nums;
   border: 1px solid; /* color + bg supplied inline (hex+alpha) to avoid color-mix */ }
