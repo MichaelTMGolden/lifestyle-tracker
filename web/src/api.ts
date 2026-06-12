@@ -463,6 +463,12 @@ export const api = {
   garminSync: (days?: number) => post<{ written: number; days: number }>('/api/connections/garmin/sync', { days }),
   garminDisconnect: () => send<{ configured: boolean }>('DELETE', '/api/connections/garmin/credentials'),
   garminClearSamples: () => post<{ deleted: number }>('/api/connections/garmin/clear-samples'),
+
+  // Google Calendar (read-only via the calendar's secret iCal URL)
+  googleStatus: () => get<{ configured: boolean; lastSyncedAt: string | null; eventCount: number }>('/api/connections/google'),
+  googleConnect: (icsUrl: string) => post<{ configured: boolean }>('/api/connections/google/credentials', { icsUrl }),
+  googleSync: () => post<{ events: number }>('/api/connections/google/sync'),
+  googleDisconnect: () => send<{ configured: boolean }>('DELETE', '/api/connections/google/credentials'),
   importGarmin: async (files: File[]) => {
     const fd = new FormData()
     files.forEach((f) => fd.append('files', f))

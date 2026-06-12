@@ -32,6 +32,7 @@ public record IngestSample(string Key, DateTimeOffset At, double Value, string? 
 public record IngestInput(string? Source, string? Kind, List<IngestSample>? Samples);
 public record GarminCredsInput(string Email, string Password);
 public record GarminSyncInput(int? Days);
+public record GoogleIcsInput(string IcsUrl);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
@@ -200,6 +201,27 @@ public static class ApiEndpoints
     }
 
     private record SidecarPullResult(int Count, List<IngestSample> Samples);
+
+    // Fetch an iCal feed (the Google "secret address"). Returns (ok, error, icsText).
+    private static async Task<(bool Ok, string? Error, string? Ics)> FetchIcsAsync(IHttpClientFactory httpFactory, string url)
+    {
+        try
+        {
+            var http = httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(30);
+            using var resp = await http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode)
+                return (false, $"calendar feed returned {(int)resp.StatusCode}", null);
+            var text = await resp.Content.ReadAsStringAsync();
+            if (!text.Contains("BEGIN:VCALENDAR", StringComparison.OrdinalIgnoreCase))
+                return (false, "that URL isn't an iCal feed", null);
+            return (true, null, text);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"couldn't fetch the feed: {ex.Message}", null);
+        }
+    }
 
     private static Task<DataSource> GetFoodSourceAsync(AppDbContext db, SourceKind kind) => GetOrCreateSourceAsync(db, kind, kind switch
     {
@@ -948,6 +970,69 @@ public static class ApiEndpoints
             }
             await db.SaveChangesAsync();
             return Results.Ok(new { deleted });
+        });
+
+        // --- Google Calendar (read-only, via the calendar's secret iCal URL) ---
+        api.MapGet("/connections/google", async (AppDbContext db) =>
+        {
+            var configured = await GetSecretAsync(db, "google.ics") is not null;
+            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar);
+            var count = src is null ? 0 : await db.CalendarEvents.CountAsync(e => e.DataSourceId == src.Id);
+            return Results.Ok(new { configured, lastSyncedAt = src?.LastSyncedAt, eventCount = count });
+        });
+
+        // Store the secret iCal URL (encrypted) after validating it fetches + parses.
+        api.MapPost("/connections/google/credentials", async (GoogleIcsInput body, AppDbContext db, IHttpClientFactory http) =>
+        {
+            var url = body?.IcsUrl?.Trim();
+            if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = "Paste your calendar's secret iCal URL (https://…/basic.ics)." });
+            var (ok, err, ics) = await FetchIcsAsync(http, url);
+            if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
+            try { GoogleCalendarSync.Parse(ics!, 0, DateTime.UtcNow, DateTime.UtcNow.AddDays(1)); }
+            catch { return Results.Json(new { error = "That URL didn't look like a valid iCal feed." }, statusCode: StatusCodes.Status400BadRequest); }
+            await SetSecretAsync(db, "google.ics", SecretCrypto.Encrypt(url));
+            return Results.Ok(new { configured = true });
+        });
+
+        // Fetch the feed and replace this source's events for a rolling window.
+        api.MapPost("/connections/google/sync", async (AppDbContext db, IHttpClientFactory http) =>
+        {
+            var enc = await GetSecretAsync(db, "google.ics");
+            if (enc is null) return Results.Json(new { error = "Google Calendar not connected" }, statusCode: StatusCodes.Status400BadRequest);
+            var url = SecretCrypto.Decrypt(enc);
+            if (url is null) return Results.Json(new { error = "stored URL can't be read — reconnect" }, statusCode: StatusCodes.Status400BadRequest);
+
+            var (ok, err, ics) = await FetchIcsAsync(http, url);
+            if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
+
+            var src = await GetOrCreateSourceAsync(db, SourceKind.GoogleCalendar, "Google Calendar");
+            var now = DateTime.UtcNow;
+            List<CalendarEvent> events;
+            try { events = GoogleCalendarSync.Parse(ics!, src.Id, now.AddDays(-14), now.AddDays(120)); }
+            catch (Exception ex) { return Results.Json(new { error = $"parse failed: {ex.Message}" }, statusCode: StatusCodes.Status502BadGateway); }
+
+            // Replace the window wholesale so moved/cancelled events don't linger.
+            await db.CalendarEvents.Where(e => e.DataSourceId == src.Id).ExecuteDeleteAsync();
+            // Drop the placeholder "Google Calendar (sample)" seed so real events stand alone.
+            var sample = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar && s.Name == "Google Calendar (sample)");
+            if (sample is not null)
+            {
+                await db.CalendarEvents.Where(e => e.DataSourceId == sample.Id).ExecuteDeleteAsync();
+                db.DataSources.Remove(sample);
+            }
+            db.CalendarEvents.AddRange(events);
+            src.LastSyncedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { events = events.Count });
+        });
+
+        api.MapDelete("/connections/google/credentials", async (AppDbContext db) =>
+        {
+            await DeleteSecretAsync(db, "google.ics");
+            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar);
+            if (src is not null) await db.CalendarEvents.Where(e => e.DataSourceId == src.Id).ExecuteDeleteAsync();
+            return Results.Ok(new { configured = false });
         });
 
         // Flip whether a skill tracks time.

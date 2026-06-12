@@ -31,8 +31,8 @@ export default function ConnectionsPage() {
 
   if (error) return <p className="error">Couldn't load connections ({error}).</p>
 
-  // Garmin gets its own rich panel; the grid shows the remaining seams.
-  const others = conns.filter((c) => c.kind !== 'Garmin')
+  // Garmin & Google get their own rich panels; the grid shows the remaining seams.
+  const others = conns.filter((c) => c.kind !== 'Garmin' && c.kind !== 'GoogleCalendar')
 
   return (
     <>
@@ -44,6 +44,7 @@ export default function ConnectionsPage() {
       </div>
 
       <GarminPanel />
+      <GoogleCalPanel />
 
       <div className="conn-grid">
         {others.map((c) => (
@@ -174,6 +175,75 @@ function GarminPanel() {
         <button className="link-btn" onClick={() => fileRef.current?.click()}>Upload Garmin CSV export</button>
         <input ref={fileRef} type="file" accept=".csv" multiple hidden onChange={(e) => upload(e.target.files)} />
       </div>
+    </section>
+  )
+}
+
+/* ---------- Google Calendar panel (secret iCal URL) ---------- */
+type GoogleStatus = { configured: boolean; lastSyncedAt: string | null; eventCount: number }
+
+function GoogleCalPanel() {
+  const [st, setSt] = useState<GoogleStatus | null>(null)
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [err, setErr] = useState('')
+
+  const load = () => api.googleStatus().then(setSt).catch(() => setSt(null))
+  useEffect(() => { load() }, [])
+
+  const run = async (key: string, fn: () => Promise<string>) => {
+    setBusy(key); setErr(''); setNote('')
+    try { setNote(await fn()) }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
+    finally { setBusy(null); load() }
+  }
+  const connect = (e: FormEvent) => {
+    e.preventDefault()
+    if (!url.trim()) return
+    run('connect', async () => { await api.googleConnect(url.trim()); setUrl(''); return 'Connected. Run a sync to pull your events.' })
+  }
+  const sync = () => run('sync', async () => { const r = await api.googleSync(); return `Synced ${r.events} events.` })
+  const disconnect = () => run('disconnect', async () => { await api.googleDisconnect(); return 'Disconnected.' })
+
+  return (
+    <section className="card garmin-panel">
+      <div className="conn-top">
+        <span className="conn-ico">📅</span>
+        <div className="conn-id">
+          <div className="conn-name">Google Calendar</div>
+          <div className="conn-mode">read-only · secret iCal feed</div>
+        </div>
+        <span className={st?.configured ? 'pill ok' : 'pill pending'}>{st?.configured ? 'Connected' : 'Not connected'}</span>
+      </div>
+
+      {st?.configured ? (
+        <>
+          <p className="conn-status">Calendar feed connected.</p>
+          <div className="conn-meta">
+            <span>{st.eventCount.toLocaleString()} events</span>
+            <span className="muted">{ago(st.lastSyncedAt)}</span>
+          </div>
+          <div className="garmin-row">
+            <button className="btn" disabled={!!busy} onClick={sync}>{busy === 'sync' ? 'Syncing…' : 'Sync now'}</button>
+            <button className="btn btn-ghost" disabled={!!busy} onClick={disconnect}>Disconnect</button>
+          </div>
+        </>
+      ) : (
+        <form className="garmin-form" onSubmit={connect}>
+          <p className="conn-status">
+            In Google Calendar → Settings → your calendar → <b>Integrate calendar</b>, copy the
+            “Secret address in iCal format” URL and paste it here.
+          </p>
+          <input type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button className="btn" type="submit" disabled={busy === 'connect' || !url.trim()}>
+            {busy === 'connect' ? 'Connecting…' : 'Connect'}
+          </button>
+        </form>
+      )}
+
+      {note && <div className="conn-msg">{note}</div>}
+      {err && <div className="conn-msg err">{err}</div>}
     </section>
   )
 }
