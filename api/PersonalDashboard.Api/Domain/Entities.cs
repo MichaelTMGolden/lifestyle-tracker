@@ -116,6 +116,19 @@ public class HabitLog
 }
 
 /// <summary>
+/// A timer that's running right now for a habit. Stored server-side (one per habit)
+/// so a timer started on one device can be seen and stopped from another.
+/// </summary>
+public class HabitTimer
+{
+    public int Id { get; set; }
+    public int HabitId { get; set; }
+    public Habit? Habit { get; set; }
+    /// <summary>UTC instant the timer started; elapsed is computed against server time.</summary>
+    public DateTimeOffset StartedAt { get; set; }
+}
+
+/// <summary>
 /// An hour target fed by one or more skills (<see cref="Habit"/>). Single-skill
 /// and composite goals share this one structure — a goal is just a target plus a
 /// list of feeding skills. Progress = total minutes across all feeders ÷ target.

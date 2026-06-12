@@ -427,6 +427,11 @@ export const api = {
   createHabit: (name: string, tracksTime: boolean) => post<Habit>('/api/habits', { name, tracksTime }),
   deleteHabit: (id: number) => send<void>('DELETE', `/api/habits/${id}`),
   logHabitTime: (id: number, minutes: number) => post(`/api/habits/${id}/log-time`, { minutes }),
+
+  // Server-side running timers (sync across devices). startedAt is epoch ms (server clock).
+  activeTimers: () => get<{ habitId: number; habitName: string; startedAt: number }[]>('/api/timers'),
+  startTimer: (habitId: number) => post<{ habitId: number; habitName: string; startedAt: number }>(`/api/timers/${habitId}`),
+  stopTimer: (habitId: number) => send<{ habitId: number; minutes: number }>('DELETE', `/api/timers/${habitId}`),
   setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
   toggleHabitTracksTime: (id: number) => post<{ id: number; tracksTime: boolean }>(`/api/habits/${id}/tracks-time`),
 

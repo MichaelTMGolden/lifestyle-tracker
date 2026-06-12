@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<MusicPlay> MusicPlays => Set<MusicPlay>();
     public DbSet<Habit> Habits => Set<Habit>();
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
+    public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<GoalSource> GoalSources => Set<GoalSource>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
@@ -42,6 +43,12 @@ public class AppDbContext : DbContext
 
         // One log per habit per day — this is what makes minutes-per-day work.
         b.Entity<HabitLog>().HasIndex(x => new { x.HabitId, x.Date }).IsUnique();
+
+        // At most one running timer per habit; deleting the habit clears it.
+        b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();
+        b.Entity<HabitTimer>()
+            .HasOne(x => x.Habit).WithMany()
+            .HasForeignKey(x => x.HabitId).OnDelete(DeleteBehavior.Cascade);
 
         // A skill feeds a goal at most once; deleting a goal removes its joins.
         b.Entity<GoalSource>().HasIndex(x => new { x.GoalId, x.HabitId }).IsUnique();

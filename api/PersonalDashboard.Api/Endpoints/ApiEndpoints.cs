@@ -732,6 +732,49 @@ public static class ApiEndpoints
             return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed });
         });
 
+        // --- Running timers (server-side so they sync across devices) ---
+        // Active timers, oldest first; each carries its server start time as epoch ms.
+        api.MapGet("/timers", async (AppDbContext db) =>
+            await db.HabitTimers.AsNoTracking()
+                .OrderBy(t => t.StartedAt)
+                .Select(t => new { habitId = t.HabitId, habitName = t.Habit!.Name, startedAt = t.StartedAt.ToUnixTimeMilliseconds() })
+                .ToListAsync());
+
+        // Start a timer for a habit (idempotent — keeps the existing start time if already running).
+        api.MapPost("/timers/{habitId:int}", async (int habitId, AppDbContext db, HttpRequest req) =>
+        {
+            var habit = await db.Habits.FindAsync(habitId);
+            if (habit is null) return Results.NotFound();
+            var timer = await db.HabitTimers.FirstOrDefaultAsync(t => t.HabitId == habitId);
+            if (timer is null)
+            {
+                timer = new HabitTimer { HabitId = habitId, StartedAt = new DateTimeOffset(ClientClock.From(req).UtcNow, TimeSpan.Zero) };
+                db.HabitTimers.Add(timer);
+                await db.SaveChangesAsync();
+            }
+            return Results.Ok(new { habitId, habitName = habit.Name, startedAt = timer.StartedAt.ToUnixTimeMilliseconds() });
+        });
+
+        // Stop a habit's timer from any device: rounds elapsed → minutes and logs to today.
+        api.MapDelete("/timers/{habitId:int}", async (int habitId, AppDbContext db, HttpRequest req) =>
+        {
+            var timer = await db.HabitTimers.FirstOrDefaultAsync(t => t.HabitId == habitId);
+            if (timer is null) return Results.Ok(new { habitId, minutes = 0 });
+
+            var clock = ClientClock.From(req);
+            var mins = Math.Max(0, (int)Math.Round((clock.UtcNow - timer.StartedAt.UtcDateTime).TotalMinutes));
+            db.HabitTimers.Remove(timer);
+            if (mins > 0)
+            {
+                var today = clock.Today;
+                var log = await db.HabitLogs.FirstOrDefaultAsync(l => l.HabitId == habitId && l.Date == today);
+                if (log is null) db.HabitLogs.Add(new HabitLog { HabitId = habitId, Date = today, Completed = true, Minutes = mins });
+                else { log.Minutes += mins; log.Completed = true; }
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok(new { habitId, minutes = mins });
+        });
+
         // Flip whether a skill tracks time.
         api.MapPost("/habits/{id:int}/tracks-time", async (int id, AppDbContext db) =>
         {

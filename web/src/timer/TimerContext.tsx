@@ -1,27 +1,27 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api'
 
-// Multiple timers can run at once — one per habit. Persisted as an array so any
-// in-progress timers survive a reload. Older single-timer payloads are migrated.
-const TIMERS_KEY = 'habit-timers'
-const LEGACY_KEY = 'habit-timer'
+// Timers live on the server (one per habit), so one started on your phone shows
+// up — and can be stopped — on your desktop, and vice versa. localStorage is only
+// a cache for instant paint before the first fetch; the server is authoritative.
+const CACHE_KEY = 'habit-timers'
+const POLL_MS = 15_000
 
-export interface ActiveTimer { habitId: number; habitName: string; startedAt: number }
+export interface ActiveTimer { habitId: number; habitName: string; startedAt: number } // startedAt = epoch ms (server clock)
 
 interface TimerCtx {
   timers: ActiveTimer[]
-  /** Any timer running at all. */
   running: boolean
   isRunning: (habitId: number) => boolean
   /** Live elapsed ms for a habit's timer (0 if it isn't running). */
   elapsedMs: (habitId: number) => number
   /** Start a timer for a habit. No-op if one is already running for it. */
   start: (habitId: number, habitName: string) => Promise<void>
-  /** Stop one habit's timer, rounding elapsed → minutes and POSTing via log-time. */
+  /** Stop one habit's timer (from any device), logging its minutes. */
   stop: (habitId: number) => Promise<void>
   /** Stop and log every running timer. */
   stopAll: () => Promise<void>
-  /** Bumps whenever logged data changes (timer stop, or an explicit notifyChange). */
+  /** Bumps whenever logged data changes (a timer stops here or elsewhere). */
   dataTick: number
   /** Signal that day data changed elsewhere (e.g. a quick-added to-do) so pages can refetch. */
   notifyChange: () => void
@@ -29,41 +29,49 @@ interface TimerCtx {
 
 const Ctx = createContext<TimerCtx | null>(null)
 
-const isValid = (t: Partial<ActiveTimer> | null): t is ActiveTimer =>
-  !!t && typeof t.habitId === 'number' && typeof t.startedAt === 'number'
-const norm = (t: ActiveTimer): ActiveTimer => ({ habitId: t.habitId, habitName: t.habitName ?? 'Practice', startedAt: t.startedAt })
-
-function readStored(): ActiveTimer[] {
+const readCache = (): ActiveTimer[] => {
   try {
-    const raw = localStorage.getItem(TIMERS_KEY)
-    if (raw) {
-      const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) return arr.filter(isValid).map(norm)
-    }
-    // Migrate a legacy single timer into the array form.
-    const old = localStorage.getItem(LEGACY_KEY)
-    if (old) {
-      const t = JSON.parse(old) as Partial<ActiveTimer>
-      localStorage.removeItem(LEGACY_KEY)
-      if (isValid(t)) return [norm(t)]
-    }
-    return []
+    const arr = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]')
+    return Array.isArray(arr) ? arr.filter((t) => typeof t?.habitId === 'number' && typeof t?.startedAt === 'number') : []
   } catch { return [] }
+}
+const writeCache = (list: ActiveTimer[]) => {
+  try { list.length ? localStorage.setItem(CACHE_KEY, JSON.stringify(list)) : localStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
 }
 
 export function TimerProvider({ children }: { children: ReactNode }) {
-  const [timers, setTimers] = useState<ActiveTimer[]>(readStored)
+  const [timers, setTimers] = useState<ActiveTimer[]>(readCache)
   const [nowTick, setNowTick] = useState(() => Date.now())
   const [dataTick, setDataTick] = useState(0)
+  const timersRef = useRef<ActiveTimer[]>(timers)
+  useEffect(() => { timersRef.current = timers }, [timers])
 
-  // Apply an update to the timer list and mirror it to localStorage in one step.
-  const persist = useCallback((update: (cur: ActiveTimer[]) => ActiveTimer[]) => {
-    setTimers((cur) => {
-      const next = update(cur)
-      try { next.length ? localStorage.setItem(TIMERS_KEY, JSON.stringify(next)) : localStorage.removeItem(TIMERS_KEY) } catch { /* ignore */ }
-      return next
-    })
-  }, [])
+  const apply = useCallback((list: ActiveTimer[]) => { setTimers(list); writeCache(list) }, [])
+
+  // Pull the authoritative timer set from the server. If a timer vanished (stopped
+  // on another device), bump dataTick so pages refetch the freshly-logged minutes.
+  const refresh = useCallback(async () => {
+    try {
+      const list = await api.activeTimers()
+      const mapped = list.map((t) => ({ habitId: t.habitId, habitName: t.habitName, startedAt: t.startedAt }))
+      const prev = timersRef.current
+      const removed = prev.some((p) => !mapped.find((m) => m.habitId === p.habitId))
+      apply(mapped)
+      if (removed) setDataTick((n) => n + 1)
+    } catch { /* offline — keep the cached view */ }
+  }, [apply])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Poll for cross-device changes, and sync immediately when the tab regains focus.
+  useEffect(() => {
+    const id = setInterval(refresh, POLL_MS)
+    const onFocus = () => refresh()
+    const onVis = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(id); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis) }
+  }, [refresh])
 
   // Tick once a second only while at least one timer runs.
   useEffect(() => {
@@ -75,34 +83,31 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const notifyChange = useCallback(() => setDataTick((n) => n + 1), [])
 
   const start = useCallback(async (habitId: number, habitName: string) => {
+    if (timersRef.current.some((t) => t.habitId === habitId)) return
     setNowTick(Date.now())
-    persist((cur) => (cur.some((t) => t.habitId === habitId) ? cur : [...cur, { habitId, habitName, startedAt: Date.now() }]))
-  }, [persist])
+    apply([...timersRef.current, { habitId, habitName, startedAt: Date.now() }]) // optimistic
+    try {
+      const t = await api.startTimer(habitId)
+      apply(timersRef.current.map((x) => (x.habitId === habitId ? { habitId, habitName: t.habitName, startedAt: t.startedAt } : x)))
+    } catch { await refresh() }
+  }, [apply, refresh])
 
   const stop = useCallback(async (habitId: number) => {
-    const t = timers.find((x) => x.habitId === habitId)
-    persist((cur) => cur.filter((x) => x.habitId !== habitId))
-    if (t) {
-      const mins = Math.round((Date.now() - t.startedAt) / 60000)
-      if (mins > 0) { await api.logHabitTime(t.habitId, mins); setDataTick((n) => n + 1) }
-    }
-  }, [timers, persist])
+    apply(timersRef.current.filter((t) => t.habitId !== habitId)) // optimistic
+    try {
+      const r = await api.stopTimer(habitId)
+      if (r.minutes > 0) setDataTick((n) => n + 1)
+    } catch { await refresh() }
+  }, [apply, refresh])
 
   const stopAll = useCallback(async () => {
-    const cur = timers
-    persist(() => [])
-    let logged = false
-    for (const t of cur) {
-      const mins = Math.round((Date.now() - t.startedAt) / 60000)
-      if (mins > 0) { await api.logHabitTime(t.habitId, mins); logged = true }
-    }
-    if (logged) setDataTick((n) => n + 1)
-  }, [timers, persist])
+    for (const t of timersRef.current) await stop(t.habitId)
+  }, [stop])
 
   const isRunning = useCallback((habitId: number) => timers.some((t) => t.habitId === habitId), [timers])
   const elapsedMs = useCallback((habitId: number) => {
     const t = timers.find((x) => x.habitId === habitId)
-    return t ? nowTick - t.startedAt : 0
+    return t ? Math.max(0, nowTick - t.startedAt) : 0
   }, [timers, nowTick])
 
   return (
