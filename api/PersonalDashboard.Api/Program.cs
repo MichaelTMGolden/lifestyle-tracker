@@ -74,8 +74,6 @@ builder.Services.AddSingleton<AlertService>();
 // seams that go live by implementing IDataProvider + flipping Configured.
 builder.Services.AddSingleton<IDataProvider, GarminImportProvider>();
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
-    SourceKind.MyFitnessPal, "MyFitnessPal", ProviderMode.Import, "no public API — connect via CSV export/import"));
-builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
     SourceKind.GoogleCalendar, "Google Calendar", ProviderMode.Api, "awaiting OAuth credentials"));
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
     SourceKind.Spotify, "Spotify", ProviderMode.Api, "awaiting OAuth credentials"));

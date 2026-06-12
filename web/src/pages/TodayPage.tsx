@@ -74,6 +74,13 @@ export default function TodayPage() {
 
   // weekly grid + momentum from heatmap
   const week = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return [...Array(7)].map((_, i) => { const d = new Date(t); d.setDate(t.getDate() - (6 - i)); return d }) })()
+  // Current Monday→Sunday week for the grid, so the M T W T F S S labels line up
+  // with real weekdays and today highlights under the correct column.
+  const weekDays = (() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0)
+    const monday = new Date(t); monday.setDate(t.getDate() - ((t.getDay() + 6) % 7)) // Mon = start
+    return [...Array(7)].map((_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d })
+  })()
   const todayKey = keyOf(new Date(new Date().setHours(0, 0, 0, 0)))
   const heatByName = new Map(heat.map((h) => [h.name, new Set(h.completedDates)]))
   const streakOf = (done: Set<string>) => { let n = 0; const d = new Date(); d.setHours(0, 0, 0, 0); if (!done.has(keyOf(d))) d.setDate(d.getDate() - 1); while (done.has(keyOf(d))) { n++; d.setDate(d.getDate() - 1) } return n }
@@ -87,7 +94,11 @@ export default function TodayPage() {
     return <>Winding down. <b>{openDaily.length} to-dos</b> left and <b>{overdue.length} overdue</b>{today.tomorrowFirst ? <> · tomorrow starts {fmtMinutes(today.tomorrowFirst.startMinutes)}</> : null}.</>
   })()
 
-  async function toggleHabit(id: number) { await api.toggleHabit(id); load() }
+  async function toggleHabit(id: number) {
+    // Optimistic: flip the chip immediately, then persist + reconcile in the background.
+    setHabits((hs) => hs.map((h) => (h.id === id ? { ...h, doneToday: !h.doneToday } : h)))
+    try { await api.toggleHabit(id) } finally { load() }
+  }
   async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
   async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
@@ -149,7 +160,7 @@ export default function TodayPage() {
           <MomentumInner weekPct={weekPct} weekHits={weekHits} heat={heat} longest={longest} />
         </Collapsible>
         <Collapsible title="Weekly habits" storageKey="today.weekly">
-          <WeeklyGrid habits={habits} heatByName={heatByName} week={week} todayKey={todayKey} />
+          <WeeklyGrid habits={habits} heatByName={heatByName} week={weekDays} todayKey={todayKey} />
         </Collapsible>
         <Collapsible title="Today's schedule" storageKey="today.schedule">
           <ScheduleInner past={past} rest={rest} now={now} showPast={showPast} setShowPast={setShowPast} />
@@ -186,7 +197,7 @@ export default function TodayPage() {
               <RunningTimer key={t.habitId} name={t.habitName} elapsedMs={elapsedMs(t.habitId)} onStop={() => stop(t.habitId)} />
             ))}
             <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} />
-            <WeeklyGrid habits={habits} heatByName={heatByName} week={week} todayKey={todayKey} />
+            <WeeklyGrid habits={habits} heatByName={heatByName} week={weekDays} todayKey={todayKey} />
           </section>
 
           <section className="card">

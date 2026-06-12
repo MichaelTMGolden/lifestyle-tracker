@@ -40,10 +40,9 @@ public static class DataSeeder
         // --- Data sources (stand-ins for the eventual real integrations) ---
         var manual = new DataSource { Name = "Manual entry", Kind = SourceKind.Manual };
         var garmin = new DataSource { Name = "Garmin (sample)", Kind = SourceKind.Garmin };
-        var mfp = new DataSource { Name = "MyFitnessPal (sample)", Kind = SourceKind.MyFitnessPal };
         var spotify = new DataSource { Name = "Spotify (sample)", Kind = SourceKind.Spotify };
         var gcal = new DataSource { Name = "Google Calendar (sample)", Kind = SourceKind.GoogleCalendar };
-        db.DataSources.AddRange(manual, garmin, mfp, spotify, gcal);
+        db.DataSources.AddRange(manual, garmin, spotify, gcal);
         await db.SaveChangesAsync();
 
         // --- Daily metrics: weight, calories, + (for the dummy DB only) resting HR
@@ -56,7 +55,6 @@ public static class DataSeeder
             var day = start.AddDays(d);
             weight += Randomizer.Seed.NextDouble() * 0.4 - 0.22; // slow downward drift + noise
             samples.Add(Sample(manual.Id, "weight_kg", day.AddHours(7), Math.Round(weight, 1), "kg"));
-            samples.Add(Sample(mfp.Id, "calories_in", day.AddHours(21), Randomizer.Seed.Next(1700, 2900), "kcal"));
             samples.Add(Sample(garmin.Id, "resting_hr", day.AddHours(6), 50 + Randomizer.Seed.Next(0, 5), "bpm"));
             // ~6.3–7h/night → a steady sleep deficit vs an 8h target (fires SleepDebt).
             samples.Add(Sample(garmin.Id, "sleep_total_min", day.AddHours(6), 380 + Randomizer.Seed.Next(0, 40), "min"));
@@ -312,9 +310,9 @@ public static class DataSeeder
     /// Seeds a handful of food entries across the last few days (incl. today),
     /// mixing Manual / Open Food Facts / USDA sources with realistic macros, and
     /// materializes their daily rollups (calories_in / protein_g / carbs_g /
-    /// fat_g). Drops the random MyFitnessPal calories_in on those same days so the
-    /// rollup is the single source. No-op if food entries already exist (or the
-    /// base sources aren't seeded yet).
+    /// fat_g) under the "Nutrition (rollup)" source — the single source of truth
+    /// for nutrition metrics. No-op if food entries already exist (or the base
+    /// sources aren't seeded yet).
     /// </summary>
     public static async Task SeedFoodAsync(AppDbContext db)
     {
@@ -372,23 +370,14 @@ public static class DataSeeder
         db.FoodEntries.AddRange(entries);
         await db.SaveChangesAsync();
 
-        // Materialize daily rollups under the dedicated source, and drop the random
-        // MyFitnessPal calories_in on these days so there's a single source per day.
+        // Materialize daily rollups under the dedicated source — the single source
+        // of truth for nutrition metrics (calories_in / macros).
         var rollup = await GetOrCreateAsync(db, SourceKind.Manual, "Nutrition (rollup)");
-        var mfp = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.MyFitnessPal);
         var samples = new List<MetricSample>();
         foreach (var date in dates)
         {
             var dayStart = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var dayEntries = entries.Where(e => e.Date == date).ToList();
-            if (mfp is not null)
-            {
-                var dayEnd = dayStart.AddDays(1);
-                await db.MetricSamples
-                    .Where(s => s.DataSourceId == mfp.Id && s.MetricKey == "calories_in"
-                        && s.RecordedAt >= dayStart && s.RecordedAt < dayEnd)
-                    .ExecuteDeleteAsync();
-            }
             samples.Add(RollupSample(rollup.Id, "calories_in", dayStart, dayEntries.Sum(e => e.Calories), "kcal"));
             samples.Add(RollupSample(rollup.Id, "protein_g", dayStart, dayEntries.Sum(e => e.ProteinG), "g"));
             samples.Add(RollupSample(rollup.Id, "carbs_g", dayStart, dayEntries.Sum(e => e.CarbsG), "g"));
