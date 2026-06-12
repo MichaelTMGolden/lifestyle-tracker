@@ -26,6 +26,8 @@ public record QuickMealInput(string Name, MealType? DefaultMeal, List<QuickMealI
 public record QuickMealFromLogInput(string Name, DateOnly Date, MealType Meal);
 public record QuickMealLogInput(DateOnly? Date, MealType? Meal);
 public record MinutesInput(int Minutes);
+public record IngestSample(string Key, DateTimeOffset At, double Value, string? Unit);
+public record IngestInput(string? Source, string? Kind, List<IngestSample>? Samples);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
@@ -773,6 +775,57 @@ public static class ApiEndpoints
             }
             await db.SaveChangesAsync();
             return Results.Ok(new { habitId, minutes = mins });
+        });
+
+        // --- Metric ingest (live Garmin sync via the Python tool, or any external feed) ---
+        // Upserts pre-mapped samples under a named DataSource, keyed on
+        // (DataSourceId, MetricKey, RecordedAt) so re-pulling overlapping days is idempotent.
+        api.MapPost("/ingest/metrics", async (IngestInput input, AppDbContext db) =>
+        {
+            if (input?.Samples is null || input.Samples.Count == 0)
+                return Results.BadRequest(new { message = "no samples" });
+
+            var name = string.IsNullOrWhiteSpace(input.Source) ? "Garmin (live)" : input.Source!.Trim();
+            var kind = Enum.TryParse<SourceKind>(input.Kind, ignoreCase: true, out var k) ? k : SourceKind.Garmin;
+
+            var source = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == kind && s.Name == name);
+            if (source is null)
+            {
+                source = new DataSource { Name = name, Kind = kind };
+                db.DataSources.Add(source);
+                await db.SaveChangesAsync();
+            }
+
+            var samples = input.Samples
+                .Where(s => !string.IsNullOrWhiteSpace(s.Key))
+                .Select(s => new MetricSample
+                {
+                    DataSourceId = source.Id,
+                    MetricKey = s.Key.Trim(),
+                    RecordedAt = s.At.ToUniversalTime(),
+                    Value = Math.Round(s.Value, 2),
+                    Unit = s.Unit ?? "",
+                })
+                .ToList();
+
+            await MetricSampleUpsert.UpsertAsync(db, samples);
+            source.LastSyncedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { source = name, written = samples.Count });
+        });
+
+        // Retire a data source and its samples — used to drop the placeholder
+        // "Garmin (imported)" seed once real "Garmin (live)" data is flowing, so
+        // the two don't double-count (metric reads aggregate across all sources).
+        api.MapDelete("/ingest/source/{name}", async (string name, string? kind, AppDbContext db) =>
+        {
+            var k = Enum.TryParse<SourceKind>(kind, ignoreCase: true, out var kk) ? kk : SourceKind.Garmin;
+            var source = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == k && s.Name == name);
+            if (source is null) return Results.Ok(new { source = name, deleted = 0 });
+            var deleted = await db.MetricSamples.Where(m => m.DataSourceId == source.Id).ExecuteDeleteAsync();
+            db.DataSources.Remove(source);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { source = name, deleted });
         });
 
         // Flip whether a skill tracks time.
