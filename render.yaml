@@ -22,3 +22,9 @@ services:
           property: connectionString
       - key: Usda__ApiKey
         sync: false        # set this secret in the Render dashboard (optional — enables USDA food search)
+      - key: GARMIN_ENC_KEY
+        generateValue: true   # encrypts your stored Garmin password at rest (stable across restarts)
+      - key: SIDECAR_TOKEN
+        generateValue: true   # shared secret between the API and the in-container Garmin sidecar
+      - key: SIDECAR_URL
+        value: http://127.0.0.1:8001   # the sidecar runs inside this container

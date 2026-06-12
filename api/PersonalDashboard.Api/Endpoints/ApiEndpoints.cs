@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using PersonalDashboard.Api;
 using PersonalDashboard.Api.Data;
@@ -28,6 +30,8 @@ public record QuickMealLogInput(DateOnly? Date, MealType? Meal);
 public record MinutesInput(int Minutes);
 public record IngestSample(string Key, DateTimeOffset At, double Value, string? Unit);
 public record IngestInput(string? Source, string? Kind, List<IngestSample>? Samples);
+public record GarminCredsInput(string Email, string Password);
+public record GarminSyncInput(int? Days);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
@@ -122,6 +126,80 @@ public static class ApiEndpoints
         if (src is null) { src = new DataSource { Name = name, Kind = kind }; db.DataSources.Add(src); await db.SaveChangesAsync(); }
         return src;
     }
+
+    // --- secret store (Garmin credentials) ---
+    private static async Task<string?> GetSecretAsync(AppDbContext db, string key) =>
+        (await db.AppSecrets.AsNoTracking().FirstOrDefaultAsync(s => s.Key == key))?.Value;
+    private static async Task SetSecretAsync(AppDbContext db, string key, string value)
+    {
+        var row = await db.AppSecrets.FirstOrDefaultAsync(s => s.Key == key);
+        if (row is null) db.AppSecrets.Add(new AppSecret { Key = key, Value = value });
+        else row.Value = value;
+        await db.SaveChangesAsync();
+    }
+    private static async Task DeleteSecretAsync(AppDbContext db, string key) =>
+        await db.AppSecrets.Where(s => s.Key == key).ExecuteDeleteAsync();
+
+    private static string? MaskEmail(string? email)
+    {
+        if (string.IsNullOrEmpty(email)) return null;
+        var at = email.IndexOf('@');
+        if (at <= 1) return email;
+        return email[0] + new string('•', Math.Min(6, at - 1)) + email[at..];
+    }
+
+    // Upsert pre-mapped samples under a named source (shared by /ingest and Garmin sync).
+    private static async Task<int> UpsertSamplesAsync(AppDbContext db, string name, SourceKind kind, List<IngestSample> input)
+    {
+        var source = await GetOrCreateSourceAsync(db, kind, name);
+        var samples = input
+            .Where(s => !string.IsNullOrWhiteSpace(s.Key))
+            .Select(s => new MetricSample
+            {
+                DataSourceId = source.Id,
+                MetricKey = s.Key.Trim(),
+                RecordedAt = s.At.ToUniversalTime(),
+                Value = Math.Round(s.Value, 2),
+                Unit = s.Unit ?? "",
+            })
+            .ToList();
+        await MetricSampleUpsert.UpsertAsync(db, samples);
+        source.LastSyncedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        return samples.Count;
+    }
+
+    // Call the Python Garmin sidecar's /pull. Returns (ok, error, samples).
+    private static async Task<(bool Ok, string? Error, List<IngestSample>? Samples)> SidecarPullAsync(
+        IHttpClientFactory httpFactory, IConfiguration cfg, string email, string password, int days, string? end)
+    {
+        var baseUrl = (cfg["Sidecar:Url"] ?? Environment.GetEnvironmentVariable("SIDECAR_URL") ?? "http://localhost:8001").TrimEnd('/');
+        var token = cfg["Sidecar:Token"] ?? Environment.GetEnvironmentVariable("SIDECAR_TOKEN");
+        try
+        {
+            var http = httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromMinutes(5);
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/pull")
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(new { email, password, days, end }),
+            };
+            if (!string.IsNullOrEmpty(token)) req.Headers.Add("X-Sidecar-Token", token);
+            using var resp = await http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var detail = await resp.Content.ReadAsStringAsync();
+                return (false, $"sidecar {(int)resp.StatusCode}: {detail[..Math.Min(detail.Length, 300)]}", null);
+            }
+            var payload = await resp.Content.ReadFromJsonAsync<SidecarPullResult>();
+            return (true, null, payload?.Samples ?? new());
+        }
+        catch (Exception ex)
+        {
+            return (false, $"sidecar unreachable: {ex.Message}", null);
+        }
+    }
+
+    private record SidecarPullResult(int Count, List<IngestSample> Samples);
 
     private static Task<DataSource> GetFoodSourceAsync(AppDbContext db, SourceKind kind) => GetOrCreateSourceAsync(db, kind, kind switch
     {
@@ -787,31 +865,8 @@ public static class ApiEndpoints
 
             var name = string.IsNullOrWhiteSpace(input.Source) ? "Garmin (live)" : input.Source!.Trim();
             var kind = Enum.TryParse<SourceKind>(input.Kind, ignoreCase: true, out var k) ? k : SourceKind.Garmin;
-
-            var source = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == kind && s.Name == name);
-            if (source is null)
-            {
-                source = new DataSource { Name = name, Kind = kind };
-                db.DataSources.Add(source);
-                await db.SaveChangesAsync();
-            }
-
-            var samples = input.Samples
-                .Where(s => !string.IsNullOrWhiteSpace(s.Key))
-                .Select(s => new MetricSample
-                {
-                    DataSourceId = source.Id,
-                    MetricKey = s.Key.Trim(),
-                    RecordedAt = s.At.ToUniversalTime(),
-                    Value = Math.Round(s.Value, 2),
-                    Unit = s.Unit ?? "",
-                })
-                .ToList();
-
-            await MetricSampleUpsert.UpsertAsync(db, samples);
-            source.LastSyncedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-            return Results.Ok(new { source = name, written = samples.Count });
+            var written = await UpsertSamplesAsync(db, name, kind, input.Samples);
+            return Results.Ok(new { source = name, written });
         });
 
         // Retire a data source and its samples — used to drop the placeholder
@@ -826,6 +881,73 @@ public static class ApiEndpoints
             db.DataSources.Remove(source);
             await db.SaveChangesAsync();
             return Results.Ok(new { source = name, deleted });
+        });
+
+        // --- Garmin live connection (credentials stored server-side; sync runs via the Python sidecar) ---
+        api.MapGet("/connections/garmin", async (AppDbContext db) =>
+        {
+            var email = await GetSecretAsync(db, "garmin.email");
+            var configured = email is not null && await GetSecretAsync(db, "garmin.pw") is not null;
+            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.Garmin && s.Name == "Garmin (live)");
+            var count = src is null ? 0 : await db.MetricSamples.CountAsync(m => m.DataSourceId == src.Id);
+            return Results.Ok(new { configured, email = MaskEmail(email), lastSyncedAt = src?.LastSyncedAt, sampleCount = count });
+        });
+
+        // Store credentials (password encrypted). Verifies them with a 1-day sidecar pull first.
+        api.MapPost("/connections/garmin/credentials", async (GarminCredsInput body, AppDbContext db, IHttpClientFactory http, IConfiguration cfg) =>
+        {
+            if (string.IsNullOrWhiteSpace(body?.Email) || string.IsNullOrWhiteSpace(body?.Password))
+                return Results.BadRequest(new { error = "email and password required" });
+            var (ok, err, _) = await SidecarPullAsync(http, cfg, body.Email.Trim(), body.Password, 1, null);
+            if (!ok) return Results.Json(new { error = $"Garmin sign-in failed: {err}" }, statusCode: StatusCodes.Status502BadGateway);
+            await SetSecretAsync(db, "garmin.email", body.Email.Trim());
+            await SetSecretAsync(db, "garmin.pw", SecretCrypto.Encrypt(body.Password));
+            return Results.Ok(new { configured = true });
+        });
+
+        // Pull recent days from Garmin (via the sidecar) and upsert under "Garmin (live)".
+        api.MapPost("/connections/garmin/sync", async (GarminSyncInput? body, AppDbContext db, IHttpClientFactory http, IConfiguration cfg) =>
+        {
+            var email = await GetSecretAsync(db, "garmin.email");
+            var pwEnc = await GetSecretAsync(db, "garmin.pw");
+            if (email is null || pwEnc is null) return Results.Json(new { error = "Garmin not connected" }, statusCode: StatusCodes.Status400BadRequest);
+            var pw = SecretCrypto.Decrypt(pwEnc);
+            if (pw is null) return Results.Json(new { error = "stored credentials can't be read — reconnect Garmin" }, statusCode: StatusCodes.Status400BadRequest);
+
+            var days = Math.Clamp(body?.Days ?? 14, 1, 365);
+            var (ok, err, samples) = await SidecarPullAsync(http, cfg, email, pw, days, null);
+            if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
+
+            var written = await UpsertSamplesAsync(db, "Garmin (live)", SourceKind.Garmin, samples!);
+            return Results.Ok(new { written, days });
+        });
+
+        api.MapDelete("/connections/garmin/credentials", async (AppDbContext db) =>
+        {
+            await DeleteSecretAsync(db, "garmin.email");
+            await DeleteSecretAsync(db, "garmin.pw");
+            return Results.Ok(new { configured = false });
+        });
+
+        // Drop the placeholder seed sources so real data doesn't double-count.
+        api.MapPost("/connections/garmin/clear-samples", async (AppDbContext db) =>
+        {
+            var targets = new (SourceKind Kind, string Name)[]
+            {
+                (SourceKind.Garmin, "Garmin (sample)"),
+                (SourceKind.Garmin, "Garmin (imported)"),
+                (SourceKind.MyFitnessPal, "MyFitnessPal (sample)"),
+            };
+            var deleted = 0;
+            foreach (var (kind, name) in targets)
+            {
+                var s = await db.DataSources.FirstOrDefaultAsync(x => x.Kind == kind && x.Name == name);
+                if (s is null) continue;
+                deleted += await db.MetricSamples.Where(m => m.DataSourceId == s.Id).ExecuteDeleteAsync();
+                db.DataSources.Remove(s);
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok(new { deleted });
         });
 
         // Flip whether a skill tracks time.

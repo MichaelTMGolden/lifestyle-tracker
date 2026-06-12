@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Habit> Habits => Set<Habit>();
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
     public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
+    public DbSet<AppSecret> AppSecrets => Set<AppSecret>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<GoalSource> GoalSources => Set<GoalSource>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
@@ -43,6 +44,8 @@ public class AppDbContext : DbContext
 
         // One log per habit per day — this is what makes minutes-per-day work.
         b.Entity<HabitLog>().HasIndex(x => new { x.HabitId, x.Date }).IsUnique();
+
+        b.Entity<AppSecret>().HasKey(x => x.Key);
 
         // At most one running timer per habit; deleting the habit clears it.
         b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();

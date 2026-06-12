@@ -371,9 +371,14 @@ export interface FoodEntryInput {
 // user's local timezone — correct even while travelling.
 const tzHeaders = () => ({ 'X-Tz-Offset': String(new Date().getTimezoneOffset()) })
 
+async function errorFrom(res: Response, url: string): Promise<Error> {
+  try { const j = await res.json(); if (j?.error || j?.message) return new Error(j.error || j.message) } catch { /* not json */ }
+  return new Error(`${url} -> ${res.status}`)
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: tzHeaders(), credentials: 'include' })
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  if (!res.ok) throw await errorFrom(res, url)
   return res.json() as Promise<T>
 }
 
@@ -384,7 +389,7 @@ async function send<T>(method: string, url: string, body?: unknown): Promise<T> 
     headers: { 'Content-Type': 'application/json', ...tzHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  if (!res.ok) throw await errorFrom(res, url)
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -451,6 +456,13 @@ export const api = {
 
   connections: () => get<Connection[]>('/api/connections'),
   syncConnection: (kind: string) => post<SyncResult>(`/api/connections/${kind}/sync`),
+
+  // Garmin live connection (credentials stored server-side; sync runs via the sidecar)
+  garminStatus: () => get<{ configured: boolean; email: string | null; lastSyncedAt: string | null; sampleCount: number }>('/api/connections/garmin'),
+  garminConnect: (email: string, password: string) => post<{ configured: boolean }>('/api/connections/garmin/credentials', { email, password }),
+  garminSync: (days?: number) => post<{ written: number; days: number }>('/api/connections/garmin/sync', { days }),
+  garminDisconnect: () => send<{ configured: boolean }>('DELETE', '/api/connections/garmin/credentials'),
+  garminClearSamples: () => post<{ deleted: number }>('/api/connections/garmin/clear-samples'),
   importGarmin: async (files: File[]) => {
     const fd = new FormData()
     files.forEach((f) => fd.append('files', f))

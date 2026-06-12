@@ -730,6 +730,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .conn-status{ font-size:.86rem; color:var(--text-dim); margin:0; line-height:1.45; min-height:2.4em; }
 .conn-meta{ display:flex; justify-content:space-between; font-size:.82rem; font-variant-numeric:tabular-nums; border-top:1px solid var(--line); padding-top:.6rem; }
 .conn-msg{ font-size:.8rem; color:var(--cyan,#7faf93); background:rgba(127,175,147,.08); border:1px solid rgba(127,175,147,.25); border-radius:6px; padding:.5rem .65rem; line-height:1.45; }
+.conn-msg.err{ color:var(--bad); background:rgba(178,58,91,.08); border-color:rgba(178,58,91,.3); }
+
+/* Garmin live-sync panel */
+.garmin-panel{ margin-bottom:1.1rem; display:flex; flex-direction:column; gap:.7rem; }
+.garmin-form{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.garmin-form input{ flex:1; min-width:180px; }
+.garmin-row{ display:flex; align-items:flex-end; gap:.6rem; flex-wrap:wrap; }
+.garmin-days{ display:flex; flex-direction:column; gap:.25rem; font-size:.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+.garmin-days input{ width:84px; }
+.garmin-foot{ display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:.7rem; }
+.garmin-foot .sep{ color:var(--text-dim); }
 .conn-actions{ display:flex; gap:.5rem; flex-wrap:wrap; }
 code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background:var(--bg-2); border:1px solid var(--line); border-radius:4px; padding:.05rem .35rem; }
 

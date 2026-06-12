@@ -25,6 +25,14 @@ public class DataSource
     public DateTimeOffset? LastSyncedAt { get; set; }
 }
 
+/// <summary>Tiny key/value store for server-side secrets (e.g. Garmin credentials,
+/// the password AES-encrypted). One row per key.</summary>
+public class AppSecret
+{
+    public required string Key { get; set; }
+    public required string Value { get; set; }
+}
+
 /// <summary>
 /// A generic numeric time-series sample (weight, resting HR, steps, calories
 /// consumed, sleep minutes, ...). Keeping these in one table means new metric

@@ -18,11 +18,25 @@ RUN dotnet restore api/PersonalDashboard.Api/PersonalDashboard.Api.csproj
 COPY api/PersonalDashboard.Api/ api/PersonalDashboard.Api/
 RUN dotnet publish api/PersonalDashboard.Api/PersonalDashboard.Api.csproj -c Release -o /app/publish
 
-# ---- 3. runtime: API serves the SPA from wwwroot ----
+# ---- 3. runtime: API serves the SPA + runs the Python Garmin sidecar ----
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
+
+# Python + the sidecar's deps in an isolated venv. Garmin has no server-usable
+# API, so the scrape runs here in-process and the .NET app calls it on
+# localhost:8001 (started by entrypoint.sh).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+COPY sidecar/ ./sidecar/
+RUN python3 -m venv /opt/sidecar-venv \
+    && /opt/sidecar-venv/bin/pip install --no-cache-dir -r ./sidecar/requirements.txt
+
 COPY --from=api /app/publish ./
 COPY --from=web /web/dist ./wwwroot
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 10000
-ENTRYPOINT ["dotnet", "PersonalDashboard.Api.dll"]
+ENTRYPOINT ["./entrypoint.sh"]
