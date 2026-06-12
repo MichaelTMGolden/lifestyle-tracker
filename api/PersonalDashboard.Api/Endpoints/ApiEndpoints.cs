@@ -170,38 +170,6 @@ public static class ApiEndpoints
         return samples.Count;
     }
 
-    // Call the Python Garmin sidecar's /pull. Returns (ok, error, samples).
-    private static async Task<(bool Ok, string? Error, List<IngestSample>? Samples)> SidecarPullAsync(
-        IHttpClientFactory httpFactory, IConfiguration cfg, string email, string password, int days, string? end)
-    {
-        var baseUrl = (cfg["Sidecar:Url"] ?? Environment.GetEnvironmentVariable("SIDECAR_URL") ?? "http://localhost:8001").TrimEnd('/');
-        var token = cfg["Sidecar:Token"] ?? Environment.GetEnvironmentVariable("SIDECAR_TOKEN");
-        try
-        {
-            var http = httpFactory.CreateClient();
-            http.Timeout = TimeSpan.FromMinutes(5);
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/pull")
-            {
-                Content = System.Net.Http.Json.JsonContent.Create(new { email, password, days, end }),
-            };
-            if (!string.IsNullOrEmpty(token)) req.Headers.Add("X-Sidecar-Token", token);
-            using var resp = await http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode)
-            {
-                var detail = await resp.Content.ReadAsStringAsync();
-                return (false, $"sidecar {(int)resp.StatusCode}: {detail[..Math.Min(detail.Length, 300)]}", null);
-            }
-            var payload = await resp.Content.ReadFromJsonAsync<SidecarPullResult>();
-            return (true, null, payload?.Samples ?? new());
-        }
-        catch (Exception ex)
-        {
-            return (false, $"sidecar unreachable: {ex.Message}", null);
-        }
-    }
-
-    private record SidecarPullResult(int Count, List<IngestSample> Samples);
-
     // Fetch an iCal feed (the Google "secret address"). Returns (ok, error, icsText).
     private static async Task<(bool Ok, string? Error, string? Ics)> FetchIcsAsync(IHttpClientFactory httpFactory, string url)
     {
@@ -920,7 +888,7 @@ public static class ApiEndpoints
         {
             if (string.IsNullOrWhiteSpace(body?.Email) || string.IsNullOrWhiteSpace(body?.Password))
                 return Results.BadRequest(new { error = "email and password required" });
-            var (ok, err, _) = await SidecarPullAsync(http, cfg, body.Email.Trim(), body.Password, 1, null);
+            var (ok, err, _) = await GarminSyncService.PullAsync(http, cfg, body.Email.Trim(), body.Password, 1, null);
             if (!ok) return Results.Json(new { error = $"Garmin sign-in failed: {err}" }, statusCode: StatusCodes.Status502BadGateway);
             await SetSecretAsync(db, "garmin.email", body.Email.Trim());
             await SetSecretAsync(db, "garmin.pw", SecretCrypto.Encrypt(body.Password));
@@ -937,10 +905,10 @@ public static class ApiEndpoints
             if (pw is null) return Results.Json(new { error = "stored credentials can't be read — reconnect Garmin" }, statusCode: StatusCodes.Status400BadRequest);
 
             var days = Math.Clamp(body?.Days ?? 14, 1, 365);
-            var (ok, err, samples) = await SidecarPullAsync(http, cfg, email, pw, days, null);
+            var (ok, err, samples) = await GarminSyncService.PullAsync(http, cfg, email, pw, days, null);
             if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
 
-            var written = await UpsertSamplesAsync(db, "Garmin (live)", SourceKind.Garmin, samples!);
+            var written = await GarminSyncService.UpsertAsync(db, samples!);
             return Results.Ok(new { written, days });
         });
 

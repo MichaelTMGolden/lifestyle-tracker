@@ -73,6 +73,7 @@ builder.Services.AddSingleton<AlertService>();
 // Data-source providers. Garmin import is live today; the rest are labelled
 // seams that go live by implementing IDataProvider + flipping Configured.
 builder.Services.AddHttpClient(); // for calling the Garmin sidecar
+builder.Services.AddHostedService<GarminAutoSync>(); // periodic Garmin sync (default 6h)
 builder.Services.AddSingleton<IDataProvider, GarminImportProvider>();
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
     SourceKind.GoogleCalendar, "Google Calendar", ProviderMode.Api, "awaiting OAuth credentials"));
