@@ -4,7 +4,7 @@ import {
   api, type Alert, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
   type ScheduleBlock, type ScheduleToday, type Today, type Todo,
 } from '../api'
-import { alertSeverity, categoryColor, fmtMinutes, habitColor } from '../lib'
+import { alertSeverity, categoryColor, fmtElapsed, fmtMinutes, habitColor } from '../lib'
 import { Ring, Spark, STATUS } from '../charts'
 import { useIsMobile, usePersistentToggle } from '../hooks'
 import { useTimer } from '../timer/TimerContext'
@@ -33,7 +33,7 @@ export default function TodayPage() {
   const [error, setError] = useState<string | null>(null)
 
   const isMobile = useIsMobile()
-  const { timer, start, dataTick } = useTimer()
+  const { timer, start, stop, elapsedMs, dataTick } = useTimer()
 
   async function load() {
     try {
@@ -91,8 +91,13 @@ export default function TodayPage() {
   async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
   async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
-  // Mobile capture zone: tapping a timed skill starts its timer; binary skills toggle done.
-  async function mobileSkill(h: Habit) { if (h.tracksTime) await start(h.id, h.name); else await toggleHabit(h.id) }
+  // Tapping a timed skill starts its timer (tap the running one again to stop & log);
+  // binary skills just toggle done. Shared by the mobile capture zone and desktop quick-log.
+  async function mobileSkill(h: Habit) {
+    if (!h.tracksTime) { await toggleHabit(h.id); return }
+    if (timer?.habitId === h.id) await stop()
+    else await start(h.id, h.name)
+  }
 
   const dayHead = (
     <div className="dayhead">
@@ -176,7 +181,8 @@ export default function TodayPage() {
 
           <section className="card">
             <h2>Quick log · practice <Link to="/habits" className="back">habits →</Link></h2>
-            <SkillChips habits={habits} onSkill={(h) => toggleHabit(h.id)} />
+            {timer && <RunningTimer name={timer.habitName} elapsedMs={elapsedMs} onStop={() => stop()} />}
+            <SkillChips habits={habits} onSkill={mobileSkill} runningId={timer?.habitId} />
             <WeeklyGrid habits={habits} heatByName={heatByName} week={week} todayKey={todayKey} />
           </section>
 
@@ -350,6 +356,18 @@ function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean 
       <div className="hc-foot"><Link to="/health">Full page →</Link></div>
       {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow /></div>}
     </section>
+  )
+}
+
+// Live pill for the timer running right now: name + ticking elapsed + stop & log.
+function RunningTimer({ name, elapsedMs, onStop }: { name: string; elapsedMs: number; onStop: () => void }) {
+  return (
+    <div className="ql-timer">
+      <span className="ql-timer-dot" aria-hidden />
+      <span className="ql-timer-name">{name}</span>
+      <span className="ql-timer-time">{fmtElapsed(elapsedMs)}</span>
+      <button className="btn btn-sm" onClick={onStop}>Stop &amp; log</button>
+    </div>
   )
 }
 
