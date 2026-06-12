@@ -577,7 +577,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   font-family: var(--font-head); font-size: 0.85rem; letter-spacing: 0.04em; cursor: pointer; }
 .ab-add:hover { border-color: var(--crimson); }
 .ab-plus { font-size: 1.1rem; color: var(--crimson); line-height: 1; }
-.ab-pill { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.35rem 0 0.7rem;
+.ab-pills { display: flex; gap: 0.4rem; overflow-x: auto; flex: 0 1 auto; scrollbar-width: thin; }
+.ab-pill { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.35rem 0 0.7rem; flex-shrink: 0;
   border: 1px solid var(--crimson-deep); border-radius: 8px; background: var(--crimson-soft); }
 .ab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); flex-shrink: 0; }
 .ab-pill-name { font-size: 0.8rem; max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

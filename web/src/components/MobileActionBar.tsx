@@ -11,7 +11,7 @@ import { fmtElapsed, habitColor } from '../lib'
  */
 export function MobileActionBar() {
   const isMobile = useIsMobile()
-  const { timer, elapsedMs, start, stop, notifyChange } = useTimer()
+  const { timers, elapsedMs, start, stop, notifyChange } = useTimer()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [habits, setHabits] = useState<Habit[]>([])
@@ -67,12 +67,16 @@ export function MobileActionBar() {
         <button className="ab-add" onClick={() => setOpen(true)} aria-label="Quick add">
           <span className="ab-plus" aria-hidden>＋</span> Quick add
         </button>
-        {timer && (
-          <div className="ab-pill">
-            <span className="ab-dot" aria-hidden />
-            <span className="ab-pill-name">{timer.habitName}</span>
-            <span className="ab-pill-time">{fmtElapsed(elapsedMs)}</span>
-            <button className="ab-stop" onClick={() => stop()}>Stop</button>
+        {timers.length > 0 && (
+          <div className="ab-pills">
+            {timers.map((t) => (
+              <div key={t.habitId} className="ab-pill">
+                <span className="ab-dot" aria-hidden />
+                <span className="ab-pill-name">{t.habitName}</span>
+                <span className="ab-pill-time">{fmtElapsed(elapsedMs(t.habitId))}</span>
+                <button className="ab-stop" onClick={() => stop(t.habitId)}>Stop</button>
+              </div>
+            ))}
           </div>
         )}
       </div>

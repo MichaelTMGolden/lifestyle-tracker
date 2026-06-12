@@ -33,7 +33,7 @@ export default function TodayPage() {
   const [error, setError] = useState<string | null>(null)
 
   const isMobile = useIsMobile()
-  const { timer, start, stop, elapsedMs, dataTick } = useTimer()
+  const { timers, isRunning, start, stop, elapsedMs, dataTick } = useTimer()
 
   async function load() {
     try {
@@ -91,13 +91,14 @@ export default function TodayPage() {
   async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
   async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
-  // Tapping a timed skill starts its timer (tap the running one again to stop & log);
-  // binary skills just toggle done. Shared by the mobile capture zone and desktop quick-log.
+  // Tapping a timed skill starts its timer (tap a running one again to stop & log);
+  // binary skills just toggle done. Multiple timers can run at once.
   async function mobileSkill(h: Habit) {
     if (!h.tracksTime) { await toggleHabit(h.id); return }
-    if (timer?.habitId === h.id) await stop()
+    if (isRunning(h.id)) await stop(h.id)
     else await start(h.id, h.name)
   }
+  const runningIds = timers.map((t) => t.habitId)
 
   const dayHead = (
     <div className="dayhead">
@@ -127,7 +128,7 @@ export default function TodayPage() {
         <section className="card quick-actions">
           <h2>Quick actions</h2>
           {addForm}
-          <SkillChips habits={habits} onSkill={mobileSkill} runningId={timer?.habitId} hideMeta />
+          <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} hideMeta />
         </section>
 
         <section className="card">
@@ -181,8 +182,10 @@ export default function TodayPage() {
 
           <section className="card">
             <h2>Quick log · practice <Link to="/habits" className="back">habits →</Link></h2>
-            {timer && <RunningTimer name={timer.habitName} elapsedMs={elapsedMs} onStop={() => stop()} />}
-            <SkillChips habits={habits} onSkill={mobileSkill} runningId={timer?.habitId} />
+            {timers.map((t) => (
+              <RunningTimer key={t.habitId} name={t.habitName} elapsedMs={elapsedMs(t.habitId)} onStop={() => stop(t.habitId)} />
+            ))}
+            <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} />
             <WeeklyGrid habits={habits} heatByName={heatByName} week={week} todayKey={todayKey} />
           </section>
 
@@ -371,12 +374,12 @@ function RunningTimer({ name, elapsedMs, onStop }: { name: string; elapsedMs: nu
   )
 }
 
-function SkillChips({ habits, onSkill, runningId, hideMeta }: { habits: Habit[]; onSkill: (h: Habit) => void; runningId?: number; hideMeta?: boolean }) {
+function SkillChips({ habits, onSkill, runningIds, hideMeta }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[]; hideMeta?: boolean }) {
   return (
     <div className="skill-grid">
       {habits.map((h, idx) => {
         const color = habitColor(h.name, idx)
-        const running = runningId === h.id
+        const running = runningIds?.includes(h.id) ?? false
         return (
           <button key={h.id} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
             <span className="skill-name">{h.name}<span className="skill-check">{running ? '●' : h.doneToday ? '✓' : ''}</span></span>

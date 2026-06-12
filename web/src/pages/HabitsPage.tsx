@@ -49,7 +49,8 @@ export default function HabitsPage() {
   const [celebrating, setCelebrating] = useState<Goal | null>(null)
 
   // Running-timer state lives in shared context (also driven by the sticky bar).
-  const { timer, elapsedMs, start, stop, dataTick } = useTimer()
+  // Multiple habits can be timed at once, so query per-habit.
+  const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
 
   const weeks = buildWeeks()
   const today = keyOf(new Date(new Date().setHours(0, 0, 0, 0)))
@@ -216,7 +217,7 @@ export default function HabitsPage() {
         {habits.map((h) => {
           const color = colorOf(h.name)
           const byDate = minsById.get(h.id) ?? new Map<string, number>()
-          const running = timer?.habitId === h.id
+          const running = isRunning(h.id)
           const weekMins = Array.from({ length: 7 }).reduce<number>((sum, _, i) => {
             const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
             return sum + (byDate.get(keyOf(d)) ?? 0)
@@ -293,12 +294,12 @@ export default function HabitsPage() {
                       <div className="timer">
                         {running ? (
                           <>
-                            <span className="timer-elapsed" style={{ color }}>{fmtElapsed(elapsedMs)}</span>
-                            <button className="btn btn-sm" onClick={() => stop()}
+                            <span className="timer-elapsed" style={{ color }}>{fmtElapsed(elapsedMs(h.id))}</span>
+                            <button className="btn btn-sm" onClick={() => stop(h.id)}
                               style={{ color, borderColor: color, background: `${color}1f` }}>Stop & log</button>
                           </>
                         ) : (
-                          <button className="btn btn-ghost btn-sm" disabled={!!timer} onClick={() => start(h.id, h.name)}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => start(h.id, h.name)}>
                             ▶ Start timer
                           </button>
                         )}
