@@ -161,10 +161,11 @@ public class StreakBreakDetector : IAlertDetector
     }
 }
 
-/// <summary>Goals with a target date that are projected to finish late (reuses Feature A pacing).</summary>
+/// <summary>Goals meaningfully behind their plan (uses the same bounded pace gap the cards show).</summary>
 public class GoalOffPaceDetector : IAlertDetector
 {
-    private const int BufferDays = 7;
+    private const int BehindDays = 14;      // plan-days behind before it's worth an alert
+    private const double MinElapsed = 0.1;  // ignore goals barely underway (no real signal yet)
 
     public async Task<IEnumerable<Alert>> DetectAsync(AlertContext ctx, CancellationToken ct = default)
     {
@@ -173,21 +174,21 @@ public class GoalOffPaceDetector : IAlertDetector
         foreach (var g in pacings)
         {
             if (g.Archived || g.TargetDate is null || g.State == "complete") continue;
-            if (g.AccumulatedMinutes == 0) continue; // not started yet — don't nag on untouched goals
-            var lateDays = g.ProjectedVsTargetDays;
-            var behind = (lateDays.HasValue && lateDays.Value > BufferDays) || g.PaceStatus == "behind";
-            if (!behind) continue;
+            if (g.AccumulatedMinutes == 0) continue;            // untouched — don't nag
+            // PaceGapDays: + = behind, − = ahead of the straight-line plan. Same measure as
+            // the card's pill, so the alert and the goal card never contradict each other.
+            var gap = g.PaceGapDays;
+            if (gap is null || gap.Value <= BehindDays) continue;
+            if ((g.ExpectedFraction ?? 0) < MinElapsed) continue;
 
             var when = g.TargetDate.Value.ToDateTime(TimeOnly.MinValue);
             alerts.Add(new Alert
             {
-                Kind = "GoalOffPace", Severity = (lateDays ?? 0) > 60 || g.State == "overdue" ? "Urgent" : "Watch",
+                Kind = "GoalOffPace", Severity = g.State == "overdue" || gap.Value > 60 ? "Urgent" : "Watch",
                 SubjectType = "Goal", SubjectKey = g.Id.ToString(),
                 Title = $"{g.Name} is behind pace",
-                Detail = lateDays.HasValue
-                    ? $"At your current pace you'll finish ~{FmtSpan(lateDays.Value)} after {when:MMM yyyy}."
-                    : $"You're below the pace needed to hit {when:MMM yyyy}.",
-                Value = lateDays, ForDate = ctx.Today, DetectedAt = ctx.Now,
+                Detail = $"You're about {FmtSpan(gap.Value)} behind the pace needed for {when:dd'/'MM'/'yyyy}.",
+                Value = gap, ForDate = ctx.Today, DetectedAt = ctx.Now,
                 DedupeKey = $"GoalOffPace:{g.Id}",
             });
         }
