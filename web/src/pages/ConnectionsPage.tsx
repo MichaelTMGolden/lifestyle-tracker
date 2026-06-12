@@ -179,12 +179,13 @@ function GarminPanel() {
   )
 }
 
-/* ---------- Google Calendar panel (secret iCal URL) ---------- */
-type GoogleStatus = { configured: boolean; lastSyncedAt: string | null; eventCount: number }
+/* ---------- Google Calendar panel (one or more secret iCal URLs) ---------- */
+type GoogleStatus = { configured: boolean; calendars: { id: string; label: string }[]; lastSyncedAt: string | null; eventCount: number }
 
 function GoogleCalPanel() {
   const [st, setSt] = useState<GoogleStatus | null>(null)
   const [url, setUrl] = useState('')
+  const [label, setLabel] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [err, setErr] = useState('')
@@ -198,13 +199,18 @@ function GoogleCalPanel() {
     catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(null); load() }
   }
-  const connect = (e: FormEvent) => {
+  const add = (e: FormEvent) => {
     e.preventDefault()
     if (!url.trim()) return
-    run('connect', async () => { await api.googleConnect(url.trim()); setUrl(''); return 'Connected. Run a sync to pull your events.' })
+    run('add', async () => { const c = await api.googleAddCalendar(url.trim(), label.trim() || undefined); setUrl(''); setLabel(''); return `Added “${c.label}”.` })
   }
-  const sync = () => run('sync', async () => { const r = await api.googleSync(); return `Synced ${r.events} events.` })
-  const disconnect = () => run('disconnect', async () => { await api.googleDisconnect(); return 'Disconnected.' })
+  const remove = (id: string, name: string) => run(`rm-${id}`, async () => { await api.googleRemoveCalendar(id); return `Removed “${name}”.` })
+  const sync = () => run('sync', async () => {
+    const r = await api.googleSync()
+    return r.failures?.length ? `Synced ${r.events} events · ${r.failures.length} calendar(s) failed: ${r.failures.join('; ')}` : `Synced ${r.events} events.`
+  })
+
+  const cals = st?.calendars ?? []
 
   return (
     <section className="card garmin-panel">
@@ -212,35 +218,44 @@ function GoogleCalPanel() {
         <span className="conn-ico">📅</span>
         <div className="conn-id">
           <div className="conn-name">Google Calendar</div>
-          <div className="conn-mode">read-only · secret iCal feed</div>
+          <div className="conn-mode">read-only · secret iCal feeds</div>
         </div>
-        <span className={st?.configured ? 'pill ok' : 'pill pending'}>{st?.configured ? 'Connected' : 'Not connected'}</span>
+        <span className={st?.configured ? 'pill ok' : 'pill pending'}>{st?.configured ? `${cals.length} connected` : 'Not connected'}</span>
       </div>
 
-      {st?.configured ? (
+      {cals.length > 0 && (
         <>
-          <p className="conn-status">Calendar feed connected.</p>
+          <ul className="cal-list">
+            {cals.map((c) => (
+              <li key={c.id} className="cal-row">
+                <span className="cal-label">{c.label}</span>
+                <button className="icon-btn danger" disabled={!!busy} title="Remove" onClick={() => remove(c.id, c.label)}>✕</button>
+              </li>
+            ))}
+          </ul>
           <div className="conn-meta">
-            <span>{st.eventCount.toLocaleString()} events</span>
-            <span className="muted">{ago(st.lastSyncedAt)}</span>
+            <span>{(st?.eventCount ?? 0).toLocaleString()} events</span>
+            <span className="muted">{ago(st?.lastSyncedAt ?? null)}</span>
           </div>
           <div className="garmin-row">
             <button className="btn" disabled={!!busy} onClick={sync}>{busy === 'sync' ? 'Syncing…' : 'Sync now'}</button>
-            <button className="btn btn-ghost" disabled={!!busy} onClick={disconnect}>Disconnect</button>
           </div>
         </>
-      ) : (
-        <form className="garmin-form" onSubmit={connect}>
+      )}
+
+      <form className="garmin-form" onSubmit={add}>
+        {cals.length === 0 && (
           <p className="conn-status">
             In Google Calendar → Settings → your calendar → <b>Integrate calendar</b>, copy the
-            “Secret address in iCal format” URL and paste it here.
+            “Secret address in iCal format” URL and paste it here. Add as many calendars as you like.
           </p>
-          <input type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value={url} onChange={(e) => setUrl(e.target.value)} />
-          <button className="btn" type="submit" disabled={busy === 'connect' || !url.trim()}>
-            {busy === 'connect' ? 'Connecting…' : 'Connect'}
-          </button>
-        </form>
-      )}
+        )}
+        <input className="cal-label-in" type="text" placeholder="Label (e.g. Work)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input type="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn" type="submit" disabled={busy === 'add' || !url.trim()}>
+          {busy === 'add' ? 'Adding…' : cals.length ? 'Add calendar' : 'Connect'}
+        </button>
+      </form>
 
       {note && <div className="conn-msg">{note}</div>}
       {err && <div className="conn-msg err">{err}</div>}

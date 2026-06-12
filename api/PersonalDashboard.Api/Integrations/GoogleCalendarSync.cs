@@ -11,7 +11,7 @@ namespace PersonalDashboard.Api.Integrations;
 /// </summary>
 public static class GoogleCalendarSync
 {
-    public static List<CalendarEvent> Parse(string ics, int dataSourceId, DateTime fromUtc, DateTime toUtc)
+    public static List<CalendarEvent> Parse(string ics, int dataSourceId, DateTime fromUtc, DateTime toUtc, string idPrefix = "")
     {
         var cal = Calendar.Load(ics);
         var events = new List<CalendarEvent>();
@@ -37,8 +37,8 @@ public static class GoogleCalendarSync
             events.Add(new CalendarEvent
             {
                 DataSourceId = dataSourceId,
-                // UID + occurrence start keeps recurring instances distinct & dedupe-able.
-                ExternalId = $"{ev.Uid}:{startsAt:O}",
+                // Feed prefix + UID + occurrence start keeps instances distinct across calendars.
+                ExternalId = $"{idPrefix}{ev.Uid}:{startsAt:O}",
                 Title = string.IsNullOrWhiteSpace(ev.Summary) ? "(busy)" : ev.Summary.Trim(),
                 StartsAt = startsAt,
                 EndsAt = endsAt,

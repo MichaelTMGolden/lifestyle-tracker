@@ -32,7 +32,8 @@ public record IngestSample(string Key, DateTimeOffset At, double Value, string? 
 public record IngestInput(string? Source, string? Kind, List<IngestSample>? Samples);
 public record GarminCredsInput(string Email, string Password);
 public record GarminSyncInput(int? Days);
-public record GoogleIcsInput(string IcsUrl);
+public record GoogleAddInput(string? Label, string IcsUrl);
+public record GoogleFeed(string Id, string Label, string Url);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
@@ -189,6 +190,68 @@ public static class ApiEndpoints
         {
             return (false, $"couldn't fetch the feed: {ex.Message}", null);
         }
+    }
+
+    // --- Google Calendar feed list (stored encrypted as JSON in AppSecret) ---
+    private static async Task<List<GoogleFeed>> LoadGoogleFeedsAsync(AppDbContext db)
+    {
+        var raw = await GetSecretAsync(db, "google.calendars");
+        if (raw is not null)
+        {
+            var json = SecretCrypto.Decrypt(raw);
+            if (json is not null)
+                try { return System.Text.Json.JsonSerializer.Deserialize<List<GoogleFeed>>(json) ?? new(); }
+                catch { return new(); }
+            return new();
+        }
+        // Migrate the old single-URL secret into the list form.
+        var legacy = await GetSecretAsync(db, "google.ics");
+        if (legacy is not null && SecretCrypto.Decrypt(legacy) is string url)
+        {
+            var feeds = new List<GoogleFeed> { new(Guid.NewGuid().ToString("n")[..8], "Calendar", url) };
+            await SaveGoogleFeedsAsync(db, feeds);
+            await DeleteSecretAsync(db, "google.ics");
+            return feeds;
+        }
+        return new();
+    }
+
+    private static Task SaveGoogleFeedsAsync(AppDbContext db, List<GoogleFeed> feeds) =>
+        SetSecretAsync(db, "google.calendars", SecretCrypto.Encrypt(System.Text.Json.JsonSerializer.Serialize(feeds)));
+
+    // Fetch every feed, parse into one "Google Calendar" source, replace the window.
+    // A feed that fails is reported and skipped; if every feed fails we leave the
+    // existing events alone (don't wipe on a transient network blip).
+    private static async Task<(int Events, List<string> Failures)> SyncGoogleAsync(AppDbContext db, IHttpClientFactory http, List<GoogleFeed> feeds)
+    {
+        var src = await GetOrCreateSourceAsync(db, SourceKind.GoogleCalendar, "Google Calendar");
+        var now = DateTime.UtcNow;
+        var all = new List<CalendarEvent>();
+        var failures = new List<string>();
+        foreach (var f in feeds)
+        {
+            var (ok, err, ics) = await FetchIcsAsync(http, f.Url);
+            if (!ok) { failures.Add($"{f.Label}: {err}"); continue; }
+            try { all.AddRange(GoogleCalendarSync.Parse(ics!, src.Id, now.AddDays(-14), now.AddDays(120), $"{f.Id}:")); }
+            catch { failures.Add($"{f.Label}: not a valid iCal feed"); }
+        }
+
+        // Don't blow away events if everything failed (e.g. offline).
+        if (feeds.Count > 0 && failures.Count == feeds.Count)
+            return (0, failures);
+
+        await db.CalendarEvents.Where(e => e.DataSourceId == src.Id).ExecuteDeleteAsync();
+        // Drop the placeholder "Google Calendar (sample)" seed so real events stand alone.
+        var sample = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar && s.Name == "Google Calendar (sample)");
+        if (sample is not null)
+        {
+            await db.CalendarEvents.Where(e => e.DataSourceId == sample.Id).ExecuteDeleteAsync();
+            db.DataSources.Remove(sample);
+        }
+        db.CalendarEvents.AddRange(all);
+        src.LastSyncedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        return (all.Count, failures);
     }
 
     private static Task<DataSource> GetFoodSourceAsync(AppDbContext db, SourceKind kind) => GetOrCreateSourceAsync(db, kind, kind switch
@@ -940,65 +1003,68 @@ public static class ApiEndpoints
             return Results.Ok(new { deleted });
         });
 
-        // --- Google Calendar (read-only, via the calendar's secret iCal URL) ---
+        // --- Google Calendar (read-only; one or more calendars via their secret iCal URLs) ---
         api.MapGet("/connections/google", async (AppDbContext db) =>
         {
-            var configured = await GetSecretAsync(db, "google.ics") is not null;
-            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar);
+            var feeds = await LoadGoogleFeedsAsync(db);
+            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar && s.Name == "Google Calendar");
             var count = src is null ? 0 : await db.CalendarEvents.CountAsync(e => e.DataSourceId == src.Id);
-            return Results.Ok(new { configured, lastSyncedAt = src?.LastSyncedAt, eventCount = count });
+            return Results.Ok(new
+            {
+                configured = feeds.Count > 0,
+                calendars = feeds.Select(f => new { f.Id, f.Label }),
+                lastSyncedAt = src?.LastSyncedAt,
+                eventCount = count,
+            });
         });
 
-        // Store the secret iCal URL (encrypted) after validating it fetches + parses.
-        api.MapPost("/connections/google/credentials", async (GoogleIcsInput body, AppDbContext db, IHttpClientFactory http) =>
+        // Add a calendar: validate the feed, store it, then sync everything.
+        api.MapPost("/connections/google/calendars", async (GoogleAddInput body, AppDbContext db, IHttpClientFactory http) =>
         {
             var url = body?.IcsUrl?.Trim();
             if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { error = "Paste your calendar's secret iCal URL (https://…/basic.ics)." });
+                return Results.BadRequest(new { error = "Paste a calendar's secret iCal URL (https://…/basic.ics)." });
             var (ok, err, ics) = await FetchIcsAsync(http, url);
             if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
             try { GoogleCalendarSync.Parse(ics!, 0, DateTime.UtcNow, DateTime.UtcNow.AddDays(1)); }
             catch { return Results.Json(new { error = "That URL didn't look like a valid iCal feed." }, statusCode: StatusCodes.Status400BadRequest); }
-            await SetSecretAsync(db, "google.ics", SecretCrypto.Encrypt(url));
-            return Results.Ok(new { configured = true });
+
+            var feeds = await LoadGoogleFeedsAsync(db);
+            if (feeds.Any(f => string.Equals(f.Url, url, StringComparison.OrdinalIgnoreCase)))
+                return Results.Json(new { error = "That calendar is already connected." }, statusCode: StatusCodes.Status409Conflict);
+            var label = string.IsNullOrWhiteSpace(body!.Label) ? $"Calendar {feeds.Count + 1}" : body.Label!.Trim();
+            var feed = new GoogleFeed(Guid.NewGuid().ToString("n")[..8], label, url);
+            feeds.Add(feed);
+            await SaveGoogleFeedsAsync(db, feeds);
+            await SyncGoogleAsync(db, http, feeds);
+            return Results.Ok(new { feed.Id, feed.Label });
         });
 
-        // Fetch the feed and replace this source's events for a rolling window.
+        // Remove a calendar and re-sync the rest.
+        api.MapDelete("/connections/google/calendars/{id}", async (string id, AppDbContext db, IHttpClientFactory http) =>
+        {
+            var feeds = await LoadGoogleFeedsAsync(db);
+            feeds.RemoveAll(f => f.Id == id);
+            await SaveGoogleFeedsAsync(db, feeds);
+            await SyncGoogleAsync(db, http, feeds);
+            return Results.Ok(new { calendars = feeds.Count });
+        });
+
+        // Re-fetch every connected calendar and rebuild the event window.
         api.MapPost("/connections/google/sync", async (AppDbContext db, IHttpClientFactory http) =>
         {
-            var enc = await GetSecretAsync(db, "google.ics");
-            if (enc is null) return Results.Json(new { error = "Google Calendar not connected" }, statusCode: StatusCodes.Status400BadRequest);
-            var url = SecretCrypto.Decrypt(enc);
-            if (url is null) return Results.Json(new { error = "stored URL can't be read — reconnect" }, statusCode: StatusCodes.Status400BadRequest);
-
-            var (ok, err, ics) = await FetchIcsAsync(http, url);
-            if (!ok) return Results.Json(new { error = err }, statusCode: StatusCodes.Status502BadGateway);
-
-            var src = await GetOrCreateSourceAsync(db, SourceKind.GoogleCalendar, "Google Calendar");
-            var now = DateTime.UtcNow;
-            List<CalendarEvent> events;
-            try { events = GoogleCalendarSync.Parse(ics!, src.Id, now.AddDays(-14), now.AddDays(120)); }
-            catch (Exception ex) { return Results.Json(new { error = $"parse failed: {ex.Message}" }, statusCode: StatusCodes.Status502BadGateway); }
-
-            // Replace the window wholesale so moved/cancelled events don't linger.
-            await db.CalendarEvents.Where(e => e.DataSourceId == src.Id).ExecuteDeleteAsync();
-            // Drop the placeholder "Google Calendar (sample)" seed so real events stand alone.
-            var sample = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar && s.Name == "Google Calendar (sample)");
-            if (sample is not null)
-            {
-                await db.CalendarEvents.Where(e => e.DataSourceId == sample.Id).ExecuteDeleteAsync();
-                db.DataSources.Remove(sample);
-            }
-            db.CalendarEvents.AddRange(events);
-            src.LastSyncedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-            return Results.Ok(new { events = events.Count });
+            var feeds = await LoadGoogleFeedsAsync(db);
+            if (feeds.Count == 0) return Results.Json(new { error = "No calendars connected" }, statusCode: StatusCodes.Status400BadRequest);
+            var (events, failures) = await SyncGoogleAsync(db, http, feeds);
+            return Results.Ok(new { events, calendars = feeds.Count, failures });
         });
 
+        // Disconnect all calendars.
         api.MapDelete("/connections/google/credentials", async (AppDbContext db) =>
         {
+            await DeleteSecretAsync(db, "google.calendars");
             await DeleteSecretAsync(db, "google.ics");
-            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar);
+            var src = await db.DataSources.FirstOrDefaultAsync(s => s.Kind == SourceKind.GoogleCalendar && s.Name == "Google Calendar");
             if (src is not null) await db.CalendarEvents.Where(e => e.DataSourceId == src.Id).ExecuteDeleteAsync();
             return Results.Ok(new { configured = false });
         });

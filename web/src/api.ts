@@ -464,10 +464,11 @@ export const api = {
   garminDisconnect: () => send<{ configured: boolean }>('DELETE', '/api/connections/garmin/credentials'),
   garminClearSamples: () => post<{ deleted: number }>('/api/connections/garmin/clear-samples'),
 
-  // Google Calendar (read-only via the calendar's secret iCal URL)
-  googleStatus: () => get<{ configured: boolean; lastSyncedAt: string | null; eventCount: number }>('/api/connections/google'),
-  googleConnect: (icsUrl: string) => post<{ configured: boolean }>('/api/connections/google/credentials', { icsUrl }),
-  googleSync: () => post<{ events: number }>('/api/connections/google/sync'),
+  // Google Calendar (read-only; one or more calendars via their secret iCal URLs)
+  googleStatus: () => get<{ configured: boolean; calendars: { id: string; label: string }[]; lastSyncedAt: string | null; eventCount: number }>('/api/connections/google'),
+  googleAddCalendar: (icsUrl: string, label?: string) => post<{ id: string; label: string }>('/api/connections/google/calendars', { icsUrl, label }),
+  googleRemoveCalendar: (id: string) => send<{ calendars: number }>('DELETE', `/api/connections/google/calendars/${id}`),
+  googleSync: () => post<{ events: number; calendars: number; failures: string[] }>('/api/connections/google/sync'),
   googleDisconnect: () => send<{ configured: boolean }>('DELETE', '/api/connections/google/credentials'),
   importGarmin: async (files: File[]) => {
     const fd = new FormData()
