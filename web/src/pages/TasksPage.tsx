@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { api, type Todo, type TodoInput } from '../api'
+import { api, type Todo, type TodoInput, type DailyTodo } from '../api'
+
+const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const tomorrow = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); return d })()
+const tomorrowKey = keyOf(tomorrow)
+const tomorrowLabel = tomorrow.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short' })
 
 const PRIORITIES = [
   { v: 1, label: 'High' },
@@ -15,13 +20,27 @@ const isOverdue = (iso?: string | null) =>
 
 export default function TasksPage() {
   const [todos, setTodos] = useState<Todo[]>([])
+  const [tomorrowTodos, setTomorrowTodos] = useState<DailyTodo[]>([])
+  const [newTomorrow, setNewTomorrow] = useState('')
   const [form, setForm] = useState<TodoInput>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [edit, setEdit] = useState<TodoInput>(emptyForm)
   const [error, setError] = useState<string | null>(null)
 
-  const load = () => api.todos().then(setTodos).catch((e) => setError(String(e)))
+  const load = () => Promise.all([api.todos(), api.dailyTodos(tomorrowKey)])
+    .then(([t, dt]) => { setTodos(t); setTomorrowTodos(dt) })
+    .catch((e) => setError(String(e)))
   useEffect(() => { load() }, [])
+
+  async function addTomorrow(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newTomorrow.trim()) return
+    await api.createDailyTodo(newTomorrow.trim(), tomorrowKey)
+    setNewTomorrow('')
+    load()
+  }
+  async function toggleTomorrow(id: number) { await api.toggleDailyTodo(id); load() }
+  async function removeTomorrow(id: number) { await api.deleteDailyTodo(id); load() }
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -60,6 +79,27 @@ export default function TasksPage() {
 
       {error && <p className="error">{error}</p>}
 
+      <section className="card tomorrow-plan">
+        <h2>Plan tomorrow <span className="muted" style={{ fontWeight: 400 }}>· {tomorrowLabel}</span></h2>
+        <form className="daily-add" onSubmit={addTomorrow}>
+          <input value={newTomorrow} placeholder="Plan a to-do for tomorrow…" onChange={(e) => setNewTomorrow(e.target.value)} />
+          <button className="btn" type="submit">Add</button>
+        </form>
+        <ul className="list">
+          {tomorrowTodos.length === 0 && <li className="muted">Nothing planned yet — add the first thing for tomorrow.</li>}
+          {tomorrowTodos.map((d) => (
+            <li key={d.id} className="todo daily-row">
+              <label className="daily-check">
+                <input type="checkbox" checked={d.done} onChange={() => toggleTomorrow(d.id)} />
+                <span className={d.done ? 'done' : ''}>{d.title}</span>
+              </label>
+              <button className="icon-btn danger" onClick={() => removeTomorrow(d.id)} title="Remove">✕</button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="section-title">Tasks</div>
       <form className="todo-form" onSubmit={add}>
         <div className="field">
           <label>Task</label>

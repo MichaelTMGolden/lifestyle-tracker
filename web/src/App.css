@@ -153,6 +153,7 @@ h3 { font-family: var(--font-head); margin: 0; font-weight: 500; }
 /* ---------- daily to-do ---------- */
 .daily-add { display: flex; gap: 0.5rem; margin-bottom: 0.9rem; }
 .daily-add input { flex: 1; }
+.tomorrow-plan { margin-bottom: 1.1rem; }
 .daily-row { gap: 0.6rem; }
 .daily-check { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0; cursor: pointer; }
 .daily-row input[type='checkbox'] { accent-color: var(--crimson); width: 16px; height: 16px; flex-shrink: 0; }
