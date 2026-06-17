@@ -170,6 +170,7 @@ export interface Goal {
   state: 'active' | 'complete' | 'overdue' | 'stalled'
   completedOn: string | null
   archived: boolean
+  countAllTime: boolean
   sources: GoalSource[]
 }
 
@@ -180,6 +181,7 @@ export interface GoalInput {
   startDate?: string | null
   targetDate?: string | null
   sourceHabitIds: number[]
+  countAllTime?: boolean
 }
 
 export interface BingoSquare {

@@ -34,7 +34,7 @@ public record GarminCredsInput(string Email, string Password);
 public record GarminSyncInput(int? Days);
 public record GoogleAddInput(string? Label, string IcsUrl);
 public record GoogleFeed(string Id, string Label, string Url);
-public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null);
+public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null, bool CountAllTime = false);
 public record FoodEntryInput(
     DateOnly? Date, MealType? Meal, string Name, string? Brand, string Source, string? ExternalRef,
     string? ServingDescription, double Quantity, double? Grams,
@@ -1130,6 +1130,7 @@ public static class ApiEndpoints
                 ColorHex = input.ColorHex,
                 StartDate = input.StartDate ?? ClientClock.From(req).Today,  // default: created-on date
                 TargetDate = input.TargetDate,
+                CountAllTime = input.CountAllTime,
                 Sources = (input.SourceHabitIds ?? new())
                     .Distinct().Select(hid => new GoalSource { HabitId = hid }).ToList(),
             };
@@ -1148,6 +1149,7 @@ public static class ApiEndpoints
             goal.ColorHex = input.ColorHex;
             goal.StartDate = input.StartDate;
             goal.TargetDate = input.TargetDate;
+            goal.CountAllTime = input.CountAllTime;
 
             db.GoalSources.RemoveRange(goal.Sources);
             goal.Sources = (input.SourceHabitIds ?? new())

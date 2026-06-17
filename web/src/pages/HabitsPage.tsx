@@ -430,6 +430,7 @@ function GoalCard({ goal, hero, colorOf, onEdit, onDelete, onRetire }: {
         <span>{fmtHours(goal.remainingMinutes)} to go</span>
         <span className="goal-eta">{etaLine}</span>
         {goal.targetDate && <span className="goal-target-date">target {fmtDate(goal.targetDate)}</span>}
+        {goal.countAllTime && <span className="goal-target-date">all-time</span>}
       </div>
       <div className="goal-feeders">
         {goal.sources.map((s) => {
@@ -457,6 +458,7 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
   const [color, setColor] = useState(goal?.colorHex ?? '#b23a5b')
   const [targetDate, setTargetDate] = useState(goal?.targetDate ?? '')
   const [feeders, setFeeders] = useState<number[]>(goal ? goal.sources.map((s) => s.habitId) : [])
+  const [countAllTime, setCountAllTime] = useState(goal?.countAllTime ?? false)
 
   const toggleFeeder = (id: number) =>
     setFeeders((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]))
@@ -469,6 +471,7 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
       name: name.trim(), targetHours, colorHex: color, sourceHabitIds: feeders,
       targetDate: targetDate || null,
       startDate: goal?.startDate ?? null, // preserve existing start on edit
+      countAllTime,
     })
   }
 
@@ -494,6 +497,16 @@ function GoalForm({ habits, goal, onSubmit, onCancel }: {
           <input type="date" value={targetDate ?? ''} onChange={(e) => setTargetDate(e.target.value)} />
         </label>
         {targetDate && <button type="button" className="btn btn-ghost btn-sm gf-clear" onClick={() => setTargetDate('')}>Clear date</button>}
+      </div>
+      <div className="gf-feeders">
+        <span className="gf-label">Count</span>
+        <div className="seg sm gf-count">
+          <button type="button" className={countAllTime ? '' : 'on'} onClick={() => setCountAllTime(false)}>Additional</button>
+          <button type="button" className={countAllTime ? 'on' : ''} onClick={() => setCountAllTime(true)}>Total</button>
+        </div>
+        <span className="gf-hint muted">{countAllTime
+          ? 'Counts all time you’ve ever logged for the feeder skills.'
+          : 'Counts only time logged from the goal’s start date onward.'}</span>
       </div>
       <div className="gf-feeders">
         <span className="gf-label">Feeder skills</span>

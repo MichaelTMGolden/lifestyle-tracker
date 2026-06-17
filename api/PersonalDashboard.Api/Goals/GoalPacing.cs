@@ -18,7 +18,7 @@ public record GoalPacing(
     DateOnly? ProjectedDate,
     double? RequiredDailyRateMinutes, string? PaceStatus, double? PaceDeltaMinutesPerDay,
     double? ExpectedFraction, int? ProjectedVsTargetDays, int? PaceGapDays,
-    string State, DateOnly? CompletedOn, bool Archived,
+    string State, DateOnly? CompletedOn, bool Archived, bool CountAllTime,
     List<GoalSourceDto> Sources);
 
 public static class GoalPacingService
@@ -42,14 +42,17 @@ public static class GoalPacingService
         var newlyCompleted = false;
         foreach (var g in goals)
         {
-            // A goal only counts feeder minutes logged on/after it started — never any
-            // time banked before the goal existed. Start defaults to the creation date.
+            // The goal's own timeline start (drives the on-track pace); defaults to creation.
             var start = g.StartDate ?? today;
+            // Where minutes start counting toward the target:
+            //   Total      → all-time (every feeder minute ever logged counts).
+            //   Additional → only minutes logged on/after the start date.
+            var countFrom = g.CountAllTime ? DateOnly.MinValue : start;
             var feeders = g.Sources.Where(s => s.Habit is not null).ToList();
             var sources = feeders
                 .Select(s => new GoalSourceDto(
                     s.HabitId, s.Habit!.Name,
-                    s.Habit!.Logs.Where(l => l.Date >= start).Sum(l => l.Minutes)))
+                    s.Habit!.Logs.Where(l => l.Date >= countFrom).Sum(l => l.Minutes)))
                 .OrderByDescending(s => s.Minutes)
                 .ToList();
 
@@ -58,11 +61,15 @@ public static class GoalPacingService
             var progress = g.TargetMinutes > 0 ? Math.Min(1.0, accumulated / (double)g.TargetMinutes) : 0;
 
             var logs = feeders.SelectMany(s => s.Habit!.Logs)
-                .Where(l => l.Date >= start).ToList();
+                .Where(l => l.Date >= countFrom).ToList();
             var weekly = logs.Where(l => l.Date >= weekAgo).Sum(l => l.Minutes);
             var dailyRate = logs.Where(l => l.Date >= since28).Sum(l => l.Minutes) / 28.0;
 
-            var daysActive = Math.Max(1, today.DayNumber - start.DayNumber);
+            // Lifetime rate spans since the goal started (additional) or since the
+            // earliest counted log (total).
+            var earliest = logs.Count > 0 ? logs.Min(l => l.Date) : (DateOnly?)null;
+            var rateStart = g.CountAllTime ? (earliest ?? start) : start;
+            var daysActive = Math.Max(1, today.DayNumber - rateStart.DayNumber);
             var lifetimeDailyRate = accumulated / (double)daysActive;
 
             DateOnly? projectedDate = remaining == 0 ? today
@@ -107,7 +114,7 @@ public static class GoalPacingService
                 requiredDaily is double rd ? Math.Round(rd, 2) : null, paceStatus,
                 paceDelta is double pdm ? Math.Round(pdm, 2) : null,
                 expectedFraction is double ef ? Math.Round(ef, 4) : null, projectedVsTarget, paceGapDays,
-                state, g.CompletedOn, g.Archived, sources));
+                state, g.CompletedOn, g.Archived, g.CountAllTime, sources));
         }
         if (newlyCompleted) await db.SaveChangesAsync();
         return result;

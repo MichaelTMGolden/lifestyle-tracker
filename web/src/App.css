@@ -413,6 +413,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   padding: 0.5rem 0.6rem; font-family: var(--font-body); font-size: 0.95rem; }
 .gf-color input[type=color] { width: 46px; height: 40px; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; background: none; cursor: pointer; }
 .gf-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); display: block; margin-bottom: 0.4rem; }
+.gf-count { vertical-align: middle; }
+.gf-hint { display: block; margin-top: 0.4rem; font-size: 0.78rem; }
 .gf-checks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .gf-check { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border: 1px solid var(--line-strong);
   border-radius: 20px; cursor: pointer; font-size: 0.9rem; color: var(--text-dim); transition: all 0.15s; }

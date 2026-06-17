@@ -149,8 +149,10 @@ public class Goal
     /// <summary>Target stored in minutes; displayed as hours.</summary>
     public int TargetMinutes { get; set; }
     public string? ColorHex { get; set; }
-    /// <summary>Only count feeder minutes on/after this date; null = count all-time.</summary>
+    /// <summary>The goal's timeline start (drives ahead/behind pace); defaults to creation.</summary>
     public DateOnly? StartDate { get; set; }
+    /// <summary>True = count all-time feeder minutes (total); false = only minutes on/after StartDate (additional).</summary>
+    public bool CountAllTime { get; set; }
     /// <summary>Optional deadline. When set, the goal shows ahead/behind pace vs a linear plan.</summary>
     public DateOnly? TargetDate { get; set; }
     /// <summary>Stamped the first time accumulated minutes reach the target. Drives the "complete" state.</summary>
