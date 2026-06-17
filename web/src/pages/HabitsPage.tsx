@@ -86,6 +86,7 @@ export default function HabitsPage() {
   }
   async function toggle(id: number) { await api.toggleHabit(id); await load() }
   async function flipTracksTime(id: number) { await api.toggleHabitTracksTime(id); await load() }
+  async function flipQuickActions(id: number) { await api.toggleHabitQuickActions(id); await load() }
   async function createSkill(e: FormEvent) {
     e.preventDefault()
     if (!skillName.trim()) return
@@ -317,6 +318,10 @@ export default function HabitsPage() {
                   <div className="skill-foot">
                     <button className="track-toggle" onClick={() => flipTracksTime(h.id)}>
                       {h.tracksTime ? 'Switch to simple' : 'Track time'}
+                    </button>
+                    <button className={`track-toggle${h.showInQuickActions ? ' on' : ''}`} onClick={() => flipQuickActions(h.id)}
+                      title="Show this skill in the dashboard quick actions">
+                      {h.showInQuickActions ? '★ Quick action' : '☆ Quick action'}
                     </button>
                     <button className="track-toggle danger" onClick={() => removeHabit(h.id, h.name)}>Delete</button>
                   </div>

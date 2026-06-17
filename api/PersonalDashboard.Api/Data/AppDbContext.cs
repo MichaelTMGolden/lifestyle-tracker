@@ -46,6 +46,8 @@ public class AppDbContext : DbContext
         b.Entity<HabitLog>().HasIndex(x => new { x.HabitId, x.Date }).IsUnique();
 
         b.Entity<AppSecret>().HasKey(x => x.Key);
+        // New column backfills to true for existing habits (so they stay in quick actions).
+        b.Entity<Habit>().Property(h => h.ShowInQuickActions).HasDefaultValue(true);
 
         // At most one running timer per habit; deleting the habit clears it.
         b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();

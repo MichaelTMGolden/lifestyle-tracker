@@ -41,6 +41,7 @@ export interface Habit {
   name: string
   cadence: string
   tracksTime: boolean
+  showInQuickActions: boolean
   last30Completed: number
   doneToday: boolean
   minutesToday: number
@@ -442,6 +443,7 @@ export const api = {
   stopTimer: (habitId: number) => send<{ habitId: number; minutes: number }>('DELETE', `/api/timers/${habitId}`),
   setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
   toggleHabitTracksTime: (id: number) => post<{ id: number; tracksTime: boolean }>(`/api/habits/${id}/tracks-time`),
+  toggleHabitQuickActions: (id: number) => post<{ id: number; showInQuickActions: boolean }>(`/api/habits/${id}/quick-actions`),
 
   goals: () => get<Goal[]>('/api/goals'),
   createGoal: (input: GoalInput) => post<{ id: number }>('/api/goals', input),

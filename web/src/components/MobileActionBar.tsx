@@ -32,8 +32,9 @@ export function MobileActionBar() {
   }
   async function startTimer(h: Habit) { await start(h.id, h.name); setOpen(false) }
 
-  const timed = habits.filter((h) => h.tracksTime)
-  const pickable = timed.length ? timed : habits
+  const quick = habits.filter((h) => h.showInQuickActions)
+  const timed = quick.filter((h) => h.tracksTime)
+  const pickable = timed.length ? timed : quick
 
   return (
     <>

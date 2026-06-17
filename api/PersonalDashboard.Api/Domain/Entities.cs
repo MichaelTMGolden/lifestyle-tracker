@@ -108,6 +108,9 @@ public class Habit
     /// </summary>
     public bool TracksTime { get; set; }
 
+    /// <summary>Whether this skill appears in the dashboard quick-actions / quick-log. Default on.</summary>
+    public bool ShowInQuickActions { get; set; } = true;
+
     public List<HabitLog> Logs { get; set; } = new();
 }
 

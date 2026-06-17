@@ -110,6 +110,8 @@ export default function TodayPage() {
     else await start(h.id, h.name)
   }
   const runningIds = timers.map((t) => t.habitId)
+  // Only the habits the user pinned to quick actions (managed on the Habits page).
+  const quickHabits = habits.filter((h) => h.showInQuickActions)
 
   const dayHead = (
     <div className="dayhead">
@@ -139,7 +141,7 @@ export default function TodayPage() {
         <section className="card quick-actions">
           <h2>Quick actions</h2>
           {addForm}
-          <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} />
+          <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} />
         </section>
 
         <section className="card">
@@ -196,7 +198,7 @@ export default function TodayPage() {
             {timers.map((t) => (
               <RunningTimer key={t.habitId} name={t.habitName} elapsedMs={elapsedMs(t.habitId)} onStop={() => stop(t.habitId)} />
             ))}
-            <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} />
+            <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} />
             <WeeklyGrid habits={habits} heatByName={heatByName} week={weekDays} todayKey={todayKey} />
           </section>
 

@@ -767,6 +767,7 @@ public static class ApiEndpoints
                     h.Name,
                     h.Cadence,
                     h.TracksTime,
+                    h.ShowInQuickActions,
                     last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
                     doneToday = h.Logs.Any(l => l.Date == today && l.Completed),
                     minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
@@ -782,6 +783,7 @@ public static class ApiEndpoints
                 h.Name,
                 h.Cadence,
                 h.TracksTime,
+                h.ShowInQuickActions,
                 h.last30Completed,
                 h.doneToday,
                 h.minutesToday,
@@ -1092,6 +1094,16 @@ public static class ApiEndpoints
             habit.TracksTime = !habit.TracksTime;
             await db.SaveChangesAsync();
             return Results.Ok(new { habit.Id, habit.TracksTime });
+        });
+
+        // Flip whether a skill shows in the dashboard quick-actions / quick-log.
+        api.MapPost("/habits/{id:int}/quick-actions", async (int id, AppDbContext db) =>
+        {
+            var habit = await db.Habits.FindAsync(id);
+            if (habit is null) return Results.NotFound();
+            habit.ShowInQuickActions = !habit.ShowInQuickActions;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { habit.Id, habit.ShowInQuickActions });
         });
 
         // Add a new tracked practice (e.g. "Exercise").

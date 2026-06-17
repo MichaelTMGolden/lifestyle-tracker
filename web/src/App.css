@@ -451,6 +451,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .track-toggle { background: none; border: none; color: var(--text-dim); font-size: 0.74rem; cursor: pointer;
   text-decoration: underline; text-underline-offset: 2px; padding: 0; margin-top: 0.2rem; }
 .track-toggle:hover { color: var(--text); }
+.track-toggle.on { color: var(--watch); }
 .skill-foot { display: flex; gap: 1rem; align-items: center; margin-top: 0.2rem; }
 .skill-foot .track-toggle { margin-top: 0; }
 .track-toggle.danger:hover { color: var(--bad); }
