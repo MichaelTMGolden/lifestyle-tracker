@@ -72,6 +72,7 @@ def _collect_day(api: Garmin, day: dt.date, out: list):
     _add(out, "stress_avg", day, _first(stats, "averageStressLevel"), "level")
     hs = _first(stats, "highStressDuration")
     _add(out, "stress_high_min", day, (hs / 60.0) if hs else None, "min")
+    _add(out, "body_battery", day, _first(stats, "bodyBatteryMostRecentValue", "bodyBatteryHighestValue"), "level")
 
     try:
         sleep = api.get_sleep_data(ds) or {}
@@ -111,6 +112,7 @@ def _fake(start: dt.date, end: dt.date) -> list:
     while day <= end:
         _add(out, "steps", day, 8000 + (i % 5) * 600, "steps")
         _add(out, "resting_hr", day, 52 + (i % 4), "bpm")
+        _add(out, "body_battery", day, 60 + (i % 5) * 7, "level")
         _add(out, "sleep_total_min", day, 420 + (i % 3) * 20, "min")
         _add(out, "sleep_score", day, 78 + (i % 5), "score")
         day += dt.timedelta(days=1)

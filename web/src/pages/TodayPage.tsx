@@ -139,7 +139,7 @@ export default function TodayPage() {
         <section className="card quick-actions">
           <h2>Quick actions</h2>
           {addForm}
-          <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} hideMeta />
+          <SkillChips habits={habits} onSkill={mobileSkill} runningIds={runningIds} />
         </section>
 
         <section className="card">
@@ -289,13 +289,15 @@ function HTilesRow({ today }: { today: Today }) {
   )
 }
 
-// Body Battery isn't ingested yet (not in the CSV import), so this is always an
-// honest "connect Garmin" placeholder until that signal is wired up.
-function EnergyRow() {
+// Body Battery from Garmin (synced via the connect page). Shows the latest
+// reading as a 0–100 bar; a neutral empty state until the first sync lands.
+function EnergyRow({ value }: { value: number | null }) {
   return (
     <div className="energy-row">
-      <div className="er-head"><span>Energy · Body Battery</span></div>
-      <div className="energy-empty muted">Connect Garmin to see Body Battery</div>
+      <div className="er-head"><span>Energy · Body Battery</span>{value != null && <b>{Math.round(value)}</b>}</div>
+      {value != null
+        ? <div className="energy-bar"><span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
+        : <div className="energy-empty muted">No recent reading yet</div>}
     </div>
   )
 }
@@ -324,7 +326,7 @@ function HealthCluster({ today, hasHealth }: { today: Today; hasHealth: boolean 
         <ReadinessGauge today={today} hasHealth={hasHealth} size={92} />
         <HTilesRow today={today} />
       </div>
-      <EnergyRow />
+      <EnergyRow value={today.bodyBattery} />
     </div>
   )
 }
@@ -368,7 +370,7 @@ function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean 
         <span className="collapse-caret" aria-hidden>{open ? '▾' : '▸'}</span>
       </button>
       <div className="hc-foot"><Link to="/health">Full page →</Link></div>
-      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow /></div>}
+      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow value={today.bodyBattery} /></div>}
     </section>
   )
 }
@@ -385,7 +387,7 @@ function RunningTimer({ name, elapsedMs, onStop }: { name: string; elapsedMs: nu
   )
 }
 
-function SkillChips({ habits, onSkill, runningIds, hideMeta }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[]; hideMeta?: boolean }) {
+function SkillChips({ habits, onSkill, runningIds }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[] }) {
   return (
     <div className="skill-grid">
       {habits.map((h, idx) => {
@@ -394,7 +396,7 @@ function SkillChips({ habits, onSkill, runningIds, hideMeta }: { habits: Habit[]
         return (
           <button key={h.id} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
             <span className="skill-name">{h.name}<span className="skill-check">{running ? '●' : h.doneToday ? '✓' : ''}</span></span>
-            {!hideMeta && <span className="skill-meta">{running ? 'timing…' : `${h.last30Completed}/30 days`}</span>}
+            {running && <span className="skill-meta">timing…</span>}
           </button>
         )
       })}

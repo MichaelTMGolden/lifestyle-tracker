@@ -874,6 +874,10 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 .energy-row { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 .er-head { display: flex; justify-content: space-between; gap: 12px; font-family: var(--font-head); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
 .energy-empty { padding: 0.5rem 0 0.2rem; font-size: 0.85rem; font-style: italic; }
+.er-head b { color: var(--good); font-family: var(--font-head); font-size: 0.95rem; letter-spacing: 0; }
+.energy-bar { height: 8px; border-radius: 5px; background: var(--bg-3); overflow: hidden; }
+.energy-bar span { display: block; height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, var(--watch), var(--good)); transition: width 0.4s ease; }
 .prod-cards { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .pcard { flex: 1; min-width: 120px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.9rem; text-decoration: none; color: inherit; }
 .pcard:hover { border-color: var(--line-strong); }

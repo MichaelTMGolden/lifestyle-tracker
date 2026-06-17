@@ -4,13 +4,15 @@ import { api, type Connection } from '../api'
 const ICON: Record<string, string> = {
   Garmin: '⌚', GoogleCalendar: '📅', Spotify: '♪', Manual: '✎',
 }
+// "Last synced 12/06, 18:53 · 3h ago" — exact time so you know when, plus a
+// friendly relative. "Never synced" when a source has never run.
 const ago = (iso: string | null) => {
-  if (!iso) return 'never synced'
-  const ms = Date.now() - new Date(iso).getTime()
-  const h = Math.floor(ms / 3.6e6)
-  if (h < 1) return 'synced just now'
-  if (h < 24) return `synced ${h}h ago`
-  return `synced ${Math.floor(h / 24)}d ago`
+  if (!iso) return 'Never synced'
+  const d = new Date(iso)
+  const exact = d.toLocaleString('en-IE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const h = Math.floor((Date.now() - d.getTime()) / 3.6e6)
+  const rel = h < 1 ? 'just now' : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`
+  return `Last synced ${exact} · ${rel}`
 }
 
 export default function ConnectionsPage() {

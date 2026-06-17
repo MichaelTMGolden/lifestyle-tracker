@@ -542,6 +542,10 @@ public static class ApiEndpoints
                 .Where(m => m.MetricKey == "sleep_score").OrderByDescending(m => m.RecordedAt)
                 .Select(m => (double?)m.Value).FirstOrDefaultAsync();
 
+            var bodyBattery = await db.MetricSamples
+                .Where(m => m.MetricKey == "body_battery").OrderByDescending(m => m.RecordedAt)
+                .Select(m => (double?)m.Value).FirstOrDefaultAsync();
+
             var habitsTotal = await db.Habits.CountAsync(h => !h.Archived);
             var habitsCompletedToday = await db.HabitLogs.CountAsync(l => l.Date == todayOnly && l.Completed);
 
@@ -595,6 +599,7 @@ public static class ApiEndpoints
                 stepsToday = (long)stepsToday,
                 caloriesInToday = (long)caloriesInToday,
                 restingHr,
+                bodyBattery = bodyBattery.HasValue ? Math.Round(bodyBattery.Value) : (double?)null,
                 lastSleepScore = lastSleepScore.HasValue ? Math.Round(lastSleepScore.Value) : (double?)null,
                 sleepAvg14,
                 sleepSpark,

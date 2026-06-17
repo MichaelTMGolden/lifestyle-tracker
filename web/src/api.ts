@@ -85,6 +85,7 @@ export interface Today {
   stepsToday: number
   caloriesInToday: number
   restingHr: number | null
+  bodyBattery: number | null
   lastSleepScore: number | null
   sleepAvg14: number | null
   sleepSpark: number[]
