@@ -254,6 +254,16 @@ public static class ApiEndpoints
         return (all.Count, failures);
     }
 
+    /// <summary>Sync all stored Google calendars (used by the background auto-sync job).
+    /// Returns (events, failures, configured); configured=false means no calendars set.</summary>
+    internal static async Task<(int Events, List<string> Failures, bool Configured)> SyncGoogleStoredAsync(AppDbContext db, IHttpClientFactory http)
+    {
+        var feeds = await LoadGoogleFeedsAsync(db);
+        if (feeds.Count == 0) return (0, new(), false);
+        var (events, failures) = await SyncGoogleAsync(db, http, feeds);
+        return (events, failures, true);
+    }
+
     private static Task<DataSource> GetFoodSourceAsync(AppDbContext db, SourceKind kind) => GetOrCreateSourceAsync(db, kind, kind switch
     {
         SourceKind.OpenFoodFacts => "Open Food Facts",

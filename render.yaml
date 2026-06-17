@@ -28,5 +28,5 @@ services:
         generateValue: true   # shared secret between the API and the in-container Garmin sidecar
       - key: SIDECAR_URL
         value: http://127.0.0.1:8001   # the sidecar runs inside this container
-      - key: GARMIN_SYNC_HOURS
-        value: "6"   # auto-sync Garmin every N hours in the background (0 disables)
+      - key: SYNC_HOURS
+        value: "1"   # auto-sync all connections (Garmin + Google) every N hours (fractions ok; 0 disables)
