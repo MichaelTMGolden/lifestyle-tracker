@@ -1299,8 +1299,10 @@ public static class ApiEndpoints
         api.MapGet("/daily-todos", async (AppDbContext db, HttpRequest req) =>
         {
             var today = ClientClock.From(req).Today;
+            // Optional ?date=YYYY-MM-DD to read another day (e.g. tomorrow's plan).
+            var date = DateOnly.TryParse(req.Query["date"].FirstOrDefault(), out var d) ? d : today;
             return await db.DailyTodos.AsNoTracking()
-                .Where(t => t.Date == today)
+                .Where(t => t.Date == date)
                 .OrderBy(t => t.Done).ThenBy(t => t.CreatedAt)
                 .ToListAsync();
         });
@@ -1310,9 +1312,11 @@ public static class ApiEndpoints
             var today = ClientClock.From(req).Today;
             // Daily to-dos aren't kept long-term — purge previous days on create.
             await db.DailyTodos.Where(t => t.Date < today).ExecuteDeleteAsync();
+            // Default to today; allow planning ahead (tomorrow). Never backdate.
+            var date = input.Date >= today ? input.Date : today;
             var item = new DailyTodo
             {
-                Date = today,
+                Date = date,
                 Title = input.Title,
                 CreatedAt = DateTimeOffset.UtcNow,
             };

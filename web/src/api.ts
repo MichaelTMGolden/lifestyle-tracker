@@ -515,8 +515,8 @@ export const api = {
   refreshAlerts: () => post<Alert[]>('/api/alerts/refresh'),
   dismissAlert: (id: number) => post<void>(`/api/alerts/${id}/dismiss`),
 
-  dailyTodos: () => get<DailyTodo[]>('/api/daily-todos'),
-  createDailyTodo: (title: string) => post<DailyTodo>('/api/daily-todos', { title }),
+  dailyTodos: (date?: string) => get<DailyTodo[]>(`/api/daily-todos${date ? `?date=${date}` : ''}`),
+  createDailyTodo: (title: string, date?: string) => post<DailyTodo>('/api/daily-todos', { title, date }),
   toggleDailyTodo: (id: number) => post<DailyTodo>(`/api/daily-todos/${id}/toggle`),
   deleteDailyTodo: (id: number) => send<void>('DELETE', `/api/daily-todos/${id}`),
 }

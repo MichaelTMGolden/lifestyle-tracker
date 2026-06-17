@@ -27,8 +27,10 @@ export default function TodayPage() {
   const [heat, setHeat] = useState<HabitHeatmap[]>([])
   const [tasks, setTasks] = useState<Todo[]>([])
   const [daily, setDaily] = useState<DailyTodo[]>([])
+  const [dailyTomorrow, setDailyTomorrow] = useState<DailyTodo[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [newDaily, setNewDaily] = useState('')
+  const [newTomorrow, setNewTomorrow] = useState('')
   const [showPast, setShowPast] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,11 +39,12 @@ export default function TodayPage() {
 
   async function load() {
     try {
-      const [t, s, h, hm, tk, d, al] = await Promise.all([
-        api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
-        api.alerts().catch(() => [] as Alert[]),
+      const tmr = new Date(); tmr.setHours(0, 0, 0, 0); tmr.setDate(tmr.getDate() + 1)
+      const [t, s, h, hm, tk, d, dt, al] = await Promise.all([
+        api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(),
+        api.dailyTodos(), api.dailyTodos(keyOf(tmr)), api.alerts().catch(() => [] as Alert[]),
       ])
-      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al)
+      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setDailyTomorrow(dt); setAlerts(al)
     } catch (e) { setError(String(e)) }
   }
   async function dismissAlert(id: number) { setAlerts((a) => a.filter((x) => x.id !== id)); await api.dismissAlert(id) }
@@ -82,6 +85,9 @@ export default function TodayPage() {
     return [...Array(7)].map((_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d })
   })()
   const todayKey = keyOf(new Date(new Date().setHours(0, 0, 0, 0)))
+  const tomorrowDate = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); return d })()
+  const tomorrowKey = keyOf(tomorrowDate)
+  const tomorrowLabel = tomorrowDate.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' })
   const heatByName = new Map(heat.map((h) => [h.name, new Set(h.completedDates)]))
   const streakOf = (done: Set<string>) => { let n = 0; const d = new Date(); d.setHours(0, 0, 0, 0); if (!done.has(keyOf(d))) d.setDate(d.getDate() - 1); while (done.has(keyOf(d))) { n++; d.setDate(d.getDate() - 1) } return n }
   const weekHits = heat.reduce((s, h) => { const set = new Set(h.completedDates); return s + week.filter((d) => set.has(keyOf(d))).length }, 0)
@@ -100,6 +106,7 @@ export default function TodayPage() {
     try { await api.toggleHabit(id) } finally { load() }
   }
   async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
+  async function addTomorrow(e: FormEvent) { e.preventDefault(); if (!newTomorrow.trim()) return; await api.createDailyTodo(newTomorrow.trim(), tomorrowKey); setNewTomorrow(''); load() }
   async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
   // Tapping a timed skill starts its timer (tap a running one again to stop & log);
@@ -126,6 +133,16 @@ export default function TodayPage() {
       <button className="btn" type="submit">Add</button>
     </form>
   )
+  const tomorrowCard = (
+    <section className="card">
+      <h2>Tomorrow <span className="muted" style={{ fontWeight: 400 }}>· {tomorrowLabel}</span></h2>
+      <form className="daily-add" onSubmit={addTomorrow}>
+        <input value={newTomorrow} placeholder="Plan a to-do for tomorrow…" onChange={(e) => setNewTomorrow(e.target.value)} />
+        <button className="btn" type="submit">Add</button>
+      </form>
+      <TodoListItems daily={dailyTomorrow} toggleDaily={toggleDaily} removeDaily={removeDaily} />
+    </section>
+  )
 
   /* ---------------- mobile: capture + glance first ---------------- */
   if (isMobile) {
@@ -146,6 +163,8 @@ export default function TodayPage() {
           <h2>Today's to-do</h2>
           <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} />
         </section>
+
+        {tomorrowCard}
 
         <NextAppointment events={schedule.events} now={now} />
 
@@ -190,6 +209,8 @@ export default function TodayPage() {
             {addForm}
             <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} />
           </section>
+
+          {tomorrowCard}
 
           <section className="card">
             <h2>Quick log · practice <Link to="/habits" className="back">habits →</Link></h2>
