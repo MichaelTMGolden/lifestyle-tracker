@@ -142,6 +142,30 @@ public static class ApiEndpoints
     private static async Task DeleteSecretAsync(AppDbContext db, string key) =>
         await db.AppSecrets.Where(s => s.Key == key).ExecuteDeleteAsync();
 
+    // --- schedule default / auto-revert ---
+    private static async Task ApplyScheduleBlocksAsync(AppDbContext db, List<ScheduleBlock> blocks)
+    {
+        await db.ScheduleBlocks.ExecuteDeleteAsync();
+        db.ScheduleBlocks.AddRange(blocks);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>If a temporary schedule's revert date has arrived, restore the saved default.</summary>
+    private static async Task EnsureScheduleCurrentAsync(AppDbContext db, DateOnly today)
+    {
+        var revertRaw = await GetSecretAsync(db, "schedule.revertOn");
+        if (revertRaw is null || !DateOnly.TryParse(revertRaw, out var revert) || today < revert) return;
+        var def = await GetSecretAsync(db, "schedule.default");
+        await DeleteSecretAsync(db, "schedule.revertOn");
+        if (def is null) return;
+        try
+        {
+            var blocks = ScheduleParser.Parse(def);
+            if (blocks.Count > 0) await ApplyScheduleBlocksAsync(db, blocks);
+        }
+        catch { /* leave the current schedule if the saved default won't parse */ }
+    }
+
     private static string? MaskEmail(string? email)
     {
         if (string.IsNullOrEmpty(email)) return null;
@@ -479,8 +503,9 @@ public static class ApiEndpoints
         });
 
         // --- Weekly schedule (recurring template) ---
-        api.MapGet("/schedule/week", async (AppDbContext db) =>
+        api.MapGet("/schedule/week", async (AppDbContext db, HttpRequest req) =>
         {
+            await EnsureScheduleCurrentAsync(db, ClientClock.From(req).Today);
             var blocks = await db.ScheduleBlocks.AsNoTracking()
                 .OrderBy(b => b.Day).ThenBy(b => b.StartMinutes)
                 .ToListAsync();
@@ -495,6 +520,7 @@ public static class ApiEndpoints
         api.MapGet("/schedule/today", async (AppDbContext db, HttpRequest req) =>
         {
             var clock = ClientClock.From(req);
+            await EnsureScheduleCurrentAsync(db, clock.Today);
             var todayStart = clock.TodayStartUtc;
             var todayEnd = clock.TodayEndUtc;
             var dow = clock.DayOfWeek;
@@ -526,11 +552,19 @@ public static class ApiEndpoints
             return Results.Ok(new { day = dow.ToString(), blocks = annotated, events });
         });
 
+        // Whether a default schedule is saved, and any pending auto-revert date.
+        api.MapGet("/schedule/status", async (AppDbContext db) => Results.Ok(new
+        {
+            hasDefault = await GetSecretAsync(db, "schedule.default") is not null,
+            revertOn = await GetSecretAsync(db, "schedule.revertOn"),
+        }));
+
         // Replace the whole weekly schedule from an uploaded markdown timetable
-        // (| Time | Duration | Activity | Notes | Details |). For schedule changes / travel.
+        // (| Time | Duration | Activity | Notes | Details |). mode=default saves it as
+        // the permanent default; otherwise it's temporary and reverts on revertOn (date).
         api.MapPost("/schedule/import", async (HttpRequest req, AppDbContext db) =>
         {
-            string markdown;
+            string markdown, mode, revertOn;
             if (req.HasFormContentType)
             {
                 var form = await req.ReadFormAsync();
@@ -538,11 +572,15 @@ public static class ApiEndpoints
                 if (file is null || file.Length == 0) return Results.BadRequest(new { error = "No file in the upload." });
                 using var reader = new StreamReader(file.OpenReadStream());
                 markdown = await reader.ReadToEndAsync();
+                mode = form["mode"].FirstOrDefault() ?? "";
+                revertOn = form["revertOn"].FirstOrDefault() ?? "";
             }
             else
             {
                 using var reader = new StreamReader(req.Body);
                 markdown = await reader.ReadToEndAsync();
+                mode = req.Query["mode"].FirstOrDefault() ?? "";
+                revertOn = req.Query["revertOn"].FirstOrDefault() ?? "";
             }
 
             List<ScheduleBlock> blocks;
@@ -551,11 +589,37 @@ public static class ApiEndpoints
             if (blocks.Count == 0)
                 return Results.BadRequest(new { error = "No schedule rows found. Expect '## Day' headers with | Time | Duration | Activity | … | tables." });
 
-            await db.ScheduleBlocks.ExecuteDeleteAsync();
-            db.ScheduleBlocks.AddRange(blocks);
-            await db.SaveChangesAsync();
-            return Results.Ok(new { blocks = blocks.Count, days = blocks.Select(b => b.Day).Distinct().Count() });
+            var asDefault = string.Equals(mode, "default", StringComparison.OrdinalIgnoreCase);
+            if (asDefault)
+            {
+                await SetSecretAsync(db, "schedule.default", markdown);
+                await DeleteSecretAsync(db, "schedule.revertOn");
+            }
+            else
+            {
+                if (await GetSecretAsync(db, "schedule.default") is null)
+                    return Results.BadRequest(new { error = "Save a default schedule first — then temporary ones can revert to it." });
+                if (!DateOnly.TryParse(revertOn, out var rev))
+                    return Results.BadRequest(new { error = "Pick a date to return to your default schedule." });
+                await SetSecretAsync(db, "schedule.revertOn", rev.ToString("yyyy-MM-dd"));
+            }
+
+            await ApplyScheduleBlocksAsync(db, blocks);
+            return Results.Ok(new { blocks = blocks.Count, days = blocks.Select(b => b.Day).Distinct().Count(),
+                mode = asDefault ? "default" : "temporary", revertOn = asDefault ? null : revertOn });
         }).DisableAntiforgery();
+
+        // Re-apply the saved default schedule now (and clear any pending revert).
+        api.MapPost("/schedule/restore-default", async (AppDbContext db) =>
+        {
+            var def = await GetSecretAsync(db, "schedule.default");
+            if (def is null) return Results.BadRequest(new { error = "No default schedule saved yet." });
+            var blocks = ScheduleParser.Parse(def);
+            if (blocks.Count == 0) return Results.BadRequest(new { error = "The saved default schedule is empty." });
+            await ApplyScheduleBlocksAsync(db, blocks);
+            await DeleteSecretAsync(db, "schedule.revertOn");
+            return Results.Ok(new { blocks = blocks.Count });
+        });
 
         // --- At-a-glance "today" rollup for the homepage ---
         api.MapGet("/today", async (AppDbContext db, HttpRequest req) =>

@@ -1,27 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type ScheduleBlock, type ScheduleDay } from '../api'
-import { categoryColor, fmtMinutes, nowMinutes, withNowLine } from '../lib'
+import { categoryColor, fmtDate, fmtMinutes, nowMinutes, withNowLine } from '../lib'
 
 const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 const endOf = (b: ScheduleBlock) => (b.durationMinutes != null ? b.startMinutes + b.durationMinutes : Infinity)
+const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
 
 export default function SchedulePage() {
   const [week, setWeek] = useState<ScheduleDay[]>([])
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<{ block: ScheduleBlock; day: string } | null>(null)
+  const [status, setStatus] = useState<{ hasDefault: boolean; revertOn: string | null }>({ hasDefault: false, revertOn: null })
+  const [pending, setPending] = useState<File | null>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const load = () => api.scheduleWeek().then(setWeek).catch((e) => setError(String(e)))
+  const load = () => Promise.all([api.scheduleWeek(), api.scheduleStatus()])
+    .then(([w, s]) => { setWeek(w); setStatus(s) }).catch((e) => setError(String(e)))
   useEffect(() => { load() }, [])
 
-  async function upload(files: FileList | null) {
-    if (!files?.length) return
+  async function doImport(mode: 'default' | 'temporary', revertOn?: string) {
+    if (!pending) return
     setBusy(true); setMsg('')
-    try { const r = await api.importSchedule(files[0]); setMsg(`Imported ${r.blocks} blocks across ${r.days} days.`); await load() }
+    try {
+      const r = await api.importSchedule(pending, mode, revertOn)
+      setMsg(mode === 'default'
+        ? `Saved as your default schedule (${r.blocks} blocks).`
+        : `Temporary schedule applied (${r.blocks} blocks) — reverts on ${fmtDate(r.revertOn!)}.`)
+      setPending(null); await load()
+    } catch (e) { setMsg(e instanceof Error ? e.message : String(e)) }
+    finally { setBusy(false) }
+  }
+  async function restoreDefault() {
+    setBusy(true); setMsg('')
+    try { await api.restoreDefaultSchedule(); setMsg('Default schedule restored.'); await load() }
     catch (e) { setMsg(e instanceof Error ? e.message : String(e)) }
-    finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+    finally { setBusy(false) }
+  }
+  function pickFile(files: FileList | null) {
+    if (files?.length) setPending(files[0])
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   if (error) return <p className="error">Couldn't load schedule ({error}).</p>
@@ -40,11 +59,22 @@ export default function SchedulePage() {
           <button className="btn btn-ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
             {busy ? 'Importing…' : 'Upload timetable'}
           </button>
-          <input ref={fileRef} type="file" accept=".md,.markdown,.txt" hidden onChange={(e) => upload(e.target.files)} />
+          <input ref={fileRef} type="file" accept=".md,.markdown,.txt" hidden onChange={(e) => pickFile(e.target.files)} />
         </div>
       </div>
 
+      {status.revertOn && (
+        <div className="conn-msg sched-temp">
+          Temporary schedule active — reverts to your default on <b>{fmtDate(status.revertOn)}</b>.
+          <button className="link-btn" disabled={busy} onClick={restoreDefault}>Restore default now</button>
+        </div>
+      )}
       {msg && <div className="conn-msg">{msg}</div>}
+
+      {pending && (
+        <ImportDialog file={pending} hasDefault={status.hasDefault} busy={busy}
+          onCancel={() => setPending(null)} onApply={doImport} />
+      )}
 
       <div className="legend">
         {categories.map((c) => (
@@ -103,6 +133,44 @@ function BlockDetail({ block, day, onClose }: { block: ScheduleBlock; day: strin
         {block.details
           ? <p className="modal-details">{block.details}</p>
           : <p className="modal-details muted">No extra detail for this block yet. Add a Details column to your timetable and re-upload.</p>}
+      </div>
+    </div>
+  )
+}
+
+function ImportDialog({ file, hasDefault, busy, onCancel, onApply }: {
+  file: File; hasDefault: boolean; busy: boolean
+  onCancel: () => void; onApply: (mode: 'default' | 'temporary', revertOn?: string) => void
+}) {
+  const [mode, setMode] = useState<'default' | 'temporary'>(hasDefault ? 'temporary' : 'default')
+  const [revertOn, setRevertOn] = useState(plusDays(7))
+  return (
+    <div className="modal-scrim" onClick={onCancel} role="dialog" aria-label="Apply schedule">
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-x" onClick={onCancel} aria-label="Close">✕</button>
+        <div className="modal-eyebrow">Apply schedule</div>
+        <h2 className="modal-title">{file.name}</h2>
+
+        {!hasDefault && <p className="muted" style={{ fontSize: 13 }}>No default saved yet — save this as your default first. After that you can apply temporary schedules that revert to it.</p>}
+
+        <div className="seg sm sched-mode">
+          <button className={mode === 'default' ? 'on' : ''} onClick={() => setMode('default')}>Set as default</button>
+          <button className={mode === 'temporary' ? 'on' : ''} disabled={!hasDefault} onClick={() => setMode('temporary')}>Temporary</button>
+        </div>
+
+        {mode === 'temporary'
+          ? <label className="sched-revert">Return to default on
+              <input type="date" value={revertOn} min={plusDays(1)} onChange={(e) => setRevertOn(e.target.value)} />
+            </label>
+          : <p className="muted" style={{ fontSize: 13, marginTop: '0.6rem' }}>This becomes your permanent weekly schedule.</p>}
+
+        <div className="gf-actions" style={{ marginTop: '1rem' }}>
+          <button className="btn" disabled={busy || (mode === 'temporary' && !revertOn)}
+            onClick={() => onApply(mode, mode === 'temporary' ? revertOn : undefined)}>
+            {busy ? 'Applying…' : mode === 'default' ? 'Save as default' : 'Apply temporarily'}
+          </button>
+          <button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>
+        </div>
       </div>
     </div>
   )

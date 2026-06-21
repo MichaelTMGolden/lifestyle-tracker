@@ -432,13 +432,17 @@ export const api = {
   today: () => get<Today>('/api/today'),
   scheduleToday: () => get<ScheduleToday>('/api/schedule/today'),
   scheduleWeek: () => get<ScheduleDay[]>('/api/schedule/week'),
-  importSchedule: async (file: File) => {
+  importSchedule: async (file: File, mode: 'default' | 'temporary', revertOn?: string) => {
     const fd = new FormData()
     fd.append('file', file)
+    fd.append('mode', mode)
+    if (revertOn) fd.append('revertOn', revertOn)
     const res = await fetch('/api/schedule/import', { method: 'POST', headers: tzHeaders(), credentials: 'include', body: fd })
     if (!res.ok) throw await errorFrom(res, '/api/schedule/import')
-    return res.json() as Promise<{ blocks: number; days: number }>
+    return res.json() as Promise<{ blocks: number; days: number; mode: string; revertOn: string | null }>
   },
+  scheduleStatus: () => get<{ hasDefault: boolean; revertOn: string | null }>('/api/schedule/status'),
+  restoreDefaultSchedule: () => post<{ blocks: number }>('/api/schedule/restore-default'),
   workouts: () => get<Workout[]>('/api/workouts'),
   habits: () => get<Habit[]>('/api/habits'),
   habitsHeatmap: (days = 182) => get<HabitHeatmap[]>(`/api/habits/heatmap?days=${days}`),
