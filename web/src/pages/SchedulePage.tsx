@@ -111,14 +111,32 @@ export default function SchedulePage() {
         ))}
       </div>
 
-      {selected && <BlockDetail block={selected.block} day={selected.day} onClose={() => setSelected(null)} />}
+      {selected && <BlockDetail block={selected.block} day={selected.day}
+        onSave={saveNote} onClose={() => setSelected(null)} />}
     </>
   )
+
+  async function saveNote(id: number, text: string) {
+    await api.setBlockWeekNote(id, text)
+    const w = await api.scheduleWeek()
+    setWeek(w)
+    setSelected((sel) => (sel ? { ...sel, block: w.flatMap((d) => d.blocks).find((b) => b.id === sel.block.id) ?? sel.block } : sel))
+  }
 }
 
-function BlockDetail({ block, day, onClose }: { block: ScheduleBlock; day: string; onClose: () => void }) {
+function BlockDetail({ block, day, onSave, onClose }: {
+  block: ScheduleBlock; day: string; onSave: (id: number, text: string) => Promise<void>; onClose: () => void
+}) {
   const end = block.durationMinutes != null ? block.startMinutes + block.durationMinutes : null
   const color = categoryColor[block.category] ?? '#999'
+  const override = block.weekOverride ?? null
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(override ?? block.details ?? '')
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => { setBusy(true); try { await onSave(block.id, text.trim()); setEditing(false) } finally { setBusy(false) } }
+  const clear = async () => { setBusy(true); try { await onSave(block.id, ''); setText(block.details ?? ''); setEditing(false) } finally { setBusy(false) } }
+
   return (
     <div className="modal-scrim" onClick={onClose} role="dialog" aria-label={`${block.activity} details`}>
       <div className="modal-card" style={{ ['--accent' as string]: color }} onClick={(e) => e.stopPropagation()}>
@@ -130,9 +148,31 @@ function BlockDetail({ block, day, onClose }: { block: ScheduleBlock; day: strin
           {block.durationMinutes ? ` · ${block.durationMinutes} min` : ''}
         </div>
         {block.notes && <p className="modal-notes">{block.notes}</p>}
-        {block.details
-          ? <p className="modal-details">{block.details}</p>
-          : <p className="modal-details muted">No extra detail for this block yet. Add a Details column to your timetable and re-upload.</p>}
+
+        {!editing ? (
+          <>
+            {override
+              ? <p className="modal-details">{override} <span className="week-tag">this week</span></p>
+              : block.details
+                ? <p className="modal-details">{block.details}</p>
+                : <p className="modal-details muted">No detail for this block yet.</p>}
+            <button className="link-btn" onClick={() => { setText(override ?? block.details ?? ''); setEditing(true) }}>
+              {override ? 'Edit this week' : 'Add a note for this week'}
+            </button>
+          </>
+        ) : (
+          <div className="week-edit">
+            <label className="muted" style={{ fontSize: 12 }}>Just for this week</label>
+            <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus
+              placeholder="What to focus on for this block this week…" />
+            <div className="gf-actions">
+              <button className="btn btn-sm" disabled={busy} onClick={save}>Save for this week</button>
+              {override && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={clear}>Clear override</button>}
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+            {block.details && <p className="muted" style={{ fontSize: 12, marginTop: '0.5rem' }}>Default: {block.details}</p>}
+          </div>
+        )}
       </div>
     </div>
   )

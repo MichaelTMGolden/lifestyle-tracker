@@ -375,6 +375,17 @@ public class ScheduleBlock
     public bool Protected { get; set; }        // anchors: deep work, partner time
 }
 
+/// <summary>A one-off override of a block's description for a single week (Monday-anchored).
+/// Leaves the recurring schedule untouched; the next week falls back to the default.</summary>
+public class ScheduleOverride
+{
+    public long Id { get; set; }
+    public int ScheduleBlockId { get; set; }
+    public ScheduleBlock? ScheduleBlock { get; set; }
+    public DateOnly WeekStart { get; set; }   // Monday of the week this applies to
+    public string? Details { get; set; }
+}
+
 public class TodoItem
 {
     public long Id { get; set; }

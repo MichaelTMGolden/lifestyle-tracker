@@ -111,6 +111,7 @@ export interface ScheduleBlock {
   activity: string
   notes: string | null
   details?: string | null
+  weekOverride?: string | null
   category: string
   protected: boolean
   overlapped?: boolean
@@ -441,6 +442,7 @@ export const api = {
     if (!res.ok) throw await errorFrom(res, '/api/schedule/import')
     return res.json() as Promise<{ blocks: number; days: number; mode: string; revertOn: string | null }>
   },
+  setBlockWeekNote: (id: number, details: string) => send<{ id: number; weekOverride: string | null }>('PUT', `/api/schedule/blocks/${id}/week-note`, { details }),
   scheduleStatus: () => get<{ hasDefault: boolean; revertOn: string | null }>('/api/schedule/status'),
   restoreDefaultSchedule: () => post<{ blocks: number }>('/api/schedule/restore-default'),
   workouts: () => get<Workout[]>('/api/workouts'),

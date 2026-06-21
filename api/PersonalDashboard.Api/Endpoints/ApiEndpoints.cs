@@ -33,6 +33,7 @@ public record IngestInput(string? Source, string? Kind, List<IngestSample>? Samp
 public record GarminCredsInput(string Email, string Password);
 public record GarminSyncInput(int? Days);
 public record GoogleAddInput(string? Label, string IcsUrl);
+public record ScheduleNoteInput(string? Details);
 public record GoogleFeed(string Id, string Label, string Url);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null, bool CountAllTime = false);
 public record FoodEntryInput(
@@ -149,6 +150,9 @@ public static class ApiEndpoints
         db.ScheduleBlocks.AddRange(blocks);
         await db.SaveChangesAsync();
     }
+
+    /// <summary>Monday of the week containing <paramref name="d"/>.</summary>
+    private static DateOnly WeekStartOf(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
 
     /// <summary>If a temporary schedule's revert date has arrived, restore the saved default.</summary>
     private static async Task EnsureScheduleCurrentAsync(AppDbContext db, DateOnly today)
@@ -505,15 +509,50 @@ public static class ApiEndpoints
         // --- Weekly schedule (recurring template) ---
         api.MapGet("/schedule/week", async (AppDbContext db, HttpRequest req) =>
         {
-            await EnsureScheduleCurrentAsync(db, ClientClock.From(req).Today);
+            var today = ClientClock.From(req).Today;
+            await EnsureScheduleCurrentAsync(db, today);
+            var weekStart = WeekStartOf(today);
             var blocks = await db.ScheduleBlocks.AsNoTracking()
                 .OrderBy(b => b.Day).ThenBy(b => b.StartMinutes)
                 .ToListAsync();
+            // This week's one-off description overrides, keyed by block.
+            var overrides = await db.ScheduleOverrides.AsNoTracking()
+                .Where(o => o.WeekStart == weekStart)
+                .ToDictionaryAsync(o => o.ScheduleBlockId, o => o.Details);
             return blocks
                 .GroupBy(b => b.Day)
                 .OrderBy(g => ((int)g.Key + 6) % 7) // Monday-first
-                .Select(g => new { day = g.Key.ToString(), blocks = g })
+                .Select(g => new
+                {
+                    day = g.Key.ToString(),
+                    blocks = g.Select(b => new
+                    {
+                        b.Id, b.StartMinutes, b.DurationMinutes, b.Activity, b.Notes, b.Details,
+                        category = b.Category.ToString(), b.Protected,
+                        weekOverride = overrides.TryGetValue(b.Id, out var d) ? d : null,
+                    }),
+                })
                 .ToList();
+        });
+
+        // Set/clear a one-off description override for a block, for the current week only.
+        api.MapPut("/schedule/blocks/{id:int}/week-note", async (int id, ScheduleNoteInput body, AppDbContext db, HttpRequest req) =>
+        {
+            if (!await db.ScheduleBlocks.AnyAsync(b => b.Id == id)) return Results.NotFound();
+            var weekStart = WeekStartOf(ClientClock.From(req).Today);
+            // Tidy up overrides from past weeks while we're here.
+            await db.ScheduleOverrides.Where(o => o.WeekStart < weekStart).ExecuteDeleteAsync();
+
+            var text = string.IsNullOrWhiteSpace(body?.Details) ? null : body!.Details!.Trim();
+            var row = await db.ScheduleOverrides.FirstOrDefaultAsync(o => o.ScheduleBlockId == id && o.WeekStart == weekStart);
+            if (text is null)
+            {
+                if (row is not null) db.ScheduleOverrides.Remove(row);
+            }
+            else if (row is null) db.ScheduleOverrides.Add(new ScheduleOverride { ScheduleBlockId = id, WeekStart = weekStart, Details = text });
+            else row.Details = text;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { id, weekOverride = text });
         });
 
         // --- Today's schedule with calendar precedence ---

@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<GoalSource> GoalSources => Set<GoalSource>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
     public DbSet<ScheduleBlock> ScheduleBlocks => Set<ScheduleBlock>();
+    public DbSet<ScheduleOverride> ScheduleOverrides => Set<ScheduleOverride>();
     public DbSet<DailyTodo> DailyTodos => Set<DailyTodo>();
     public DbSet<FoodEntry> FoodEntries => Set<FoodEntry>();
     public DbSet<Alert> Alerts => Set<Alert>();
@@ -67,6 +68,11 @@ public class AppDbContext : DbContext
         b.Entity<TodoItem>().HasIndex(x => x.DueAt);
 
         b.Entity<ScheduleBlock>().HasIndex(x => new { x.Day, x.StartMinutes });
+        // One override per block per week; cascade so re-importing the schedule clears them.
+        b.Entity<ScheduleOverride>().HasIndex(x => new { x.ScheduleBlockId, x.WeekStart }).IsUnique();
+        b.Entity<ScheduleOverride>()
+            .HasOne(x => x.ScheduleBlock).WithMany()
+            .HasForeignKey(x => x.ScheduleBlockId).OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<DailyTodo>().HasIndex(x => x.Date);
 

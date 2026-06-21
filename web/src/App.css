@@ -236,6 +236,10 @@ h3 { font-family: var(--font-head); margin: 0; font-weight: 500; }
 .modal-when { color: var(--text-dim); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .modal-notes { margin: 0.9rem 0 0; font-style: italic; color: var(--text-dim); }
 .modal-details { margin: 0.6rem 0 0; line-height: 1.55; }
+.week-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--watch);
+  border: 1px solid #d8a24f80; border-radius: 20px; padding: 0.05rem 0.4rem; margin-left: 0.4rem; white-space: nowrap; }
+.week-edit { margin-top: 0.7rem; }
+.week-edit textarea { width: 100%; resize: vertical; margin: 0.3rem 0 0.5rem; }
 
 /* ---------- health dashboard ---------- */
 .health-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.3rem; }
