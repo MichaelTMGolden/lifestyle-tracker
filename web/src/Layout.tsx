@@ -15,7 +15,6 @@ export default function Layout() {
           <nav className="nav">
             <NavLink to="/" end className={linkClass}>Today</NavLink>
             <NavLink to="/health" className={linkClass}>Health</NavLink>
-            <NavLink to="/review" className={linkClass}>Review</NavLink>
             <NavLink to="/nutrition" className={linkClass}>Nutrition</NavLink>
             <NavLink to="/schedule" className={linkClass}>Schedule</NavLink>
             <NavLink to="/habits" className={linkClass}>Habits</NavLink>

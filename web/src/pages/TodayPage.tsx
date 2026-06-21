@@ -286,18 +286,18 @@ function AttentionStrip({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id
   )
 }
 
-// Surfaces the top recommendation from the latest weekly review, linking through
-// to the full Review page. Quiet when there's no generated review to show.
+// The dashboard's link into the full weekly review (there's no nav tab for it).
+// Shows the latest review's top recommendation when there is one, otherwise a
+// plain prompt — but always renders so the page is reachable.
 function ReviewNudge({ review }: { review: WeeklyReview | null }) {
-  if (!review || review.status !== 'Generated' || !review.output || 'error' in review.output) return null
-  const recs = review.output.recommendations
-  if (!recs || recs.length === 0) return null
   const rank = (r: ReviewRecommendation) => (r.priority === 'high' ? 0 : r.priority === 'medium' ? 1 : 2)
-  const top = [...recs].sort((a, b) => rank(a) - rank(b))[0]
+  const recs = review?.status === 'Generated' && review.output && !('error' in review.output)
+    ? review.output.recommendations : null
+  const top = recs && recs.length > 0 ? [...recs].sort((a, b) => rank(a) - rank(b))[0] : null
   return (
     <Link to="/review" className="review-nudge">
       <span className="rn-tag">Weekly review</span>
-      <span className="rn-text">{top.text}</span>
+      <span className="rn-text">{top ? top.text : 'See how your week came together →'}</span>
       <span className="rn-arrow" aria-hidden>→</span>
     </Link>
   )
