@@ -369,6 +369,8 @@ public class ScheduleBlock
     public int? DurationMinutes { get; set; }  // null = open-ended (e.g. Sleep)
     public required string Activity { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Longer "what I should be doing" guidance shown when a block is opened.</summary>
+    public string? Details { get; set; }
     public ScheduleCategory Category { get; set; }
     public bool Protected { get; set; }        // anchors: deep work, partner time
 }

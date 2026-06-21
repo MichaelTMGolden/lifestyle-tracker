@@ -42,6 +42,7 @@ public static partial class ScheduleParser
             var activity = CleanMarkdown(cells[2]);
             if (string.IsNullOrWhiteSpace(activity)) continue;
             var notes = cells.Length > 3 ? CleanMarkdown(cells[3]) : "";
+            var details = cells.Length > 4 ? CleanMarkdown(cells[4]) : "";
 
             var category = Categorize(activity, notes);
             blocks.Add(new ScheduleBlock
@@ -51,6 +52,7 @@ public static partial class ScheduleParser
                 DurationMinutes = ParseDuration(cells[1]),
                 Activity = activity,
                 Notes = string.IsNullOrWhiteSpace(notes) ? null : notes,
+                Details = string.IsNullOrWhiteSpace(details) ? null : details,
                 Category = category,
                 Protected = IsProtected(activity, notes),
             });

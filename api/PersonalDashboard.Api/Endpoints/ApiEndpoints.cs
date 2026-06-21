@@ -526,6 +526,37 @@ public static class ApiEndpoints
             return Results.Ok(new { day = dow.ToString(), blocks = annotated, events });
         });
 
+        // Replace the whole weekly schedule from an uploaded markdown timetable
+        // (| Time | Duration | Activity | Notes | Details |). For schedule changes / travel.
+        api.MapPost("/schedule/import", async (HttpRequest req, AppDbContext db) =>
+        {
+            string markdown;
+            if (req.HasFormContentType)
+            {
+                var form = await req.ReadFormAsync();
+                var file = form.Files.FirstOrDefault();
+                if (file is null || file.Length == 0) return Results.BadRequest(new { error = "No file in the upload." });
+                using var reader = new StreamReader(file.OpenReadStream());
+                markdown = await reader.ReadToEndAsync();
+            }
+            else
+            {
+                using var reader = new StreamReader(req.Body);
+                markdown = await reader.ReadToEndAsync();
+            }
+
+            List<ScheduleBlock> blocks;
+            try { blocks = ScheduleParser.Parse(markdown); }
+            catch (Exception ex) { return Results.BadRequest(new { error = $"Couldn't parse the timetable: {ex.Message}" }); }
+            if (blocks.Count == 0)
+                return Results.BadRequest(new { error = "No schedule rows found. Expect '## Day' headers with | Time | Duration | Activity | … | tables." });
+
+            await db.ScheduleBlocks.ExecuteDeleteAsync();
+            db.ScheduleBlocks.AddRange(blocks);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { blocks = blocks.Count, days = blocks.Select(b => b.Day).Distinct().Count() });
+        }).DisableAntiforgery();
+
         // --- At-a-glance "today" rollup for the homepage ---
         api.MapGet("/today", async (AppDbContext db, HttpRequest req) =>
         {
@@ -880,6 +911,40 @@ public static class ApiEndpoints
             }
             await db.SaveChangesAsync();
             return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed });
+        });
+
+        // Recent logged entries for a habit — for reviewing/correcting bad timer data.
+        api.MapGet("/habits/{id:int}/logs", async (int id, AppDbContext db, HttpRequest req, int days = 30) =>
+        {
+            var since = ClientClock.From(req).Today.AddDays(-Math.Clamp(days, 1, 365));
+            return await db.HabitLogs.AsNoTracking()
+                .Where(l => l.HabitId == id && l.Date >= since && (l.Completed || l.Minutes > 0))
+                .OrderByDescending(l => l.Date)
+                .Select(l => new { l.Id, l.Date, l.Minutes, l.Completed })
+                .ToListAsync();
+        });
+
+        // Correct a past entry's minutes (e.g. a timer left running). Completed = minutes > 0.
+        api.MapPut("/habits/{id:int}/logs/{date}", async (int id, DateOnly date, MinutesInput body, AppDbContext db) =>
+        {
+            if (body.Minutes < 0) return Results.BadRequest(new { message = "minutes cannot be negative" });
+            var log = await db.HabitLogs.FirstOrDefaultAsync(l => l.HabitId == id && l.Date == date);
+            if (log is null)
+            {
+                if (!await db.Habits.AnyAsync(h => h.Id == id)) return Results.NotFound();
+                log = new HabitLog { HabitId = id, Date = date, Minutes = body.Minutes, Completed = body.Minutes > 0 };
+                db.HabitLogs.Add(log);
+            }
+            else { log.Minutes = body.Minutes; log.Completed = body.Minutes > 0; }
+            await db.SaveChangesAsync();
+            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed });
+        });
+
+        // Delete a bad entry outright.
+        api.MapDelete("/habits/{id:int}/logs/{date}", async (int id, DateOnly date, AppDbContext db) =>
+        {
+            await db.HabitLogs.Where(l => l.HabitId == id && l.Date == date).ExecuteDeleteAsync();
+            return Results.NoContent();
         });
 
         // --- Running timers (server-side so they sync across devices) ---

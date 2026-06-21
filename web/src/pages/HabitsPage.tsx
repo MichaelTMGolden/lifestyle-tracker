@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput } from '../api'
+import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput, type HabitLogEntry } from '../api'
 import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDate, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
 import { useTimer } from '../timer/TimerContext'
 import { Collapsible } from '../components/Collapsible'
@@ -305,6 +305,7 @@ export default function HabitsPage() {
                           </button>
                         )}
                       </div>
+                      <EntryEditor habitId={h.id} color={color} onChange={load} />
                     </div>
                   ) : (
                     <button
@@ -571,6 +572,49 @@ function GoalCelebration({ goal, onDone }: { goal: Goal; onDone: () => void }) {
         <p className="celebrate-sub">{took}</p>
         <button className="btn" onClick={onDone}>Mark it done</button>
       </div>
+    </div>
+  )
+}
+
+/* ---------- edit / delete logged time entries (fix bad timer data) ---------- */
+function EntryEditor({ habitId, color, onChange }: { habitId: number; color: string; onChange: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [logs, setLogs] = useState<HabitLogEntry[]>([])
+  const [edits, setEdits] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
+
+  const reload = async () => { setLoading(true); try { setLogs(await api.habitLogs(habitId, 30)) } finally { setLoading(false) } }
+  const toggle = async () => { const n = !open; setOpen(n); if (n) await reload() }
+
+  const save = async (date: string) => {
+    const v = parseInt(edits[date] ?? '', 10)
+    if (isNaN(v) || v < 0) return
+    await api.setHabitLog(habitId, date, v)
+    setEdits((e) => { const c = { ...e }; delete c[date]; return c })
+    await reload(); onChange()
+  }
+  const remove = async (date: string) => { await api.deleteHabitLog(habitId, date); await reload(); onChange() }
+
+  return (
+    <div className="entry-editor">
+      <button className="track-toggle" onClick={toggle}>{open ? 'Hide entries' : 'Edit entries'}</button>
+      {open && (
+        <ul className="entry-list">
+          {loading && <li className="muted">Loading…</li>}
+          {!loading && logs.length === 0 && <li className="muted">No entries in the last 30 days.</li>}
+          {logs.map((l) => (
+            <li key={l.id} className="entry-row">
+              <span className="entry-date">{fmtDate(l.date)}</span>
+              <input className="entry-min" type="number" min={0}
+                value={edits[l.date] ?? String(l.minutes)}
+                onChange={(e) => setEdits((s) => ({ ...s, [l.date]: e.target.value }))} />
+              <span className="muted">min</span>
+              <button className="icon-btn" title="Save" onClick={() => save(l.date)} style={{ color }}>✓</button>
+              <button className="icon-btn danger" title="Delete" onClick={() => remove(l.date)}>✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

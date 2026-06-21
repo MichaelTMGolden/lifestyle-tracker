@@ -103,12 +103,16 @@ export function intensityLevel(minutes: number): 0 | 1 | 2 | 3 | 4 {
 /** Local minutes-from-midnight right now. */
 export const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() }
 
-/** Insert a 'now' sentinel into a time-ordered block list at the current time. */
-export function withNowLine<T extends { startMinutes: number }>(blocks: T[], now: number): (T | 'now')[] {
+/** Insert a 'now' sentinel into a time-ordered block list at the current time.
+ * Placed before the first block that hasn't ended yet — so the line sits at the
+ * top of the block currently in progress (not after it). Open-ended blocks
+ * (no duration) are treated as ongoing. */
+export function withNowLine<T extends { startMinutes: number; durationMinutes?: number | null }>(blocks: T[], now: number): (T | 'now')[] {
   const out: (T | 'now')[] = []
   let inserted = false
   for (const b of blocks) {
-    if (!inserted && b.startMinutes > now) { out.push('now'); inserted = true }
+    const end = b.durationMinutes != null ? b.startMinutes + b.durationMinutes : Infinity
+    if (!inserted && end > now) { out.push('now'); inserted = true }
     out.push(b)
   }
   if (!inserted) out.push('now')

@@ -110,10 +110,13 @@ export interface ScheduleBlock {
   durationMinutes: number | null
   activity: string
   notes: string | null
+  details?: string | null
   category: string
   protected: boolean
   overlapped?: boolean
 }
+
+export interface HabitLogEntry { id: number; date: string; minutes: number; completed: boolean }
 
 export interface ScheduleToday {
   day: string
@@ -429,6 +432,13 @@ export const api = {
   today: () => get<Today>('/api/today'),
   scheduleToday: () => get<ScheduleToday>('/api/schedule/today'),
   scheduleWeek: () => get<ScheduleDay[]>('/api/schedule/week'),
+  importSchedule: async (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/schedule/import', { method: 'POST', headers: tzHeaders(), credentials: 'include', body: fd })
+    if (!res.ok) throw await errorFrom(res, '/api/schedule/import')
+    return res.json() as Promise<{ blocks: number; days: number }>
+  },
   workouts: () => get<Workout[]>('/api/workouts'),
   habits: () => get<Habit[]>('/api/habits'),
   habitsHeatmap: (days = 182) => get<HabitHeatmap[]>(`/api/habits/heatmap?days=${days}`),
@@ -442,6 +452,9 @@ export const api = {
   startTimer: (habitId: number) => post<{ habitId: number; habitName: string; startedAt: number }>(`/api/timers/${habitId}`),
   stopTimer: (habitId: number) => send<{ habitId: number; minutes: number }>('DELETE', `/api/timers/${habitId}`),
   setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
+  habitLogs: (id: number, days = 30) => get<HabitLogEntry[]>(`/api/habits/${id}/logs?days=${days}`),
+  setHabitLog: (id: number, date: string, minutes: number) => send('PUT', `/api/habits/${id}/logs/${date}`, { minutes }),
+  deleteHabitLog: (id: number, date: string) => send<void>('DELETE', `/api/habits/${id}/logs/${date}`),
   toggleHabitTracksTime: (id: number) => post<{ id: number; tracksTime: boolean }>(`/api/habits/${id}/tracks-time`),
   toggleHabitQuickActions: (id: number) => post<{ id: number; showInQuickActions: boolean }>(`/api/habits/${id}/quick-actions`),
 
