@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   api, type Alert, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
-  type ScheduleBlock, type ScheduleToday, type Today, type Todo,
+  type ReviewRecommendation, type ScheduleBlock, type ScheduleToday, type Today, type Todo,
+  type WeeklyReview,
 } from '../api'
 import { alertSeverity, categoryColor, fmtElapsed, fmtMinutes, habitColor } from '../lib'
 import { Ring, Spark, STATUS } from '../charts'
@@ -28,6 +29,7 @@ export default function TodayPage() {
   const [tasks, setTasks] = useState<Todo[]>([])
   const [daily, setDaily] = useState<DailyTodo[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const [review, setReview] = useState<WeeklyReview | null>(null)
   const [newDaily, setNewDaily] = useState('')
   const [showPast, setShowPast] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,11 +39,12 @@ export default function TodayPage() {
 
   async function load() {
     try {
-      const [t, s, h, hm, tk, d, al] = await Promise.all([
+      const [t, s, h, hm, tk, d, al, rv] = await Promise.all([
         api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
         api.alerts().catch(() => [] as Alert[]),
+        api.latestReview().catch(() => ({ enabled: false, review: null })),
       ])
-      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al)
+      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al); setReview(rv.review)
     } catch (e) { setError(String(e)) }
   }
   async function dismissAlert(id: number) { setAlerts((a) => a.filter((x) => x.id !== id)); await api.dismissAlert(id) }
@@ -137,6 +140,7 @@ export default function TodayPage() {
         <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
 
         <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
+        <ReviewNudge review={review} />
 
         <section className="card quick-actions">
           <h2>Quick actions</h2>
@@ -178,6 +182,7 @@ export default function TodayPage() {
       <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
 
       <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
+      <ReviewNudge review={review} />
 
       <section className="panel strip">
         <HealthCluster today={today} hasHealth={hasHealth} />
@@ -278,6 +283,23 @@ function AttentionStrip({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id
         )
       })}
     </section>
+  )
+}
+
+// Surfaces the top recommendation from the latest weekly review, linking through
+// to the full Review page. Quiet when there's no generated review to show.
+function ReviewNudge({ review }: { review: WeeklyReview | null }) {
+  if (!review || review.status !== 'Generated' || !review.output || 'error' in review.output) return null
+  const recs = review.output.recommendations
+  if (!recs || recs.length === 0) return null
+  const rank = (r: ReviewRecommendation) => (r.priority === 'high' ? 0 : r.priority === 'medium' ? 1 : 2)
+  const top = [...recs].sort((a, b) => rank(a) - rank(b))[0]
+  return (
+    <Link to="/review" className="review-nudge">
+      <span className="rn-tag">Weekly review</span>
+      <span className="rn-text">{top.text}</span>
+      <span className="rn-arrow" aria-hidden>→</span>
+    </Link>
   )
 }
 

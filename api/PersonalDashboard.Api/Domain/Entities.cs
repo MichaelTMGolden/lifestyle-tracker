@@ -34,6 +34,23 @@ public class AppSecret
 }
 
 /// <summary>
+/// One LLM-synthesised weekly review per week. DigestJson is the deterministic
+/// fact snapshot our code computed; OutputJson is the model's wins/misses/recs.
+/// Regenerating a week updates the same row (WeekStart is unique).
+/// </summary>
+public class WeeklyReview
+{
+    public int Id { get; set; }
+    public DateOnly WeekStart { get; set; }           // Monday of the reviewed week
+    public required string DigestJson { get; set; }    // computed facts sent to the model
+    public required string OutputJson { get; set; }    // parsed model result (or "{}" on failure)
+    public string? Narrative { get; set; }
+    public required string Model { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string Status { get; set; } = "Generated";  // Generated | Failed
+}
+
+/// <summary>
 /// A generic numeric time-series sample (weight, resting HR, steps, calories
 /// consumed, sleep minutes, ...). Keeping these in one table means new metric
 /// types don't require schema changes.

@@ -17,6 +17,7 @@ const BingoPage = lazy(() => import('./pages/BingoPage.tsx'))
 const TasksPage = lazy(() => import('./pages/TasksPage.tsx'))
 const HabitsPage = lazy(() => import('./pages/HabitsPage.tsx'))
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage.tsx'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage.tsx'))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/bingo" element={<Suspense fallback={null}><BingoPage /></Suspense>} />
           <Route path="/schedule" element={<Suspense fallback={null}><SchedulePage /></Suspense>} />
           <Route path="/health" element={<Suspense fallback={null}><HealthIndexPage /></Suspense>} />
+          <Route path="/review" element={<Suspense fallback={null}><ReviewPage /></Suspense>} />
           <Route path="/nutrition" element={<Suspense fallback={null}><NutritionPage /></Suspense>} />
           <Route path="/health/:key" element={<Suspense fallback={null}><MetricDetailPage /></Suspense>} />
         </Route>

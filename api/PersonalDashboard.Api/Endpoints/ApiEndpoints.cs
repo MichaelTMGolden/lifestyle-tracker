@@ -9,6 +9,7 @@ using PersonalDashboard.Api.Garmin;
 using PersonalDashboard.Api.Goals;
 using PersonalDashboard.Api.Integrations;
 using PersonalDashboard.Api.Nutrition;
+using PersonalDashboard.Api.Reviews;
 using PersonalDashboard.Api.Schedule;
 
 namespace PersonalDashboard.Api.Endpoints;
@@ -34,6 +35,7 @@ public record GarminCredsInput(string Email, string Password);
 public record GarminSyncInput(int? Days);
 public record GoogleAddInput(string? Label, string IcsUrl);
 public record ScheduleNoteInput(string? Details);
+public record ReviewGenerateInput(DateOnly? WeekStart);
 public record GoogleFeed(string Id, string Label, string Url);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null, bool CountAllTime = false);
 public record FoodEntryInput(
@@ -153,6 +155,24 @@ public static class ApiEndpoints
 
     /// <summary>Monday of the week containing <paramref name="d"/>.</summary>
     private static DateOnly WeekStartOf(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
+
+    // Shape a stored review into the API response, re-parsing the JSON snapshots
+    // so the client gets structured digest + output (every claim traceable to a fact).
+    private static object ReviewDto(Domain.WeeklyReview r) => new
+    {
+        weekStart = r.WeekStart,
+        status = r.Status,
+        model = r.Model,
+        createdAt = r.CreatedAt,
+        narrative = r.Narrative,
+        output = ParseJson(r.OutputJson),
+        digest = ParseJson(r.DigestJson),
+    };
+    private static System.Text.Json.JsonElement? ParseJson(string json)
+    {
+        try { return System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json); }
+        catch { return null; }
+    }
 
     /// <summary>If a temporary schedule's revert date has arrived, restore the saved default.</summary>
     private static async Task EnsureScheduleCurrentAsync(AppDbContext db, DateOnly today)
@@ -1395,6 +1415,38 @@ public static class ApiEndpoints
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+
+        // --- Weekly review (LLM synthesis over the deterministic digest) ---
+        // Refresh alerts first so the digest reflects current conditions, then build + synthesise.
+        api.MapPost("/review/generate", async (ReviewGenerateInput? body, AppDbContext db, ReviewSynthesisService reviews, AlertService alerts, HttpRequest req) =>
+        {
+            if (!reviews.IsEnabled)
+                return Results.Json(new { error = "Add an Anthropic API key (Anthropic:ApiKey) to enable weekly reviews." }, statusCode: StatusCodes.Status400BadRequest);
+            var clock = ClientClock.From(req);
+            var weekStart = body?.WeekStart ?? WeekStartOf(clock.Today);
+            await alerts.GenerateIfStaleAsync(db, clock);
+            var review = await reviews.GenerateForWeekAsync(db, weekStart, clock.Today);
+            return Results.Ok(ReviewDto(review));
+        });
+
+        api.MapGet("/review/latest", async (AppDbContext db, ReviewSynthesisService reviews) =>
+        {
+            var r = await db.WeeklyReviews.AsNoTracking().OrderByDescending(x => x.WeekStart).FirstOrDefaultAsync();
+            return Results.Ok(new { enabled = reviews.IsEnabled, review = r is null ? null : ReviewDto(r) });
+        });
+
+        api.MapGet("/review", async (string week, AppDbContext db) =>
+        {
+            if (!DateOnly.TryParse(week, out var ws)) return Results.BadRequest(new { error = "week must be YYYY-MM-DD" });
+            var r = await db.WeeklyReviews.AsNoTracking().FirstOrDefaultAsync(x => x.WeekStart == ws);
+            return r is null ? Results.NotFound() : Results.Ok(ReviewDto(r));
+        });
+
+        api.MapGet("/reviews", async (AppDbContext db) =>
+            await db.WeeklyReviews.AsNoTracking()
+                .OrderByDescending(x => x.WeekStart)
+                .Select(x => new { weekStart = x.WeekStart, x.Status, x.CreatedAt })
+                .ToListAsync());
 
         // --- Bingo (annual milestone board) ---
         api.MapGet("/bingo", async (AppDbContext db, HttpRequest req, int? year) =>

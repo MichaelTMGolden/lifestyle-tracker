@@ -242,6 +242,53 @@ export interface DailyTodo {
   createdAt: string
 }
 
+// --- Weekly review (LLM synthesis over the deterministic digest) ---
+// Every fact in the digest carries a stable id; the synthesis references those
+// ids so each win/miss/recommendation is traceable to a real, computed number.
+export interface DigestGoal {
+  id: string; name: string; minutesThisWeek: number; minutesLastWeek: number
+  accumulatedHours: number; targetHours: number; paceStatus: string
+  projectedDate: string | null; targetDate: string | null; countAllTime: boolean
+}
+export interface DigestSkill {
+  id: string; name: string; minutesThisWeek: number; minutesLastWeek: number
+  currentStreak: number; daysCompletedThisWeek: number
+}
+export interface DigestMetric {
+  id: string; key: string; label: string
+  avgThisWeek: number | null; avgLastWeek: number | null; delta: number | null; unit: string
+}
+export interface DigestNutrition {
+  id: string; avgCalories: number | null; calorieTarget: number
+  avgProtein: number | null; proteinTarget: number; daysLogged: number; proteinDaysOnTarget: number
+}
+export interface DigestAlert { id: string; kind: string; severity: string; title: string; detail: string }
+export interface DigestTasks { id: string; completedThisWeek: number; overdue: number }
+export interface WeeklyDigest {
+  weekStart: string; weekEnd: string
+  goals: DigestGoal[]; skills: DigestSkill[]; health: DigestMetric[]
+  nutrition: DigestNutrition; alerts: DigestAlert[]; tasks: DigestTasks
+}
+
+export interface ReviewFact { factId: string; text: string }
+export interface ReviewRecommendation { text: string; priority: 'high' | 'medium' | 'low' | null; relatedFactIds: string[] | null }
+export interface ReviewOutput {
+  narrative: string | null
+  wins: ReviewFact[] | null
+  misses: ReviewFact[] | null
+  recommendations: ReviewRecommendation[] | null
+}
+export interface WeeklyReview {
+  weekStart: string
+  status: 'Generated' | 'Failed'
+  model: string
+  createdAt: string
+  narrative: string | null
+  output: ReviewOutput | { error: string; raw?: string } | null
+  digest: WeeklyDigest | null
+}
+export interface ReviewListItem { weekStart: string; status: string; createdAt: string }
+
 export interface MacroSet { kcal: number; protein: number; carbs: number; fat: number }
 export interface MicroSet {
   fiberG: number; sugarG: number; satFatG: number
@@ -537,6 +584,12 @@ export const api = {
   alerts: (status?: string) => get<Alert[]>(`/api/alerts${status ? `?status=${status}` : ''}`),
   refreshAlerts: () => post<Alert[]>('/api/alerts/refresh'),
   dismissAlert: (id: number) => post<void>(`/api/alerts/${id}/dismiss`),
+
+  // Weekly review (LLM synthesis). generateReview omits weekStart for the current week.
+  generateReview: (weekStart?: string) => post<WeeklyReview>('/api/review/generate', weekStart ? { weekStart } : {}),
+  latestReview: () => get<{ enabled: boolean; review: WeeklyReview | null }>('/api/review/latest'),
+  review: (week: string) => get<WeeklyReview>(`/api/review?week=${week}`),
+  reviews: () => get<ReviewListItem[]>('/api/reviews'),
 
   dailyTodos: (date?: string) => get<DailyTodo[]>(`/api/daily-todos${date ? `?date=${date}` : ''}`),
   createDailyTodo: (title: string, date?: string) => post<DailyTodo>('/api/daily-todos', { title, date }),

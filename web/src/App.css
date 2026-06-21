@@ -1033,3 +1033,35 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
   .totals-row { gap: 1rem 1.3rem; }
   .mf-macros { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ===================== weekly review ===================== */
+.rv-week { background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px; color: var(--text); padding: 0.4rem 0.6rem; font-family: var(--font-body); font-size: 0.85rem; }
+.rv-narrative { font-size: 1.15rem; line-height: 1.6; border-left: 2px solid var(--crimson); }
+.rv-narrative p { margin: 0; }
+.rv-meta { margin-top: 0.9rem; font-size: 0.78rem; }
+.rv-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; align-items: start; margin-top: 1.1rem; }
+.rv-facts { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.rv-facts li { display: flex; gap: 0.7rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
+.rv-facts li:last-child { border-bottom: 0; }
+.rv-mark { flex: 0 0 auto; font-size: 0.8rem; line-height: 1.6; }
+.rv-source { font-size: 0.78rem; margin-top: 0.25rem; font-style: italic; }
+.rv-recs { display: flex; flex-direction: column; gap: 0.8rem; }
+.rv-rec { display: flex; gap: 0.9rem; align-items: flex-start; }
+.rv-prio { flex: 0 0 auto; font-family: var(--font-head); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid; border-radius: 999px; padding: 0.2rem 0.6rem; margin-top: 0.15rem; }
+.rv-rec-text { font-size: 1.02rem; line-height: 1.5; }
+.rv-rec-sources { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.rv-rec-sources li { font-size: 0.78rem; font-style: italic; padding: 0.15rem 0; }
+.rv-failed { border-color: rgba(196, 90, 104, 0.4); background: rgba(196, 90, 104, 0.07); }
+
+@media (max-width: 820px) {
+  .rv-cols { grid-template-columns: 1fr; }
+}
+
+/* Today-page nudge to the latest review's top recommendation */
+.review-nudge { display: flex; align-items: center; gap: 0.8rem; text-decoration: none; color: inherit;
+  background: var(--bg-1); border: 1px solid var(--line); border-left: 2px solid var(--crimson);
+  border-radius: 5px; padding: 0.7rem 1rem; margin-bottom: 1.2rem; }
+.review-nudge:hover { border-color: var(--line-strong); border-left-color: var(--crimson); }
+.rn-tag { flex: 0 0 auto; font-family: var(--font-head); font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--crimson); }
+.rn-text { flex: 1; font-size: 0.95rem; }
+.rn-arrow { flex: 0 0 auto; color: var(--text-dim); }

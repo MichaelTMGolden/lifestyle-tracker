@@ -8,6 +8,7 @@ using PersonalDashboard.Api.Endpoints;
 using PersonalDashboard.Api.Garmin;
 using PersonalDashboard.Api.Integrations;
 using PersonalDashboard.Api.Nutrition;
+using PersonalDashboard.Api.Reviews;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,6 +70,11 @@ builder.Services.AddSingleton<IAlertDetector, SleepDebtDetector>();
 builder.Services.AddSingleton<IAlertDetector, StreakBreakDetector>();
 builder.Services.AddSingleton<IAlertDetector, GoalOffPaceDetector>();
 builder.Services.AddSingleton<AlertService>();
+
+// Weekly review (LLM synthesis over the deterministic digest). Anthropic key lives
+// in user-secrets / env under "Anthropic:ApiKey" (or ANTHROPIC_API_KEY) — absent
+// key just disables review generation gracefully (like the absent USDA key).
+builder.Services.AddSingleton<ReviewSynthesisService>();
 
 // Data-source providers. Garmin import is live today; the rest are labelled
 // seams that go live by implementing IDataProvider + flipping Configured.

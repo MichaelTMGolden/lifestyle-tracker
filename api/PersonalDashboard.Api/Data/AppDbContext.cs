@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
     public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
     public DbSet<AppSecret> AppSecrets => Set<AppSecret>();
+    public DbSet<WeeklyReview> WeeklyReviews => Set<WeeklyReview>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<GoalSource> GoalSources => Set<GoalSource>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
@@ -47,6 +48,7 @@ public class AppDbContext : DbContext
         b.Entity<HabitLog>().HasIndex(x => new { x.HabitId, x.Date }).IsUnique();
 
         b.Entity<AppSecret>().HasKey(x => x.Key);
+        b.Entity<WeeklyReview>().HasIndex(x => x.WeekStart).IsUnique();
         // New column backfills to true for existing habits (so they stay in quick actions).
         b.Entity<Habit>().Property(h => h.ShowInQuickActions).HasDefaultValue(true);
 
