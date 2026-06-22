@@ -29,6 +29,10 @@ public static class DataSeeder
         // Production keeps a clean slate; everything below is invented sample data.
         if (!dummyData) return;
 
+        // Manual artist-KPI stand-ins (own guard) — runs for fresh and already-seeded
+        // dummy DBs alike, like the food backfill below.
+        await SeedArtistKpisAsync(db);
+
         // Already-populated dummy DB: just backfill the sample food if missing.
         if (await db.DataSources.AnyAsync()) { await SeedFoodAsync(db); return; }
 
@@ -399,6 +403,40 @@ public static class DataSeeder
         if (src is null) { src = new DataSource { Name = name, Kind = kind }; db.DataSources.Add(src); await db.SaveChangesAsync(); }
         return src;
     }
+
+    /// <summary>
+    /// Seeds 8 weekly Spotify-for-Artists snapshots (steadily rising) so the KPI
+    /// cards, "change vs previous" and trend charts render, with monthly listeners
+    /// landing just under its 1,000 target so the target line shows. No-ops if any
+    /// artist sample already exists — these are stand-ins until real numbers are typed.
+    /// </summary>
+    public static async Task SeedArtistKpisAsync(AppDbContext db)
+    {
+        var keys = new[] { "artist_monthly_listeners", "artist_followers", "artist_streams_total" };
+        if (await db.MetricSamples.AnyAsync(m => keys.Contains(m.MetricKey))) return;
+
+        var src = await GetOrCreateAsync(db, SourceKind.SpotifyArtist, "Spotify for Artists (manual)");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        double listeners = 320, followers = 150, streams = 18_500; // grows weekly below
+        var samples = new List<MetricSample>();
+        for (var w = 7; w >= 0; w--) // 8 weekly snapshots, oldest first
+        {
+            var date = today.AddDays(-7 * w);
+            var at = new DateTimeOffset(date.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
+            samples.Add(ArtistSample(src.Id, "artist_monthly_listeners", at, listeners));
+            samples.Add(ArtistSample(src.Id, "artist_followers", at, followers));
+            samples.Add(ArtistSample(src.Id, "artist_streams_total", at, streams));
+            listeners += 95;    // → ~985 latest, just shy of the 1,000 target
+            followers += 22;
+            streams += 3_100;   // cumulative total
+        }
+        await MetricSampleUpsert.UpsertAsync(db, samples);
+    }
+
+    private static MetricSample ArtistSample(int sourceId, string key, DateTimeOffset at, double value) => new()
+    {
+        DataSourceId = sourceId, MetricKey = key, RecordedAt = at, Value = value, Unit = "count",
+    };
 
     private static MetricSample RollupSample(int sourceId, string key, DateTimeOffset at, double value, string unit) => new()
     {

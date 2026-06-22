@@ -1057,6 +1057,27 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
   .rv-cols { grid-template-columns: 1fr; }
 }
 
+/* ===================== artist KPIs ===================== */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; align-items: start; }
+.kpi-card { text-decoration: none; color: inherit; display: block; }
+.kpi-card:hover { border-color: var(--line-strong); }
+.kpi-name { font-family: var(--font-head); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); }
+.kpi-val { font-family: var(--font-head); font-size: 2.1rem; font-weight: 600; line-height: 1.1; margin: 4px 0 3px; }
+.kpi-sub { font-size: 0.82rem; }
+.kpi-change { font-weight: 600; }
+.kpi-target-bar { height: 6px; border-radius: 4px; background: var(--bg-3); overflow: hidden; margin: 0.7rem 0 0.4rem; }
+.kpi-target-bar span { display: block; height: 100%; border-radius: 4px; }
+.kpi-spark { margin-top: 0.8rem; }
+.kpi-form { display: flex; gap: 0.9rem; flex-wrap: wrap; align-items: flex-end; }
+.kpi-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.78rem; color: var(--text-dim); }
+.kpi-form input { width: 150px; }
+.kpi-form input[type=date] { width: 160px; }
+
+@media (max-width: 820px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+  .kpi-form label, .kpi-form input { width: 100%; }
+}
+
 /* Today-page nudge to the latest review's top recommendation */
 .review-nudge { display: flex; align-items: center; gap: 0.8rem; text-decoration: none; color: inherit;
   background: var(--bg-1); border: 1px solid var(--line); border-left: 2px solid var(--crimson);

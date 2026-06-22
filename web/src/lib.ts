@@ -123,9 +123,14 @@ export interface MetricMeta {
   label: string
   /** transform raw stored value for display */
   unit: string
-  chart: 'line' | 'bar'
+  chart: 'line' | 'bar' | 'area'
   color: string
+  /** optional goal line / progress target (same units as the metric). */
+  target?: number
 }
+
+/** Whole-number count → "1,234" (thousands-separated). */
+export const fmtCount = (n: number) => Math.round(n).toLocaleString(LOCALE)
 
 const META: Record<string, MetricMeta> = {
   steps: { label: 'Steps', unit: 'steps', chart: 'bar', color: '#34d399' },
@@ -146,6 +151,10 @@ const META: Record<string, MetricMeta> = {
   sleep_awake_min: { label: 'Awake', unit: 'min', chart: 'bar', color: '#f87171' },
   sleep_score: { label: 'Sleep score', unit: 'score', chart: 'line', color: '#818cf8' },
   weight_kg: { label: 'Weight', unit: 'kg', chart: 'line', color: '#10b981' },
+  // Manual Spotify-for-Artists KPIs (count units; total streams is cumulative).
+  artist_monthly_listeners: { label: 'Monthly Listeners', unit: 'listeners', chart: 'line', color: '#34d399', target: 1000 },
+  artist_followers: { label: 'Followers', unit: 'followers', chart: 'line', color: '#9d6bff' },
+  artist_streams_total: { label: 'Total Streams', unit: 'streams', chart: 'area', color: '#d8a24f' },
 }
 
 export function metricMeta(key: string): MetricMeta {

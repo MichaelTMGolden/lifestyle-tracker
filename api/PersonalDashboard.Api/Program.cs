@@ -86,6 +86,9 @@ builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
     SourceKind.Spotify, "Spotify", ProviderMode.Api, "awaiting OAuth credentials"));
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
+    SourceKind.SpotifyArtist, "Spotify for Artists", ProviderMode.Manual,
+    "manual entry — no public artist API; a paid stats API is a later drop-in", configured: true));
+builder.Services.AddSingleton<IDataProvider>(new PendingProvider(
     SourceKind.Manual, "Manual entry", ProviderMode.Manual, "always on — weight, to-dos & habits by hand", configured: true));
 
 var app = builder.Build();

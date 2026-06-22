@@ -15,6 +15,7 @@ public enum SourceKind
     MyFitnessPal = 4, // legacy — no usable hobbyist API; food DB now rented from the below
     OpenFoodFacts = 5,
     Usda = 6,
+    SpotifyArtist = 7, // manual Spotify-for-Artists KPIs (no public artist API)
 }
 
 public class DataSource

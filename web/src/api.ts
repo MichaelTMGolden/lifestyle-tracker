@@ -289,6 +289,22 @@ export interface WeeklyReview {
 }
 export interface ReviewListItem { weekStart: string; status: string; createdAt: string }
 
+// Manual Spotify-for-Artists KPI snapshot summary (one per metric key).
+export interface ArtistKpi {
+  key: string
+  latest: number | null
+  asOf: string | null
+  previous: number | null
+  change: number | null
+  target: number | null
+}
+export interface ArtistKpiInput {
+  date?: string
+  monthlyListeners?: number
+  followers?: number
+  totalStreams?: number
+}
+
 export interface MacroSet { kcal: number; protein: number; carbs: number; fat: number }
 export interface MicroSet {
   fiberG: number; sugarG: number; satFatG: number
@@ -590,6 +606,10 @@ export const api = {
   latestReview: () => get<{ enabled: boolean; review: WeeklyReview | null }>('/api/review/latest'),
   review: (week: string) => get<WeeklyReview>(`/api/review?week=${week}`),
   reviews: () => get<ReviewListItem[]>('/api/reviews'),
+
+  // Manual artist KPIs (Spotify for Artists — no public API). Charts reuse api.metric().
+  artistSummary: () => get<ArtistKpi[]>('/api/artist/summary'),
+  saveArtistKpis: (body: ArtistKpiInput) => post<{ written: number; date: string }>('/api/artist/kpis', body),
 
   dailyTodos: (date?: string) => get<DailyTodo[]>(`/api/daily-todos${date ? `?date=${date}` : ''}`),
   createDailyTodo: (title: string, date?: string) => post<DailyTodo>('/api/daily-todos', { title, date }),
