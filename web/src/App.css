@@ -1057,6 +1057,30 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
   .rv-cols { grid-template-columns: 1fr; }
 }
 
+/* ===================== drag-to-reorder ===================== */
+.drag-handle {
+  flex: 0 0 auto; color: var(--text-dim); font-size: 1.05rem; line-height: 1;
+  padding: 0.25rem 0.3rem; margin: -0.25rem 0 -0.25rem -0.2rem;
+  user-select: none; touch-action: none; cursor: grab;
+}
+.drag-handle:hover { color: var(--text); }
+.reorder-row { position: relative; }
+.reorder-row.dragging { cursor: grabbing; }
+.reorder-row.dragging .todo-item,
+.reorder-row.dragging .daily-row {
+  background: var(--bg-3); border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); position: relative; z-index: 2;
+}
+/* daily rows used to be <li> (styled via `.list li`); as divs they need their own layout */
+.todo.daily-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 1rem;
+}
+.list .reorder-row:last-child .todo.daily-row { border-bottom: none; }
+@media (max-width: 640px) {
+  .drag-handle { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0; }
+}
+
 /* ===================== artist KPIs ===================== */
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; align-items: start; }
 .kpi-card { text-decoration: none; color: inherit; display: block; }

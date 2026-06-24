@@ -10,6 +10,7 @@ import { Ring, Spark, STATUS } from '../charts'
 import { useIsMobile, usePersistentToggle } from '../hooks'
 import { useTimer } from '../timer/TimerContext'
 import { Collapsible } from '../components/Collapsible'
+import { Reorderable, DragGrip } from '../components/Reorderable'
 
 const toMinutes = (iso: string) => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes() }
 const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ''}`.trim() : `${m}m`)
@@ -105,6 +106,12 @@ export default function TodayPage() {
   async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
   async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
+  // Optimistic drag-reorder; reload to reconcile if the persist fails.
+  async function reorderDaily(ids: number[]) {
+    const byId = new Map(daily.map((d) => [d.id, d]))
+    setDaily(ids.map((id) => byId.get(id)!).filter(Boolean))
+    try { await api.reorderDailyTodos(ids) } catch { load() }
+  }
   // Tapping a timed skill starts its timer (tap a running one again to stop & log);
   // binary skills just toggle done. Multiple timers can run at once.
   async function mobileSkill(h: Habit) {
@@ -150,7 +157,7 @@ export default function TodayPage() {
 
         <section className="card">
           <h2>Today's to-do</h2>
-          <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} />
+          <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} onReorder={reorderDaily} />
         </section>
 
         <NextAppointment events={schedule.events} now={now} />
@@ -195,7 +202,7 @@ export default function TodayPage() {
           <section className="card">
             <h2>Today's to-do</h2>
             {addForm}
-            <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} />
+            <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} onReorder={reorderDaily} />
           </section>
 
           <section className="card">
@@ -510,22 +517,25 @@ function TasksInner({ overdue, upcoming }: { overdue: Todo[]; upcoming: Todo[] }
   )
 }
 
-function TodoListItems({ daily, toggleDaily, removeDaily }: {
+function TodoListItems({ daily, toggleDaily, removeDaily, onReorder }: {
   daily: DailyTodo[]; toggleDaily: (id: number) => void; removeDaily: (id: number) => void
+  onReorder: (ids: number[]) => void
 }) {
+  if (daily.length === 0) return <ul className="list"><li className="muted">Nothing yet — add your first.</li></ul>
   return (
-    <ul className="list">
-      {daily.length === 0 && <li className="muted">Nothing yet — add your first.</li>}
-      {daily.map((d) => (
-        <li key={d.id} className="todo daily-row">
-          <label className="daily-check">
-            <input type="checkbox" checked={d.done} onChange={() => toggleDaily(d.id)} />
-            <span className={d.done ? 'done' : ''}>{d.title}</span>
-          </label>
-          <button className="icon-btn danger" onClick={() => removeDaily(d.id)} title="Remove">✕</button>
-        </li>
-      ))}
-    </ul>
+    <div className="list">
+      <Reorderable items={daily} getId={(d) => d.id} onReorder={onReorder}
+        renderRow={(d, handle) => (
+          <div className="todo daily-row">
+            <DragGrip {...handle} />
+            <label className="daily-check">
+              <input type="checkbox" checked={d.done} onChange={() => toggleDaily(d.id)} />
+              <span className={d.done ? 'done' : ''}>{d.title}</span>
+            </label>
+            <button className="icon-btn danger" onClick={() => removeDaily(d.id)} title="Remove">✕</button>
+          </div>
+        )} />
+    </div>
   )
 }
 

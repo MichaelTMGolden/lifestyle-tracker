@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Todo, type TodoInput, type DailyTodo } from '../api'
+import { Reorderable, DragGrip, type DragHandleProps } from '../components/Reorderable'
 
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const tomorrow = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1); return d })()
@@ -41,6 +42,12 @@ export default function TasksPage() {
   }
   async function toggleTomorrow(id: number) { await api.toggleDailyTodo(id); load() }
   async function removeTomorrow(id: number) { await api.deleteDailyTodo(id); load() }
+  // Optimistically apply the new order, then persist (reload to reconcile on error).
+  async function reorderTomorrow(ids: number[]) {
+    const byId = new Map(tomorrowTodos.map((t) => [t.id, t]))
+    setTomorrowTodos(ids.map((id) => byId.get(id)!).filter(Boolean))
+    try { await api.reorderDailyTodos(ids) } catch { load() }
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
@@ -64,9 +71,16 @@ export default function TasksPage() {
   async function toggle(id: number) { await api.toggleTodo(id); load() }
   async function remove(id: number) { await api.deleteTodo(id); load() }
 
+  // The API already returns open tasks in manual (SortOrder) order; keep it.
   const open = todos.filter((t) => !t.completedAt)
-    .sort((a, b) => a.priority - b.priority || (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999'))
   const done = todos.filter((t) => t.completedAt)
+
+  async function reorderTasks(ids: number[]) {
+    const byId = new Map(todos.map((t) => [t.id, t]))
+    const reordered = ids.map((id) => byId.get(id)!).filter(Boolean)
+    setTodos([...reordered, ...done]) // open (new order) first, then completed
+    try { await api.reorderTodos(ids) } catch { load() }
+  }
 
   return (
     <>
@@ -85,18 +99,23 @@ export default function TasksPage() {
           <input value={newTomorrow} placeholder="Plan a to-do for tomorrow…" onChange={(e) => setNewTomorrow(e.target.value)} />
           <button className="btn" type="submit">Add</button>
         </form>
-        <ul className="list">
-          {tomorrowTodos.length === 0 && <li className="muted">Nothing planned yet — add the first thing for tomorrow.</li>}
-          {tomorrowTodos.map((d) => (
-            <li key={d.id} className="todo daily-row">
-              <label className="daily-check">
-                <input type="checkbox" checked={d.done} onChange={() => toggleTomorrow(d.id)} />
-                <span className={d.done ? 'done' : ''}>{d.title}</span>
-              </label>
-              <button className="icon-btn danger" onClick={() => removeTomorrow(d.id)} title="Remove">✕</button>
-            </li>
-          ))}
-        </ul>
+        {tomorrowTodos.length === 0 ? (
+          <p className="muted">Nothing planned yet — add the first thing for tomorrow.</p>
+        ) : (
+          <div className="list">
+            <Reorderable items={tomorrowTodos} getId={(d) => d.id} onReorder={reorderTomorrow}
+              renderRow={(d, handle) => (
+                <div className="todo daily-row">
+                  <DragGrip {...handle} />
+                  <label className="daily-check">
+                    <input type="checkbox" checked={d.done} onChange={() => toggleTomorrow(d.id)} />
+                    <span className={d.done ? 'done' : ''}>{d.title}</span>
+                  </label>
+                  <button className="icon-btn danger" onClick={() => removeTomorrow(d.id)} title="Remove">✕</button>
+                </div>
+              )} />
+          </div>
+        )}
       </section>
 
       <div className="section-title">Tasks</div>
@@ -121,13 +140,15 @@ export default function TasksPage() {
       </form>
 
       <div className="todo-list">
-        {open.map((t) => (
-          <TodoRow key={t.id} t={t}
-            editing={editingId === t.id} edit={edit} setEdit={setEdit}
-            onStartEdit={() => startEdit(t)} onSave={() => saveEdit(t.id)} onCancel={() => setEditingId(null)}
-            onToggle={() => toggle(t.id)} onDelete={() => remove(t.id)} />
-        ))}
-        {open.length === 0 && <p className="muted">Nothing open. Add something above.</p>}
+        {open.length === 0 ? <p className="muted">Nothing open. Add something above.</p> : (
+          <Reorderable items={open} getId={(t) => t.id} onReorder={reorderTasks}
+            renderRow={(t, handle) => (
+              <TodoRow t={t} handle={handle}
+                editing={editingId === t.id} edit={edit} setEdit={setEdit}
+                onStartEdit={() => startEdit(t)} onSave={() => saveEdit(t.id)} onCancel={() => setEditingId(null)}
+                onToggle={() => toggle(t.id)} onDelete={() => remove(t.id)} />
+            )} />
+        )}
       </div>
 
       {done.length > 0 && (
@@ -147,7 +168,7 @@ export default function TasksPage() {
   )
 }
 
-function TodoRow({ t, editing, edit, setEdit, onStartEdit, onSave, onCancel, onToggle, onDelete }: {
+function TodoRow({ t, editing, edit, setEdit, onStartEdit, onSave, onCancel, onToggle, onDelete, handle }: {
   t: Todo
   editing: boolean
   edit: TodoInput
@@ -157,6 +178,7 @@ function TodoRow({ t, editing, edit, setEdit, onStartEdit, onSave, onCancel, onT
   onCancel: () => void
   onToggle: () => void
   onDelete: () => void
+  handle?: DragHandleProps
 }) {
   const overdue = !t.completedAt && isOverdue(t.dueAt)
   const cls = `todo-item${t.completedAt ? ' done-row' : ''}${overdue ? ' overdue' : ''}`
@@ -179,6 +201,7 @@ function TodoRow({ t, editing, edit, setEdit, onStartEdit, onSave, onCancel, onT
 
   return (
     <div className={cls}>
+      {handle && <DragGrip {...handle} />}
       <input className="ti-check" type="checkbox" checked={!!t.completedAt} onChange={onToggle} />
       <div className="ti-main">
         <div className="ti-title" style={t.completedAt ? { textDecoration: 'line-through', color: 'var(--text-dim)' } : undefined}>

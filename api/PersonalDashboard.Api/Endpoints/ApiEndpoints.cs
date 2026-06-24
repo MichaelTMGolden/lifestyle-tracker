@@ -37,6 +37,7 @@ public record GoogleAddInput(string? Label, string IcsUrl);
 public record ScheduleNoteInput(string? Details);
 public record ReviewGenerateInput(DateOnly? WeekStart);
 public record ArtistKpiInput(DateOnly? Date, double? MonthlyListeners, double? Followers, double? TotalStreams);
+public record ReorderInput(List<long> Ids);
 public record GoogleFeed(string Id, string Label, string Url);
 public record GoalInput(string Name, int TargetHours, string? ColorHex, DateOnly? StartDate, List<int>? SourceHabitIds, DateOnly? TargetDate = null, bool CountAllTime = false);
 public record FoodEntryInput(
@@ -1557,17 +1558,31 @@ public static class ApiEndpoints
 
         // --- Todos ---
         api.MapGet("/todos", async (AppDbContext db) =>
-            await db.TodoItems.AsNoTracking().OrderBy(t => t.CompletedAt != null).ThenBy(t => t.Priority)
-                .ThenBy(t => t.DueAt).ToListAsync());
+            await db.TodoItems.AsNoTracking()
+                .OrderBy(t => t.CompletedAt != null).ThenBy(t => t.SortOrder)
+                .ThenBy(t => t.Priority).ThenBy(t => t.DueAt).ToListAsync());
 
         api.MapPost("/todos", async (TodoItem input, AppDbContext db) =>
         {
             input.Id = 0;
             input.CreatedAt = DateTimeOffset.UtcNow;
             input.CompletedAt = null;
+            // New tasks land at the bottom of the manual order.
+            input.SortOrder = (await db.TodoItems.MaxAsync(t => (int?)t.SortOrder) ?? 0) + 1;
             db.TodoItems.Add(input);
             await db.SaveChangesAsync();
             return Results.Created($"/api/todos/{input.Id}", input);
+        });
+
+        // Drag-to-reorder: client sends the open tasks' ids in their new order.
+        api.MapPut("/todos/reorder", async (ReorderInput body, AppDbContext db) =>
+        {
+            var items = await db.TodoItems.Where(t => body.Ids.Contains(t.Id)).ToListAsync();
+            var byId = items.ToDictionary(t => t.Id);
+            for (var i = 0; i < body.Ids.Count; i++)
+                if (byId.TryGetValue(body.Ids[i], out var t)) t.SortOrder = i;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         api.MapPost("/todos/{id:long}/toggle", async (long id, AppDbContext db) =>
@@ -1610,7 +1625,7 @@ public static class ApiEndpoints
             var date = DateOnly.TryParse(req.Query["date"].FirstOrDefault(), out var d) ? d : today;
             return await db.DailyTodos.AsNoTracking()
                 .Where(t => t.Date == date)
-                .OrderBy(t => t.Done).ThenBy(t => t.CreatedAt)
+                .OrderBy(t => t.Done).ThenBy(t => t.SortOrder).ThenBy(t => t.CreatedAt)
                 .ToListAsync();
         });
 
@@ -1626,10 +1641,23 @@ public static class ApiEndpoints
                 Date = date,
                 Title = input.Title,
                 CreatedAt = DateTimeOffset.UtcNow,
+                // New items land at the bottom of that day's manual order.
+                SortOrder = (await db.DailyTodos.Where(t => t.Date == date).MaxAsync(t => (int?)t.SortOrder) ?? 0) + 1,
             };
             db.DailyTodos.Add(item);
             await db.SaveChangesAsync();
             return Results.Created($"/api/daily-todos/{item.Id}", item);
+        });
+
+        // Drag-to-reorder a day's to-dos: client sends ids in their new order.
+        api.MapPut("/daily-todos/reorder", async (ReorderInput body, AppDbContext db) =>
+        {
+            var items = await db.DailyTodos.Where(t => body.Ids.Contains(t.Id)).ToListAsync();
+            var byId = items.ToDictionary(t => t.Id);
+            for (var i = 0; i < body.Ids.Count; i++)
+                if (byId.TryGetValue(body.Ids[i], out var t)) t.SortOrder = i;
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         api.MapPost("/daily-todos/{id:long}/toggle", async (long id, AppDbContext db) =>

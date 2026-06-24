@@ -58,6 +58,7 @@ export interface Todo {
   createdAt: string
   dueAt: string | null
   completedAt: string | null
+  sortOrder: number
 }
 
 export interface Workout {
@@ -240,6 +241,7 @@ export interface DailyTodo {
   title: string
   done: boolean
   createdAt: string
+  sortOrder: number
 }
 
 // --- Weekly review (LLM synthesis over the deterministic digest) ---
@@ -538,6 +540,7 @@ export const api = {
   createTodo: (input: TodoInput) => post<Todo>('/api/todos', input),
   updateTodo: (id: number, input: TodoInput) => send<Todo>('PUT', `/api/todos/${id}`, input),
   deleteTodo: (id: number) => send<void>('DELETE', `/api/todos/${id}`),
+  reorderTodos: (ids: number[]) => send<void>('PUT', '/api/todos/reorder', { ids }),
 
   addWeight: (value: number) => post<{ ok: boolean; value: number }>('/api/weight', { value }),
 
@@ -615,4 +618,5 @@ export const api = {
   createDailyTodo: (title: string, date?: string) => post<DailyTodo>('/api/daily-todos', { title, date }),
   toggleDailyTodo: (id: number) => post<DailyTodo>(`/api/daily-todos/${id}/toggle`),
   deleteDailyTodo: (id: number) => send<void>('DELETE', `/api/daily-todos/${id}`),
+  reorderDailyTodos: (ids: number[]) => send<void>('PUT', '/api/daily-todos/reorder', { ids }),
 }

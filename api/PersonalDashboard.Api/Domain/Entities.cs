@@ -370,6 +370,8 @@ public class DailyTodo
     public required string Title { get; set; }
     public bool Done { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>Manual drag-to-reorder position within a day (ascending). Ties break on CreatedAt.</summary>
+    public int SortOrder { get; set; }
 }
 
 public enum ScheduleCategory { Routine, Work, Training, Music, Meal, Personal, Sleep, Other }
@@ -413,6 +415,8 @@ public class TodoItem
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? DueAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+    /// <summary>Manual drag-to-reorder position among open tasks (ascending). Ties break on Priority then DueAt.</summary>
+    public int SortOrder { get; set; }
 }
 
 /// <summary>
