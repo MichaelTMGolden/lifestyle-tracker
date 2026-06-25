@@ -95,7 +95,8 @@ export function Reorderable<T>({ items, getId, onReorder, renderRow }: {
   )
 }
 
-/** The default grip glyph — spread the handle props onto it. */
+/** The default grip glyph — spread the handle props onto it. A <button> (not a
+ * <span>) so generic `.todo span` layout rules never treat it as content. */
 export function DragGrip(props: DragHandleProps) {
-  return <span {...props}>⠿</span>
+  return <button type="button" {...props}>⠿</button>
 }

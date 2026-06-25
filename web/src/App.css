@@ -1059,7 +1059,8 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 
 /* ===================== drag-to-reorder ===================== */
 .drag-handle {
-  flex: 0 0 auto; color: var(--text-dim); font-size: 1.05rem; line-height: 1;
+  flex: 0 0 auto; background: none; border: 0; color: var(--text-dim);
+  font-size: 1.05rem; line-height: 1;
   padding: 0.25rem 0.3rem; margin: -0.25rem 0 -0.25rem -0.2rem;
   user-select: none; touch-action: none; cursor: grab;
 }
