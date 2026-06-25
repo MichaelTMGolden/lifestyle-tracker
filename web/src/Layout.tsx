@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import './App.css'
 import { TimerProvider } from './timer/TimerContext'
@@ -7,12 +8,24 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link active' : 'nav-link'
 
 export default function Layout() {
+  // Mobile: the nav collapses behind a hamburger so the links don't overflow the
+  // bar. Tapping any link (clicks bubble up to the <nav>) closes the menu again.
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
     <TimerProvider>
       <div className="app">
         <header className="topbar">
           <span className="brand">Personal Dashboard</span>
-          <nav className="nav">
+          <button
+            className="nav-toggle"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+          <nav className={menuOpen ? 'nav open' : 'nav'} onClick={() => setMenuOpen(false)}>
             <NavLink to="/" end className={linkClass}>Today</NavLink>
             <NavLink to="/health" className={linkClass}>Health</NavLink>
             <NavLink to="/nutrition" className={linkClass}>Nutrition</NavLink>
