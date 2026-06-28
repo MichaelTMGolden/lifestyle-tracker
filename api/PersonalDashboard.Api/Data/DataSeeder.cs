@@ -32,6 +32,7 @@ public static class DataSeeder
         // Manual artist-KPI stand-ins (own guard) — runs for fresh and already-seeded
         // dummy DBs alike, like the food backfill below.
         await SeedArtistKpisAsync(db);
+        await SeedChallengesAsync(db);
 
         // Already-populated dummy DB: just backfill the sample food if missing.
         if (await db.DataSources.AnyAsync()) { await SeedFoodAsync(db); return; }
@@ -437,6 +438,53 @@ public static class DataSeeder
     {
         DataSourceId = sourceId, MetricKey = key, RecordedAt = at, Value = value, Unit = "count",
     };
+
+    /// <summary>
+    /// Seeds example challenges: a Daily strict run (with one back-filled gap so
+    /// retroactive fill is demonstrable), a Daily forgiving one (with a couple of
+    /// misses), and a Quantity count with titled entries. No-ops if any exist.
+    /// </summary>
+    public static async Task SeedChallengesAsync(AppDbContext db)
+    {
+        if (await db.Challenges.AnyAsync()) return;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // Daily strict — 10 pulls/day for 100 days, started 24 days ago with a gap
+        // 5 days back (so the strict chain is short until the gap is filled in).
+        var strictStart = today.AddDays(-24);
+        var gapDay = today.AddDays(-5);
+        var strict = new Challenge
+        {
+            Name = "10 pulls a day", Mode = ChallengeMode.Daily, Target = 100, Unit = "pulls",
+            Strict = true, StartDate = strictStart, ColorHex = "#b23a5b",
+        };
+        for (var d = strictStart; d <= today; d = d.AddDays(1))
+            if (d != gapDay) strict.Entries.Add(new ChallengeEntry { Date = d, Amount = 1 });
+
+        // Daily forgiving — meditate 30 days, started 20 days ago, two missed days.
+        var forgivingStart = today.AddDays(-20);
+        var misses = new HashSet<DateOnly> { today.AddDays(-12), today.AddDays(-6) };
+        var forgiving = new Challenge
+        {
+            Name = "Meditate daily", Mode = ChallengeMode.Daily, Target = 30, Unit = "days",
+            Strict = false, StartDate = forgivingStart, ColorHex = "#7faf93",
+        };
+        for (var d = forgivingStart; d <= today; d = d.AddDays(1))
+            if (!misses.Contains(d)) forgiving.Entries.Add(new ChallengeEntry { Date = d, Amount = 1 });
+
+        // Quantity — write 100 songs, a handful logged with titles.
+        var quantity = new Challenge
+        {
+            Name = "Write 100 songs", Mode = ChallengeMode.Quantity, Target = 100, Unit = "songs",
+            StartDate = today.AddDays(-40), ColorHex = "#9d6bff",
+        };
+        var titles = new[] { "Oxblood", "Vesper", "Lantern", "Hollow Crown", "Saltwater", "Ember & Ash", "Nightjar" };
+        for (var i = 0; i < titles.Length; i++)
+            quantity.Entries.Add(new ChallengeEntry { Date = today.AddDays(-40 + i * 5), Amount = 1, Label = titles[i] });
+
+        db.Challenges.AddRange(strict, forgiving, quantity);
+        await db.SaveChangesAsync();
+    }
 
     private static MetricSample RollupSample(int sourceId, string key, DateTimeOffset at, double value, string unit) => new()
     {

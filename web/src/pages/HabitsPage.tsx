@@ -3,6 +3,7 @@ import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput, type Hab
 import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDate, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
 import { useTimer } from '../timer/TimerContext'
 import { Collapsible } from '../components/Collapsible'
+import { ChallengesSection } from '../components/Challenges'
 
 // Goal ids whose completion has already been celebrated, so a 100% goal only
 // triggers the confetti once (not on every page load).
@@ -332,6 +333,9 @@ export default function HabitsPage() {
           )
         })}
       </div>
+
+      {/* ---- Challenges: finite, target-bound trackers (Daily chain / Quantity count) ---- */}
+      <ChallengesSection />
     </>
   )
 }

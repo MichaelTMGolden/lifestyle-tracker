@@ -132,6 +132,18 @@ export interface MetricMeta {
 /** Whole-number count → "1,234" (thousands-separated). */
 export const fmtCount = (n: number) => Math.round(n).toLocaleString(LOCALE)
 
+/** Inclusive list of yyyy-mm-dd day keys from a start date through today (local). */
+export function dayRange(startIso: string): string[] {
+  const out: string[] = []
+  const d = new Date(startIso + 'T00:00:00')
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  while (d <= today) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return out
+}
+
 const META: Record<string, MetricMeta> = {
   steps: { label: 'Steps', unit: 'steps', chart: 'bar', color: '#34d399' },
   resting_hr: { label: 'Resting HR', unit: 'bpm', chart: 'line', color: '#ef4444' },

@@ -374,6 +374,49 @@ public class DailyTodo
     public int SortOrder { get; set; }
 }
 
+public enum ChallengeMode { Daily, Quantity }
+
+/// <summary>
+/// A finite, target-bound tracker — distinct from open-ended skills and from
+/// hour-goals (which accumulate minutes). Two modes: Daily ("10 pulls every day
+/// for 100 days" — a check per day with a chain/streak) and Quantity ("write 100
+/// songs" — increment toward a count). Progress is computed from the date-stamped
+/// <see cref="ChallengeEntry"/> rows, so back-filling a forgotten day repairs the
+/// chain automatically with no special undo logic.
+/// </summary>
+public class Challenge
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public ChallengeMode Mode { get; set; }
+    /// <summary>Daily: number of days; Quantity: target count.</summary>
+    public int Target { get; set; }
+    public string? Unit { get; set; }       // e.g. "songs", "pulls"
+    /// <summary>Daily only. Strict = N consecutive days (a miss breaks the chain);
+    /// forgiving = N total days (a miss only resets the visible streak).</summary>
+    public bool Strict { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? TargetDate { get; set; }
+    public bool Completed { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public bool Archived { get; set; }
+    public string? ColorHex { get; set; }
+
+    public List<ChallengeEntry> Entries { get; set; } = new();
+}
+
+public class ChallengeEntry
+{
+    public int Id { get; set; }
+    public int ChallengeId { get; set; }
+    public Challenge? Challenge { get; set; }
+    public DateOnly Date { get; set; }
+    /// <summary>Daily: 1; Quantity: usually 1, custom allowed.</summary>
+    public double Amount { get; set; } = 1;
+    /// <summary>Quantity: e.g. a song title; Daily: optional note.</summary>
+    public string? Label { get; set; }
+}
+
 public enum ScheduleCategory { Routine, Work, Training, Music, Meal, Personal, Sleep, Other }
 
 /// <summary>

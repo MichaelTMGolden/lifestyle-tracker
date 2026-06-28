@@ -30,6 +30,8 @@ public class AppDbContext : DbContext
     public DbSet<SavedFood> SavedFoods => Set<SavedFood>();
     public DbSet<QuickMeal> QuickMeals => Set<QuickMeal>();
     public DbSet<QuickMealItem> QuickMealItems => Set<QuickMealItem>();
+    public DbSet<Challenge> Challenges => Set<Challenge>();
+    public DbSet<ChallengeEntry> ChallengeEntries => Set<ChallengeEntry>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -99,5 +101,13 @@ public class AppDbContext : DbContext
         b.Entity<BingoSquare>()
             .HasOne(x => x.Board).WithMany(bd => bd.Squares)
             .HasForeignKey(x => x.BoardId).OnDelete(DeleteBehavior.Cascade);
+
+        // Challenges: entries cascade with the challenge. Index by (ChallengeId, Date)
+        // is NON-unique — Quantity allows several entries per day; one-per-day for
+        // Daily is enforced in the toggle endpoint, not the schema.
+        b.Entity<ChallengeEntry>().HasIndex(x => new { x.ChallengeId, x.Date });
+        b.Entity<ChallengeEntry>()
+            .HasOne(x => x.Challenge).WithMany(c => c.Entries)
+            .HasForeignKey(x => x.ChallengeId).OnDelete(DeleteBehavior.Cascade);
     }
 }

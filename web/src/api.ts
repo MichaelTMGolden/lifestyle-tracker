@@ -307,6 +307,39 @@ export interface ArtistKpiInput {
   totalStreams?: number
 }
 
+// --- Challenges (finite, target-bound trackers: Daily chain or Quantity count) ---
+export interface ChallengeEntry { id: number; date: string; amount: number; label: string | null }
+export interface Challenge {
+  id: number
+  name: string
+  mode: 'Daily' | 'Quantity'
+  target: number
+  unit: string | null
+  strict: boolean
+  startDate: string
+  targetDate: string | null
+  completed: boolean
+  completedAt: string | null
+  archived: boolean
+  colorHex: string | null
+  daysDone: number      // distinct dated days
+  currentStreak: number // consecutive run ending today/yesterday
+  total: number         // summed amount (Quantity)
+  progress: number      // 0..1
+  isComplete: boolean
+  entries: ChallengeEntry[]
+}
+export interface ChallengeInput {
+  name: string
+  mode: 'Daily' | 'Quantity'
+  target: number
+  unit?: string | null
+  strict?: boolean
+  startDate?: string | null
+  targetDate?: string | null
+  colorHex?: string | null
+}
+
 export interface MacroSet { kcal: number; protein: number; carbs: number; fat: number }
 export interface MicroSet {
   fiberG: number; sugarG: number; satFatG: number
@@ -619,4 +652,15 @@ export const api = {
   toggleDailyTodo: (id: number) => post<DailyTodo>(`/api/daily-todos/${id}/toggle`),
   deleteDailyTodo: (id: number) => send<void>('DELETE', `/api/daily-todos/${id}`),
   reorderDailyTodos: (ids: number[]) => send<void>('PUT', '/api/daily-todos/reorder', { ids }),
+
+  // Challenges (Daily chain / Quantity count). All mutations return the recomputed challenge.
+  challenges: () => get<Challenge[]>('/api/challenges'),
+  challenge: (id: number) => get<Challenge>(`/api/challenges/${id}`),
+  createChallenge: (input: ChallengeInput) => post<Challenge>('/api/challenges', input),
+  updateChallenge: (id: number, input: ChallengeInput) => send<Challenge>('PUT', `/api/challenges/${id}`, input),
+  deleteChallenge: (id: number) => send<void>('DELETE', `/api/challenges/${id}`),
+  toggleChallengeDay: (id: number, date: string) => post<Challenge>(`/api/challenges/${id}/day/toggle`, { date }),
+  incrementChallenge: (id: number, body: { amount?: number; label?: string; date?: string }) =>
+    post<Challenge>(`/api/challenges/${id}/increment`, body),
+  deleteChallengeEntry: (entryId: number) => send<Challenge>('DELETE', `/api/challenges/entries/${entryId}`),
 }
