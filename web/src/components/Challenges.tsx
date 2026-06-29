@@ -50,7 +50,7 @@ export function ChallengesSection() {
   return (
     <section className="challenges-section">
       <div className="section-head">
-        <h2 className="section-title">Challenges</h2>
+        <h3 className="section-title">Challenges</h3>
         {!showNew && <button className="btn btn-ghost" onClick={() => setShowNew(true)}>+ New challenge</button>}
       </div>
 

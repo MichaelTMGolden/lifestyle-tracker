@@ -349,6 +349,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .section-head .section-title { margin-bottom: 0.5rem; }
 
+/* Umbrella heading grouping related subsections (e.g. Goals → hour-goals + challenges). */
+.umbrella-title { font-family: var(--font-head); font-size: 1.3rem; letter-spacing: 0.04em; color: var(--text); margin: 2rem 0 0.1rem; }
+.umbrella-sub { color: var(--text-dim); font-style: italic; font-size: 0.92rem; margin: 0 0 0.4rem; }
+
 .btn-sm { padding: 0.34rem 0.72rem; font-size: 0.72rem; }
 
 /* ---------- goals ---------- */

@@ -132,10 +132,13 @@ export default function HabitsPage() {
         </div>
       </div>
 
-      {/* ---- Goals: hour targets fed by one or more skills ---- */}
+      {/* ---- Goals umbrella: hour-goals (accrued from skills) + challenges (tracked directly) ---- */}
+      <h2 className="umbrella-title">Goals</h2>
+      <p className="umbrella-sub">Targets you're working toward — hour goals accrue from your skills; challenges you track directly.</p>
+
       <section className="goals-section">
         <div className="section-head">
-          <h2 className="section-title">Goals</h2>
+          <h3 className="section-title">Hour goals</h3>
           {!showNew && !editingId && (
             <button className="btn btn-ghost" onClick={() => setShowNew(true)}>+ New goal</button>
           )}
@@ -191,6 +194,9 @@ export default function HabitsPage() {
       </section>
 
       {celebrating && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
+
+      {/* Challenges sit under the same Goals umbrella (own data model + card types). */}
+      <ChallengesSection />
 
       {/* ---- Skills: heatmap + per-skill controls ---- */}
       <div className="section-head">
@@ -333,9 +339,6 @@ export default function HabitsPage() {
           )
         })}
       </div>
-
-      {/* ---- Challenges: finite, target-bound trackers (Daily chain / Quantity count) ---- */}
-      <ChallengesSection />
     </>
   )
 }
