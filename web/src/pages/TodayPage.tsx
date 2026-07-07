@@ -7,7 +7,7 @@ import {
 } from '../api'
 import { alertSeverity, categoryColor, fmtElapsed, fmtMinutes, habitColor } from '../lib'
 import { Ring, Spark, STATUS } from '../charts'
-import { useIsMobile, usePersistentToggle } from '../hooks'
+import { useIsMobile, useNowMinutes, usePersistentToggle, usePoll } from '../hooks'
 import { useTimer } from '../timer/TimerContext'
 import { Collapsible } from '../components/Collapsible'
 import { Reorderable, DragGrip } from '../components/Reorderable'
@@ -36,6 +36,7 @@ export default function TodayPage() {
   const [error, setError] = useState<string | null>(null)
 
   const isMobile = useIsMobile()
+  const liveNow = useNowMinutes()
   const { timers, isRunning, start, stop, elapsedMs, dataTick } = useTimer()
 
   async function load() {
@@ -52,11 +53,14 @@ export default function TodayPage() {
   useEffect(() => { load() }, [])
   // Refetch when a timer is logged or a to-do is quick-added from the sticky bar.
   useEffect(() => { if (dataTick) load() }, [dataTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Poll so the current/next block and calendar stay fresh without a manual refresh
+  // (the now-line itself advances every 30s via useNowMinutes below).
+  usePoll(load, 180_000)
 
   if (error) return <p className="error">Couldn't reach the API ({error}). Is it running on :5080?</p>
   if (!today || !schedule) return <p className="muted">Loading…</p>
 
-  const now = today.nowMinutes
+  const now = liveNow
   // Do we have any real Garmin-sourced health data yet? Drives honest empty states.
   const hasHealth = today.lastSleepScore != null || today.restingHr != null || today.stepsToday > 0
   const dateLabel = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long' })

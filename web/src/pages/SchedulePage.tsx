@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type ScheduleBlock, type ScheduleDay } from '../api'
-import { categoryColor, fmtDate, fmtMinutes, nowMinutes, withNowLine } from '../lib'
+import { categoryColor, fmtDate, fmtMinutes, withNowLine } from '../lib'
+import { useNowMinutes, usePoll } from '../hooks'
 
 const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 const endOf = (b: ScheduleBlock) => (b.durationMinutes != null ? b.startMinutes + b.durationMinutes : Infinity)
@@ -19,6 +20,9 @@ export default function SchedulePage() {
   const load = () => Promise.all([api.scheduleWeek(), api.scheduleStatus()])
     .then(([w, s]) => { setWeek(w); setStatus(s) }).catch((e) => setError(String(e)))
   useEffect(() => { load() }, [])
+  // Advance the now-line every 30s; poll for schedule changes (e.g. a temporary
+  // schedule reverting) every few minutes — no manual refresh needed.
+  usePoll(load, 180_000)
 
   async function doImport(mode: 'default' | 'temporary', revertOn?: string) {
     if (!pending) return
@@ -43,9 +47,10 @@ export default function SchedulePage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  const now = useNowMinutes()
+
   if (error) return <p className="error">Couldn't load schedule ({error}).</p>
 
-  const now = nowMinutes()
   const categories = [...new Set(week.flatMap((d) => d.blocks.map((b) => b.category)))]
 
   return (
