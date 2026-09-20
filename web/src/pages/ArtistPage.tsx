@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, type ArtistKpi, type MetricPoint } from '../api'
 import { fmtCount, fmtDate, metricMeta } from '../lib'
 import { Spark } from '../charts'
+import { SkillProgress } from '../components/SkillProgress'
 
 // The three KPIs, in display order. Keys match the API / metricMeta registry.
 const KEYS = ['artist_monthly_listeners', 'artist_followers', 'artist_streams_total'] as const
@@ -13,6 +14,7 @@ export default function ArtistPage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   // Form fields (any subset allowed). Date defaults to today.
   const todayIso = new Date().toLocaleDateString('en-CA') // yyyy-mm-dd, local
@@ -21,15 +23,15 @@ export default function ArtistPage() {
   const [followers, setFollowers] = useState('')
   const [streams, setStreams] = useState('')
 
-  async function load() {
-    try {
-      const [sum, ...metrics] = await Promise.all([
+  function load() {
+    return Promise.all([
         api.artistSummary(),
         ...KEYS.map((k) => api.metric(k, 365).catch(() => [] as MetricPoint[])),
-      ])
+      ]).then(([sum, ...metrics]) => {
       setSummary(sum)
       setSeries(Object.fromEntries(KEYS.map((k, i) => [k, metrics[i].map((p) => p.value)])))
-    } catch (e) { setError(String(e)) }
+      setError(null)
+    }).catch(e => setError(String(e))).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -60,11 +62,15 @@ export default function ArtistPage() {
       <div className="page-head">
         <div>
           <h1>Artist</h1>
-          <p className="subtitle">Spotify for Artists — logged by hand (no public artist API)</p>
+          <p className="subtitle">Your craft, your milestones and your audience.</p>
         </div>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      <SkillProgress />
+      <div className="section-head"><h2>Audience</h2><Link className="back" to="/settings">Edit targets</Link></div>
+      <p className="muted">Spotify for Artists numbers, logged by hand.</p>
+      {loading && <p role="status">Loading audience metrics…</p>}
+      {error && <p className="error" role="alert">{error} <button className="btn btn-ghost" onClick={load}>Retry</button></p>}
 
       <div className="kpi-grid">
         {KEYS.map((k) => <KpiCard key={k} kpi={byKey(k)} metricKey={k} spark={series[k] ?? []} />)}

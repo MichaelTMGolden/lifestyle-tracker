@@ -4,6 +4,8 @@
   padding: 0 2rem 5rem;
 }
 
+.timer-save-error { position: fixed; bottom: 8.5rem; left: 1rem; right: 1rem; z-index: 90; max-width: 720px; margin: auto; display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid var(--watch); background: var(--bg-2); border-radius: 8px; box-shadow: 0 4px 24px #0008; }
+
 /* ---------- top nav ---------- */
 .topbar {
   display: flex;

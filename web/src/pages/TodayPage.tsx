@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   api, type Alert, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
@@ -6,13 +6,20 @@ import {
   type WeeklyReview,
 } from '../api'
 import { alertSeverity, categoryColor, fmtElapsed, fmtMinutes, habitColor } from '../lib'
-import { Ring, Spark, STATUS } from '../charts'
-import { useIsMobile, useNowMinutes, usePersistentToggle, usePoll } from '../hooks'
-import { useTimer } from '../timer/TimerContext'
+import { Ring, Spark } from '../charts'
+import { STATUS } from '../chartMath'
+import { useNowMinutes, usePersistentToggle, usePoll } from '../hooks'
+import { useTimer } from '../timer/useTimer'
 import { Collapsible } from '../components/Collapsible'
 import { Reorderable, DragGrip } from '../components/Reorderable'
+import { CarryForwardPanel, TaskPlanActions, TodayPriorities, type PlanningAction } from '../components/DailyPlanning'
+import { dailyPlanning, dateKey, nextDateKey } from '../dailyPlanning'
+import { taskIsOverdue } from '../taskViews'
+import '../dailyPlanning.css'
+import './TodayPage.css'
 
-const toMinutes = (iso: string) => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes() }
+const toMinutes = (iso: string) => { const d = new Date(iso); const today = new Date(); const dayDelta = (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000; return dayDelta * 1440 + d.getHours() * 60 + d.getMinutes() }
+const eventTime = (e: CalendarEvent) => e.allDay ? 'All day' : `${new Date(e.startsAt).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}–${new Date(e.endsAt).toLocaleString('en-IE', { ...(keyOf(new Date(e.startsAt)) !== keyOf(new Date(e.endsAt)) ? { day: 'numeric', month: 'short' } : {}), hour: '2-digit', minute: '2-digit' })}`
 const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ''}`.trim() : `${m}m`)
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const readyColor = (s: number) => (s >= 80 ? STATUS.good : s >= 65 ? '#9fc7b0' : s >= 45 ? STATUS.watch : STATUS.off)
@@ -29,55 +36,70 @@ export default function TodayPage() {
   const [heat, setHeat] = useState<HabitHeatmap[]>([])
   const [tasks, setTasks] = useState<Todo[]>([])
   const [daily, setDaily] = useState<DailyTodo[]>([])
+  const [pending, setPending] = useState<DailyTodo[]>([])
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [review, setReview] = useState<WeeklyReview | null>(null)
   const [newDaily, setNewDaily] = useState('')
   const [showPast, setShowPast] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const actionInFlight = useRef(false)
+  const loadVersion = useRef(0)
 
-  const isMobile = useIsMobile()
   const liveNow = useNowMinutes()
   const { timers, isRunning, start, stop, elapsedMs, dataTick } = useTimer()
 
-  async function load() {
-    try {
-      const [t, s, h, hm, tk, d, al, rv] = await Promise.all([
-        api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
-        api.alerts().catch(() => [] as Alert[]),
-        api.latestReview().catch(() => ({ enabled: false, review: null })),
-      ])
-      setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al); setReview(rv.review)
-    } catch (e) { setError(String(e)) }
+  const load = useCallback(() => {
+    const version = ++loadVersion.current
+    return Promise.all([
+    api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
+    api.alerts().catch(() => [] as Alert[]),
+    api.latestReview().catch(() => ({ enabled: false, review: null })),
+    dailyPlanning.pending(),
+  ]).then(([t, s, h, hm, tk, d, al, rv, carry]) => {
+    if (version !== loadVersion.current) return
+    setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al); setReview(rv.review); setPending(carry); setError(null)
+    }).catch(e => { if (version === loadVersion.current) setError(String(e)) })
+  }, [])
+  const onAction: PlanningAction = async (operation, message) => {
+    if (actionInFlight.current) return
+    actionInFlight.current = true
+    ++loadVersion.current
+    setBusy(true); setActionError(null); setNotice(null)
+    try { await operation(); setNotice(message); await load() }
+    catch (e) { setActionError(e instanceof Error ? e.message : String(e)); await load() }
+    finally { actionInFlight.current = false; setBusy(false) }
   }
-  async function dismissAlert(id: number) { setAlerts((a) => a.filter((x) => x.id !== id)); await api.dismissAlert(id) }
-  useEffect(() => { load() }, [])
+  async function dismissAlert(id: number) { await onAction(() => api.dismissAlert(id), 'Alert dismissed.') }
+  useEffect(() => { load() }, [load])
   // Refetch when a timer is logged or a to-do is quick-added from the sticky bar.
-  useEffect(() => { if (dataTick) load() }, [dataTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (dataTick) load() }, [dataTick, load])
   // Poll so the current/next block and calendar stay fresh without a manual refresh
   // (the now-line itself advances every 30s via useNowMinutes below).
   usePoll(load, 180_000)
 
-  if (error) return <p className="error">Couldn't reach the API ({error}). Is it running on :5080?</p>
-  if (!today || !schedule) return <p className="muted">Loading…</p>
+  if (!today || !schedule) return error ? <div className="planning-feedback error" role="alert"><span>Could not load your dashboard. {error}</span><button className="btn" onClick={load}>Retry</button></div> : <p className="muted" role="status">Loading your day…</p>
 
   const now = liveNow
   // Do we have any real Garmin-sourced health data yet? Drives honest empty states.
-  const hasHealth = today.lastSleepScore != null || today.restingHr != null || today.stepsToday > 0
-  const dateLabel = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long' })
+  const hasHealth = today.readiness != null
+  const dateLabel = new Date().toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })
   const openDaily = daily.filter((d) => !d.done)
   const dailyDone = daily.length - openDaily.length
-  const overdue = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt) < new Date(new Date().toDateString()))
-  const upcoming = tasks.filter((t) => !t.completedAt && !overdue.includes(t))
+  const overdue = tasks.filter(task => taskIsOverdue(task, dateKey()))
+  const upcoming = tasks.filter((t) => !t.completedAt && !overdue.includes(t) && t.plannedFor !== dateKey())
     .sort((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999')).slice(0, 4)
 
   // schedule timeline (merged, partitioned around now)
   const rows: TimelineRow[] = [
-    ...schedule.blocks.map((b) => ({ start: b.startMinutes, end: b.startMinutes + (b.durationMinutes ?? 0), kind: 'block' as const, block: b })),
-    ...schedule.events.map((e) => ({ start: toMinutes(e.startsAt), end: toMinutes(e.endsAt), kind: 'event' as const, event: e })),
+    ...schedule.blocks.map((b) => ({ start: b.startMinutes, end: b.durationMinutes != null ? b.startMinutes + b.durationMinutes : Math.min(1440, ...schedule.blocks.filter(next => next.startMinutes > b.startMinutes).map(next => next.startMinutes)), kind: 'block' as const, block: b })),
+    ...schedule.events.map((e) => ({ start: Math.max(0, toMinutes(e.startsAt)), end: Math.min(1440, toMinutes(e.endsAt)), kind: 'event' as const, event: e })),
   ].sort((a, b) => a.start - b.start)
   const past = rows.filter((r) => r.end <= now)
   const rest = rows.filter((r) => r.end > now)
-  const blocksDone = schedule.blocks.filter((b) => b.startMinutes + (b.durationMinutes ?? 0) <= now).length
+  const blocksDone = rows.filter(row => row.kind === 'block' && row.end <= now).length
   const blocksTotal = schedule.blocks.length
 
   // weekly grid + momentum from heatmap
@@ -90,159 +112,118 @@ export default function TodayPage() {
     return [...Array(7)].map((_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d })
   })()
   const todayKey = keyOf(new Date(new Date().setHours(0, 0, 0, 0)))
-  const heatByName = new Map(heat.map((h) => [h.name, new Set(h.completedDates)]))
-  const streakOf = (done: Set<string>) => { let n = 0; const d = new Date(); d.setHours(0, 0, 0, 0); if (!done.has(keyOf(d))) d.setDate(d.getDate() - 1); while (done.has(keyOf(d))) { n++; d.setDate(d.getDate() - 1) } return n }
-  const weekHits = heat.reduce((s, h) => { const set = new Set(h.completedDates); return s + week.filter((d) => set.has(keyOf(d))).length }, 0)
-  const weekPct = heat.length ? Math.round((weekHits / (heat.length * 7)) * 100) : 0
-  const longest = heat.map((h) => ({ name: h.name, streak: streakOf(new Set(h.completedDates)) })).sort((a, b) => b.streak - a.streak)[0]
+  const heatById = new Map(heat.map((h) => [h.id, new Set(h.completedDates)]))
+  const weeklyTarget = habits.reduce((sum, habit) => sum + (habit.cadence === 'weekly' ? habit.targetPerPeriod : 7), 0)
+  const targetHits = habits.reduce((sum, habit) => { const done = heatById.get(habit.id) ?? new Set<string>(); const hits = week.filter(day => done.has(keyOf(day))).length; return sum + Math.min(hits, habit.cadence === 'weekly' ? habit.targetPerPeriod : 7) }, 0)
+  const weekPct = weeklyTarget ? Math.round(targetHits / weeklyTarget * 100) : 0
+  const longest = habits.map((h) => ({ name: h.name, streak: h.currentStreak, weekly: h.cadence === 'weekly' })).sort((a, b) => b.streak * (b.weekly ? 7 : 1) - a.streak * (a.weekly ? 7 : 1))[0]
 
-  const framing = (() => {
-    if (now < 660) return <>Good morning. <b>{overdue.length} overdue</b>, {openDaily.length} to-dos · first block <b>{schedule.blocks[0] ? `${fmtMinutes(schedule.blocks[0].startMinutes)} ${schedule.blocks[0].activity}` : '—'}</b>.</>
-    if (now < 1020) return <>Midday. <b>{blocksDone} of {blocksTotal}</b> blocks done · {openDaily.length} to-dos left, <b>{overdue.length} overdue</b>.</>
-    return <>Winding down. <b>{openDaily.length} to-dos</b> left and <b>{overdue.length} overdue</b>{today.tomorrowFirst ? <> · tomorrow starts {fmtMinutes(today.tomorrowFirst.startMinutes)}</> : null}.</>
-  })()
+  const plannedToday = tasks.filter(task => task.plannedFor === todayKey)
+  const actionsTotal = daily.length + plannedToday.length
+  const actionsDone = dailyDone + plannedToday.filter(task => task.completedAt).length
+  const prioritiesCount = plannedToday.filter(task => task.isPriority && !task.completedAt).length
 
   async function toggleHabit(id: number) {
-    // Optimistic: flip the chip immediately, then persist + reconcile in the background.
-    setHabits((hs) => hs.map((h) => (h.id === id ? { ...h, doneToday: !h.doneToday } : h)))
-    try { await api.toggleHabit(id) } finally { load() }
+    await onAction(() => api.toggleHabit(id), 'Habit updated.')
   }
-  async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await api.createDailyTodo(newDaily.trim()); setNewDaily(''); load() }
-  async function toggleDaily(id: number) { await api.toggleDailyTodo(id); load() }
-  async function removeDaily(id: number) { await api.deleteDailyTodo(id); load() }
+  async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await onAction(async () => { await api.createDailyTodo(newDaily.trim()); setNewDaily('') }, 'Added to today.') }
+  async function toggleDaily(id: number) { await onAction(() => api.toggleDailyTodo(id), 'To-do updated.') }
+  async function removeDaily(id: number) { await onAction(() => api.deleteDailyTodo(id), 'To-do removed.') }
   // Optimistic drag-reorder; reload to reconcile if the persist fails.
   async function reorderDaily(ids: number[]) {
+    if (actionInFlight.current) return
     const byId = new Map(daily.map((d) => [d.id, d]))
     setDaily(ids.map((id) => byId.get(id)!).filter(Boolean))
-    try { await api.reorderDailyTodos(ids) } catch { load() }
+    await onAction(() => api.reorderDailyTodos(ids), 'Order saved.')
   }
   // Tapping a timed skill starts its timer (tap a running one again to stop & log);
   // binary skills just toggle done. Multiple timers can run at once.
   async function mobileSkill(h: Habit) {
     if (!h.tracksTime) { await toggleHabit(h.id); return }
-    if (isRunning(h.id)) await stop(h.id)
-    else await start(h.id, h.name)
+    if (isRunning(h.id)) await onAction(() => stop(h.id), 'Practice stopped and synced.')
+    else await onAction(() => start(h.id, h.name), 'Practice timer started.')
   }
   const runningIds = timers.map((t) => t.habitId)
   // Only the habits the user pinned to quick actions (managed on the Habits page).
   const quickHabits = habits.filter((h) => h.showInQuickActions)
 
   const dayHead = (
-    <div className="dayhead">
+    <header className="today-heading">
       <div>
-        <h1>{schedule.day}</h1>
-        <p className="subtitle">{dateLabel}</p>
-        <p className="framing">{framing}</p>
+        <p className="today-eyebrow">{dateLabel}</p>
+        <h1>Today<span aria-hidden>.</span></h1>
+        <p className="today-intro">A little structure. More room for what matters.</p>
       </div>
-    </div>
+      <div className="today-heading-actions"><button className="btn today-add-shortcut" onClick={() => { document.getElementById('today-checklist')?.scrollIntoView({ block: 'center' }); document.getElementById('today-capture')?.focus({ preventScroll: true }) }}>＋ Quick add</button><div className="today-progress" aria-label={`${actionsDone} of ${actionsTotal} planned actions complete`}>
+        <Ring value={actionsTotal ? actionsDone / actionsTotal * 100 : 0} size={48} color="var(--good)" />
+        <div><strong>{actionsDone}<span> / {actionsTotal}</span></strong><span>{actionsTotal ? 'actions complete' : 'Start with one small thing'}</span></div>
+      </div></div>
+    </header>
   )
   const addForm = (
     <form className="daily-add" onSubmit={addDaily}>
-      <input value={newDaily} placeholder="Add a to-do for today…" onChange={(e) => setNewDaily(e.target.value)} />
-      <button className="btn" type="submit">Add</button>
+      <input id="today-capture" aria-label="New to-do for today" value={newDaily} placeholder="Something to get done today…" onChange={(e) => setNewDaily(e.target.value)} />
+      <button className="btn" type="submit" disabled={busy || !newDaily.trim()}>Add to today</button>
     </form>
   )
 
-  /* ---------------- mobile: capture + glance first ---------------- */
-  if (isMobile) {
-    return (
-      <>
-        {dayHead}
-        <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
+  const feedback = <>
+    {error && <div className="planning-feedback error" role="alert"><span>Could not refresh. Your last loaded data is still shown. {error}</span><button className="btn" onClick={load}>Retry</button></div>}
+    {actionError && <div className="planning-feedback error" role="alert">{actionError}<button className="btn" onClick={() => setActionError(null)}>Dismiss</button></div>}
+    {notice && <p className="planning-feedback" role="status">{notice}</p>}
+  </>
+  const dailyActions = <CarryForwardPanel items={pending} busy={busy} onAction={onAction} />
+  const priorities = <TodayPriorities tasks={tasks} busy={busy} onAction={onAction} />
 
-        <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
-        <ReviewNudge review={review} />
-
-        <section className="card quick-actions">
-          <h2>Quick actions</h2>
-          {addForm}
-          <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} />
-        </section>
-
-        <section className="card">
-          <h2>Today's to-do</h2>
-          <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} onReorder={reorderDaily} />
-        </section>
-
-        <NextAppointment events={schedule.events} now={now} />
-
-        <HealthCompact today={today} hasHealth={hasHealth} />
-
-        <section className="card">
-          <h2>Tasks <Link to="/tasks" className="back">all →</Link></h2>
-          <TasksInner overdue={overdue} upcoming={upcoming.slice(0, 3)} />
-        </section>
-
-        <Collapsible title="Momentum" storageKey="today.momentum">
-          <MomentumInner weekPct={weekPct} weekHits={weekHits} heat={heat} longest={longest} />
-        </Collapsible>
-        <Collapsible title="Weekly habits" storageKey="today.weekly">
-          <WeeklyGrid habits={habits} heatByName={heatByName} week={weekDays} todayKey={todayKey} />
-        </Collapsible>
-        <Collapsible title="Today's schedule" storageKey="today.schedule">
-          <ScheduleInner past={past} rest={rest} now={now} showPast={showPast} setShowPast={setShowPast} />
-        </Collapsible>
-      </>
-    )
-  }
-
-  /* ---------------- desktop: unchanged ---------------- */
   return (
-    <>
+    <div className="today-workspace">
       {dayHead}
-      <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
-
+      {feedback}
+      <nav className="today-overview" aria-label="Today overview">
+        <a href="#today-focus"><span className="overview-value">{prioritiesCount}<small>/ 3</small></span><span>Priorities</span><span aria-hidden>↗</span></a>
+        <a href="#today-checklist"><span className="overview-value">{openDaily.length}</span><span>Small to-dos</span><span aria-hidden>↗</span></a>
+        <Link to="/tasks?view=overdue" className={overdue.length ? 'has-overdue' : ''}><span className="overview-value">{overdue.length}</span><span>Overdue tasks</span><span aria-hidden>↗</span></Link>
+      </nav>
       <AttentionStrip alerts={alerts} onDismiss={dismissAlert} />
-      <ReviewNudge review={review} />
+      <a href="#today-context" className="today-mobile-now"><span>Now</span><strong>{today.current?.activity ?? 'Open time'}</strong><span aria-hidden>↗</span></a>
 
-      <section className="panel strip">
-        <HealthCluster today={today} hasHealth={hasHealth} />
-        <ProductivityCluster daily={daily} dailyDone={dailyDone} openDaily={openDaily} today={today} weekPct={weekPct} overdue={overdue} />
-      </section>
-
-      <div className="columns-2-1">
-        {/* LEFT — Do */}
-        <div className="stack">
-          <section className="card">
-            <h2>Today's to-do</h2>
+      <div className="today-layout">
+        <div className="today-plan-column">
+          <div id="today-focus" className="today-focus-area">{priorities}</div>
+          <section className="card today-checklist" id="today-checklist">
+            <div className="today-section-heading"><div><p className="today-eyebrow">Clear a little space</p><h2>Today's checklist</h2></div><span className="today-count">{openDaily.length} left</span></div>
             {addForm}
-            <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} onReorder={reorderDaily} />
+            <TodoListItems daily={daily} toggleDaily={toggleDaily} removeDaily={removeDaily} onReorder={reorderDaily} onAction={onAction} busy={busy} />
           </section>
-
-          <section className="card">
-            <h2>Quick log · practice <Link to="/habits" className="back">habits →</Link></h2>
-            {timers.map((t) => (
-              <RunningTimer key={t.habitId} name={t.habitName} elapsedMs={elapsedMs(t.habitId)} onStop={() => stop(t.habitId)} />
-            ))}
-            <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} />
-            <WeeklyGrid habits={habits} heatByName={heatByName} week={weekDays} todayKey={todayKey} />
+          {dailyActions}
+          <section className="card today-practice" id="today-practice">
+            <div className="today-section-heading"><div><p className="today-eyebrow">Keep showing up</p><h2>Make time for practice</h2></div><Link to="/habits">All habits ↗</Link></div>
+            {timers.map(timer => <RunningTimer key={timer.habitId} name={timer.habitName} elapsedMs={elapsedMs(timer.habitId)} onStop={() => onAction(() => stop(timer.habitId), 'Practice stopped and synced.')} />)}
+            <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} busy={busy} />
+            {!quickHabits.length && <p className="muted">Pin your regular practice on the <Link to="/habits">Habits page</Link> for a quick start here.</p>}
+            <details className="today-practice-week"><summary>This week's practice <span>{today.habitsCompletedToday} logged today</span></summary><WeeklyGrid habits={habits} heatById={heatById} week={weekDays} todayKey={todayKey} /><MomentumInner weekPct={weekPct} weekHits={targetHits} weeklyTarget={weeklyTarget} longest={longest} /></details>
           </section>
-
-          <section className="card">
-            <h2>Momentum</h2>
-            <MomentumInner weekPct={weekPct} weekHits={weekHits} heat={heat} longest={longest} />
-          </section>
+          <Collapsible title={<>Choose what comes next <span className="today-count">{overdue.filter(task => task.plannedFor !== todayKey).length + upcoming.length}</span></>} storageKey="today.other-tasks.v2">
+            <p className="muted">Bring a task into today when you have room for it.</p>
+            <TasksInner overdue={overdue.filter(task => task.plannedFor !== todayKey)} upcoming={upcoming} busy={busy} onAction={onAction} />
+            <Link to="/tasks" className="today-inline-link">Open all tasks ↗</Link>
+          </Collapsible>
+          <ReviewNudge review={review} />
         </div>
 
-        {/* RIGHT — Plan */}
-        <div className="stack">
-          <section className="card">
-            <h2>Calendar today</h2>
-            <CalendarInner schedule={schedule} />
-          </section>
-
-          <section className="card">
-            <h2>Today's schedule <Link to="/schedule" className="back">full →</Link></h2>
+        <aside className="today-context" id="today-context" aria-label="Your day at a glance">
+          <div className="today-context-heading"><span className="today-eyebrow">Around your plan</span><Link to="/schedule">Schedule ↗</Link></div>
+          <NowNext today={today} now={now} blocksDone={blocksDone} blocksTotal={blocksTotal} />
+          <section className="card today-agenda">
+            <div className="today-section-heading"><h2>On the horizon</h2><span className="today-count">{schedule.events.length} appointments</span></div>
             <ScheduleInner past={past} rest={rest} now={now} showPast={showPast} setShowPast={setShowPast} />
+            <Link to="/schedule" className="today-inline-link">See your full week ↗</Link>
           </section>
-
-          <section className="card">
-            <h2>Tasks due soon <Link to="/tasks" className="back">all →</Link></h2>
-            <TasksInner overdue={overdue} upcoming={upcoming} />
-          </section>
-        </div>
+          <HealthCompact today={today} hasHealth={hasHealth} />
+          <Link to="/nutrition" className="today-nutrition-link"><span className="today-shortcut-icon" aria-hidden>＋</span><div><strong>Log a meal</strong><span>A quick check-in with your day.</span></div><span aria-hidden>↗</span></Link>
+        </aside>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -263,10 +244,10 @@ function NowNext({ today, now, blocksDone, blocksTotal }: { today: Today; now: n
         <div className="nn-k next">Next{today.next ? ` · ${fmtMinutes(today.next.startMinutes)}` : ''}</div>
         {today.next
           ? <><div className="nn-act dim">{today.next.activity}</div><div className="nn-meta">in {fmtDur(today.next.startMinutes - now)}</div></>
-          : <><div className="nn-act dim">Day complete</div><div className="nn-meta">no more blocks today</div></>}
+          : <><div className="nn-act dim">Open time</div><div className="nn-meta">nothing else scheduled today</div></>}
       </div>
       <div className="nn-cell nn-right">
-        <div className="nn-meta"><b style={{ color: 'var(--text)' }}>{blocksDone} of {blocksTotal}</b> blocks done</div>
+        <div className="nn-meta"><b style={{ color: 'var(--text)' }}>{blocksDone} of {blocksTotal}</b> scheduled blocks elapsed</div>
         <div className="prog"><i style={{ width: `${blocksTotal ? (blocksDone / blocksTotal) * 100 : 0}%` }} /></div>
         {today.tomorrowFirst && <div className="nn-tom">Tomorrow · <b>{fmtMinutes(today.tomorrowFirst.startMinutes)}</b> {today.tomorrowFirst.activity}</div>}
       </div>
@@ -297,7 +278,7 @@ function AttentionStrip({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id
   )
 }
 
-// The dashboard's link into the full weekly review (there's no nav tab for it).
+// Keep the weekly review near the daily plan, with its latest recommendation.
 // Shows the latest review's top recommendation when there is one, otherwise a
 // plain prompt — but always renders so the page is reachable.
 function ReviewNudge({ review }: { review: WeeklyReview | null }) {
@@ -317,9 +298,9 @@ function ReviewNudge({ review }: { review: WeeklyReview | null }) {
 function HTilesRow({ today }: { today: Today }) {
   return (
     <div className="htiles">
-      <HTile name="Sleep" main={today.lastSleepScore != null ? `${today.lastSleepScore}` : '—'} sub={`/ ${today.sleepAvg14 ?? 70}`} spark={today.sleepSpark} goal={70} color="#4fb0c6" />
-      <HTile name="Resting HR" main={today.restingHr != null ? `${today.restingHr}` : '—'} sub="≈ 55" spark={today.rhrSpark} baseline={55} color="#e0697a" />
-      <HTile name="Steps" main={today.stepsToday.toLocaleString()} sub="/ 8k" spark={today.stepsSpark} goal={8000} color="#d8a24f" />
+      <HTile name="Sleep" main={today.lastSleepScore != null ? `${today.lastSleepScore}` : '—'} sub={today.sleepAvg14 != null ? `14-day avg ${today.sleepAvg14}` : 'No recent average'} spark={today.sleepSpark} goal={today.settings?.sleepScoreTarget ?? 70} color="#4fb0c6" />
+      <HTile name="Resting HR" main={today.restingHr != null ? `${today.restingHr}` : '—'} sub={`baseline ${today.settings?.restingHrBaseline ?? 55}`} spark={today.rhrSpark} baseline={today.settings?.restingHrBaseline ?? 55} color="#e0697a" />
+      <HTile name="Steps" main={today.stepsToday?.toLocaleString() ?? '—'} sub={today.stepsToday == null ? 'No reading for today' : `/ ${(today.settings?.stepsTarget ?? 8000).toLocaleString()}`} spark={today.stepsSpark} goal={today.settings?.stepsTarget ?? 8000} color="#d8a24f" />
     </div>
   )
 }
@@ -337,66 +318,18 @@ function EnergyRow({ value }: { value: number | null }) {
   )
 }
 
-function ReadinessGauge({ today, hasHealth, size }: { today: Today; hasHealth: boolean; size: number }) {
-  if (!hasHealth) {
-    return (
-      <div className="gauge-wrap gauge-empty" style={{ width: size, height: size }}>
-        <div className="gauge-lab"><b>—</b><span>Connect Garmin</span></div>
-      </div>
-    )
-  }
-  return (
-    <div className="gauge-wrap">
-      <Ring value={today.readiness} size={size} color={readyColor(today.readiness)} />
-      <div className="gauge-lab"><b>{today.readiness}</b><span>{today.readinessLabel}</span></div>
-    </div>
-  )
-}
-
-function HealthCluster({ today, hasHealth }: { today: Today; hasHealth: boolean }) {
-  return (
-    <div className="cluster health">
-      <div className="cl-label">Health <Link to="/health">full page →</Link></div>
-      <div className="health-row">
-        <ReadinessGauge today={today} hasHealth={hasHealth} size={92} />
-        <HTilesRow today={today} />
-      </div>
-      <EnergyRow value={today.bodyBattery} />
-    </div>
-  )
-}
-
-function ProductivityCluster({ daily, dailyDone, openDaily, today, weekPct, overdue }: {
-  daily: DailyTodo[]; dailyDone: number; openDaily: DailyTodo[]; today: Today; weekPct: number; overdue: Todo[]
-}) {
-  return (
-    <div className="cluster">
-      <div className="cl-label">Productivity</div>
-      <div className="prod-cards">
-        <div className="pcard"><div className="pc-name">To-do today</div><div className="pc-val">{dailyDone}/{daily.length}</div><div className="pc-sub muted">{openDaily.length} left</div></div>
-        <Link to="/habits" className="pcard"><div className="pc-name">Habits today</div><div className="pc-val">{today.habitsCompletedToday}/{today.habitsTotal}</div><div className="pc-sub muted">{weekPct}% this week</div></Link>
-        <Link to="/tasks" className={overdue.length ? 'pcard alert' : 'pcard'}>
-          <div className="pc-name" style={overdue.length ? { color: 'var(--bad)' } : undefined}>Tasks overdue</div>
-          <div className="pc-val" style={overdue.length ? { color: 'var(--bad)' } : undefined}>{overdue.length}</div>
-          <div className="pc-sub muted">of {today.todosDueToday + today.todosOverdue} due</div>
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-// Mobile compact health: ring + two key numbers, expands to the real charts.
+// Compact context: show the essentials, expand for measurements and freshness.
 function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean }) {
   const [open, toggle] = usePersistentToggle('today.health', false)
   return (
     <section className="card health-compact">
       <button type="button" className="collapse-head" aria-expanded={open} onClick={toggle}>
         <span className="hc-glance">
-          {hasHealth && <Ring value={today.readiness} size={54} color={readyColor(today.readiness)} />}
+          {today.readiness != null && <Ring value={today.readiness} size={54} color={readyColor(today.readiness ?? 0)} />}
           <span className="hc-nums">
             <span className="hc-num">
-              <b style={{ color: hasHealth ? readyColor(today.readiness) : 'var(--text-dim)' }}>{hasHealth ? today.readiness : '—'}</b>
-              <span>{hasHealth ? today.readinessLabel : 'Connect Garmin'}</span>
+              <b style={{ color: hasHealth ? readyColor(today.readiness ?? 0) : 'var(--text-dim)' }}>{hasHealth ? today.readiness : '—'}</b>
+              <span>{hasHealth ? today.readinessLabel : 'No recent readiness'}</span>
             </span>
             <span className="hc-num"><b>{today.lastSleepScore ?? '—'}</b><span>Sleep</span></span>
             <span className="hc-num"><b>{today.restingHr ?? '—'}</b><span>Rest HR</span></span>
@@ -405,9 +338,13 @@ function HealthCompact({ today, hasHealth }: { today: Today; hasHealth: boolean 
         <span className="collapse-caret" aria-hidden>{open ? '▾' : '▸'}</span>
       </button>
       <div className="hc-foot"><Link to="/health">Full page →</Link></div>
-      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow value={today.bodyBattery} /></div>}
+      {open && <div className="collapse-body"><HTilesRow today={today} /><EnergyRow value={today.bodyBattery} /><ReadinessFreshness today={today} /></div>}
     </section>
   )
+}
+
+function ReadinessFreshness({ today }: { today: Today }) {
+  return <p className="planning-note health-freshness">{today.readinessComponents.map(component => `${component.label}: ${component.status === 'missing' ? 'not recorded' : `${component.status}${component.recordedAt ? ` · ${new Date(component.recordedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}` : ''}`}`).join(' · ')}</p>
 }
 
 // Live pill for the timer running right now: name + ticking elapsed + stop & log.
@@ -417,21 +354,21 @@ function RunningTimer({ name, elapsedMs, onStop }: { name: string; elapsedMs: nu
       <span className="ql-timer-dot" aria-hidden />
       <span className="ql-timer-name">{name}</span>
       <span className="ql-timer-time">{fmtElapsed(elapsedMs)}</span>
-      <button className="btn btn-sm" onClick={onStop}>Stop &amp; log</button>
+      <button className="btn btn-sm" onClick={onStop} aria-label={`Stop and log ${name}`}>Stop &amp; log</button>
     </div>
   )
 }
 
-function SkillChips({ habits, onSkill, runningIds }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[] }) {
+function SkillChips({ habits, onSkill, runningIds, busy }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[]; busy: boolean }) {
   return (
     <div className="skill-grid">
       {habits.map((h, idx) => {
         const color = habitColor(h.name, idx)
         const running = runningIds?.includes(h.id) ?? false
         return (
-          <button key={h.id} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
+          <button key={h.id} disabled={busy} aria-label={`${running ? 'Stop' : h.tracksTime ? 'Start' : h.doneToday ? 'Uncheck' : 'Complete'} ${h.name}`} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
             <span className="skill-name">{h.name}<span className="skill-check">{running ? '●' : h.doneToday ? '✓' : ''}</span></span>
-            {running && <span className="skill-meta">timing…</span>}
+            <span className="skill-meta">{running ? 'Stop timer' : h.tracksTime ? 'Start a session' : h.doneToday ? 'Completed today' : 'Mark done'}</span>
           </button>
         )
       })}
@@ -439,58 +376,32 @@ function SkillChips({ habits, onSkill, runningIds }: { habits: Habit[]; onSkill:
   )
 }
 
-function WeeklyGrid({ habits, heatByName, week, todayKey }: {
-  habits: Habit[]; heatByName: Map<string, Set<string>>; week: Date[]; todayKey: string
+function WeeklyGrid({ habits, heatById, week, todayKey }: {
+  habits: Habit[]; heatById: Map<number, Set<string>>; week: Date[]; todayKey: string
 }) {
   return (
     <div className="wgrid">
       <div />{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className="wg-head">{d}</div>)}
       {habits.map((h, idx) => {
-        const done = heatByName.get(h.name) ?? new Set<string>()
+        const done = heatById.get(h.id) ?? new Set<string>()
         const color = habitColor(h.name, idx)
         return [
           <div key={`${h.id}n`} className="wg-name">{h.name}</div>,
-          ...week.map((d) => { const k = keyOf(d); const hit = done.has(k); return <div key={`${h.id}${k}`} className={`wg-dot ${hit ? 'hit' : 'miss'} ${k === todayKey ? 'today' : ''}`} style={hit ? { background: color } : undefined} /> }),
+          ...week.map((d) => { const k = keyOf(d); const hit = done.has(k); return <div key={`${h.id}${k}`} className={`wg-dot ${hit ? 'hit' : 'miss'} ${k === todayKey ? 'today' : ''}`} style={hit ? { background: color } : undefined} title={`${h.name}: ${d.toLocaleDateString('en-IE')} ${hit ? 'completed' : k > todayKey ? 'upcoming' : 'not logged'}`} /> }),
         ]
       })}
     </div>
   )
 }
 
-function MomentumInner({ weekPct, weekHits, heat, longest }: {
-  weekPct: number; weekHits: number; heat: HabitHeatmap[]; longest?: { name: string; streak: number }
+function MomentumInner({ weekPct, weekHits, weeklyTarget, longest }: {
+  weekPct: number; weekHits: number; weeklyTarget: number; longest?: { name: string; streak: number; weekly: boolean }
 }) {
   return (
     <div className="mom">
-      <div><div className="mom-big" style={{ color: 'var(--good)' }}>{weekPct}%</div><div className="mom-lab">This week</div><div className="mom-sub">{weekHits}/{heat.length * 7} sessions</div></div>
-      {longest && <div><div className="mom-big">{longest.streak}d</div><div className="mom-lab">Longest streak</div><div className="mom-sub">{longest.name}</div></div>}
+      <div><div className="mom-big" style={{ color: 'var(--good)' }}>{weekPct}%</div><div className="mom-lab">Last 7 days</div><div className="mom-sub">{weekHits}/{weeklyTarget} planned practice days</div></div>
+      {longest && <div><div className="mom-big">{longest.streak}{longest.weekly ? 'w' : 'd'}</div><div className="mom-lab">Longest current streak</div><div className="mom-sub">{longest.name}</div></div>}
     </div>
-  )
-}
-
-function CalendarInner({ schedule }: { schedule: ScheduleToday }) {
-  return (
-    <ul className="list">
-      {schedule.events.length === 0 && <li className="muted">No events</li>}
-      {schedule.events.map((e) => (
-        <li key={e.id}><span>{e.title}</span><span className="muted">{fmtMinutes(toMinutes(e.startsAt))}–{fmtMinutes(toMinutes(e.endsAt))}</span></li>
-      ))}
-    </ul>
-  )
-}
-
-function NextAppointment({ events, now }: { events: CalendarEvent[]; now: number }) {
-  const next = events.filter((e) => toMinutes(e.endsAt) > now).slice(0, 2)
-  if (next.length === 0) return null
-  return (
-    <section className="card">
-      <h2>Next appointment</h2>
-      <ul className="list">
-        {next.map((e) => (
-          <li key={e.id}><span>{e.title}</span><span className="muted">{fmtMinutes(toMinutes(e.startsAt))}–{fmtMinutes(toMinutes(e.endsAt))}</span></li>
-        ))}
-      </ul>
-    </section>
   )
 }
 
@@ -500,7 +411,7 @@ function ScheduleInner({ past, rest, now, showPast, setShowPast }: {
   return (
     <ul className="timeline">
       {past.length > 0 && (
-        <li><button className="earlier" onClick={() => setShowPast(!showPast)}>{showPast ? '▾' : '▸'} Earlier today · {past.length} done</button></li>
+        <li><button className="earlier" onClick={() => setShowPast(!showPast)}>{showPast ? '▾' : '▸'} Earlier today · {past.length} elapsed</button></li>
       )}
       {showPast && past.map((r) => <TLRow key={tlKey(r)} row={r} dim />)}
       <li className="now-line"><span className="now-label">now {fmtMinutes(now)}</span><span className="now-bar" /></li>
@@ -509,36 +420,39 @@ function ScheduleInner({ past, rest, now, showPast, setShowPast }: {
   )
 }
 
-function TasksInner({ overdue, upcoming }: { overdue: Todo[]; upcoming: Todo[] }) {
-  return (
-    <>
-      {overdue.length > 0 && <div className="tgroup over">Overdue · {overdue.length}</div>}
-      {overdue.map((t) => <div key={t.id} className="task over"><span>{t.title}</span><span className="muted" style={{ color: 'var(--bad)' }}>{t.dueAt && new Date(t.dueAt).toLocaleDateString('en-IE')}</span></div>)}
-      {upcoming.length > 0 && <div className="tgroup">Upcoming</div>}
-      {upcoming.map((t) => <div key={t.id} className="task"><span>{t.title}</span><span className="muted">{t.dueAt && new Date(t.dueAt).toLocaleDateString('en-IE')}</span></div>)}
-      {overdue.length === 0 && upcoming.length === 0 && <p className="muted">Nothing due.</p>}
-    </>
-  )
+function TasksInner({ overdue, upcoming, busy, onAction }: { overdue: Todo[]; upcoming: Todo[]; busy: boolean; onAction: PlanningAction }) {
+  return <>
+    {overdue.length > 0 && <div className="tgroup over">Overdue · {overdue.length}</div>}
+    {[...overdue, ...upcoming].map(t => <div key={t.id} className="planning-item">
+      <div className="planning-copy">{t.title}<small>{t.dueAt ? `Due ${new Date(`${t.dueAt.slice(0, 10)}T12:00:00`).toLocaleDateString('en-IE')}` : 'No due date'}{t.plannedFor && t.plannedFor < dateKey() ? ` · planned ${t.plannedFor}` : ''}</small></div>
+      <TaskPlanActions task={t} busy={busy} onAction={onAction} showComplete />
+    </div>)}
+    {overdue.length === 0 && upcoming.length === 0 && <p className="muted">Nothing else due.</p>}
+  </>
 }
 
-function TodoListItems({ daily, toggleDaily, removeDaily, onReorder }: {
+function TodoListItems({ daily, toggleDaily, removeDaily, onReorder, onAction, busy }: {
   daily: DailyTodo[]; toggleDaily: (id: number) => void; removeDaily: (id: number) => void
-  onReorder: (ids: number[]) => void
+  onReorder: (ids: number[]) => void; onAction: PlanningAction; busy: boolean
 }) {
-  if (daily.length === 0) return <ul className="list"><li className="muted">Nothing yet — add your first.</li></ul>
+  const open = daily.filter(item => !item.done)
+  const complete = daily.filter(item => item.done)
   return (
     <div className="list">
-      <Reorderable items={daily} getId={(d) => d.id} onReorder={onReorder}
+      {!open.length && <p className="today-empty">{complete.length ? 'A little more breathing room. Everything on this checklist is done.' : 'A call to make, an idea to follow up, a small thing to finish. Add it above.'}</p>}
+      <Reorderable items={open} getId={(d) => d.id} onReorder={ids => onReorder([...ids, ...complete.map(item => item.id)])}
         renderRow={(d, handle) => (
           <div className="todo daily-row">
-            <DragGrip {...handle} />
+            {!busy && <DragGrip {...handle} />}
             <label className="daily-check">
-              <input type="checkbox" checked={d.done} onChange={() => toggleDaily(d.id)} />
-              <span className={d.done ? 'done' : ''}>{d.title}</span>
+              <input type="checkbox" disabled={busy} checked={d.done} onChange={() => toggleDaily(d.id)} />
+              <span>{d.title}</span>
             </label>
-            <button className="icon-btn danger" onClick={() => removeDaily(d.id)} title="Remove">✕</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => onAction(() => dailyPlanning.carry(d.id, nextDateKey()), 'Moved to tomorrow.')}>Tomorrow</button>
+            <button className="icon-btn danger" disabled={busy} onClick={() => removeDaily(d.id)} aria-label={`Remove ${d.title}`} title="Remove">✕</button>
           </div>
         )} />
+      {complete.length > 0 && <details className="today-completed"><summary>Completed today <span>{complete.length}</span></summary>{complete.map(item => <div className="todo daily-row" key={item.id}><label className="daily-check"><input type="checkbox" disabled={busy} checked onChange={() => toggleDaily(item.id)} /><span className="done">{item.title}</span></label><button className="icon-btn danger" disabled={busy} onClick={() => removeDaily(item.id)} aria-label={`Remove ${item.title}`}>✕</button></div>)}</details>}
     </div>
   )
 }
@@ -556,7 +470,7 @@ function TLRow({ row, dim, current }: { row: TimelineRow; dim?: boolean; current
         <span className="tl-dot cal" />
         <span className="tl-body">
           <span className="tl-event">▶ {e.title}</span>
-          <span className="tl-notes">{fmtMinutes(row.start)}–{fmtMinutes(row.end)} · calendar</span>
+          <span className="tl-notes">{eventTime(e)} · calendar</span>
         </span>
       </li>
     )

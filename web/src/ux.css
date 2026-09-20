@@ -1,0 +1,84 @@
+/* Readable controls and consistent navigation, retaining the obsidian/crimson theme. */
+:focus-visible { outline: 2px solid var(--watch); outline-offset: 4px; }
+.btn:hover { background: var(--crimson-deep); color: #f6efe4; }
+.btn:focus-visible { outline: 2px solid var(--watch); outline-offset: 4px; box-shadow: none; }
+#main-content:focus { outline: none; }
+.skip-link { position: fixed; left: 1rem; top: -5rem; z-index: 100; background: var(--bg-2); border: 1px solid var(--watch); padding: .65rem 1rem; }
+.skip-link:focus { top: .5rem; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+.route-loading { border: 1px solid var(--line); padding: 2rem; border-radius: .6rem; color: var(--text-dim); }
+.stat-label, .hero-label, .mc-label, .sec-label, .glance-tag, .sheet-label, .field label { font-size: .875rem; letter-spacing: 0; text-transform: none; }
+.badge, .now-label, .nextup-label { font-size: .7rem; }
+.nn-k, .cl-label, .ht-name, .pc-name, .mom-lab, .rn-tag { font-size: .76rem; letter-spacing: .09em; }
+.nn-k, .rn-tag { color: #d97c98; }
+.nn-meta, .nn-tom, .ht-val small, .pc-sub, .mom-sub { font-size: .9rem; }
+.framing { color: #b6afa2; font-size: 1rem; }
+.panel { background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.ux-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.ux-actions { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+.ux-status { min-height: 1.5em; color: var(--good); margin: .25rem 0; }
+.ux-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.progress-form label, .progress-comparison label, .cadence-form label { display: flex; flex-direction: column; gap: .35rem; font-size: 1rem; }
+.progress-form input, .progress-form select, .progress-form textarea, .progress-comparison select, .cadence-form input, .cadence-form select { width: 100%; min-height: 44px; color: var(--text); background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 5px; padding: .55rem .7rem; font: inherit; }
+.progress-form textarea { resize: vertical; }
+.progress-form > label { margin-bottom: .85rem; }
+.skill-progress { margin-bottom: 2.5rem; }
+.skill-progress .section-head { align-items: center; flex-wrap: wrap; gap: 1rem; }
+.skill-progress .section-head h2, .skill-progress h3 { margin: 0 0 .3rem; }
+.skill-progress > .card { margin-top: 1rem; }
+.skill-progress .progress-form h3 { margin-bottom: 1rem; }
+.rubric { padding: .75rem 1rem; border-left: 2px solid var(--crimson); background: var(--bg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.skill-radar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1.5rem; margin: 1rem 0; }
+.skill-radar svg { width: min(100%, 360px); height: auto; font: 15px var(--font-head); }
+.skill-radar figcaption { display: flex; flex-direction: column; gap: .6rem; max-width: 270px; }
+.ux-table-scroll { overflow-x: auto; }
+.progress-table { width: 100%; border-collapse: collapse; font-size: 1rem; text-align: left; }
+.progress-table caption { text-align: left; font-size: 1.1rem; margin: .5rem 0; }
+.progress-table th, .progress-table td { padding: .85rem .7rem; border-bottom: 1px solid var(--line-strong); vertical-align: top; min-width: 120px; }
+.progress-table th { font-weight: 500; }
+.progress-table .muted { display: block; }
+.progress-table td a, .progress-table td details { display: block; font-size: .95rem; margin-top: .3rem; }
+.progress-table td:first-of-type { color: #db849e; }
+.progress-table td:nth-of-type(2) { color: var(--good); }
+.progress-history summary, .habit-cadence summary { cursor: pointer; padding: .35rem 0; }
+.benchmark-history { padding: 1rem 0; border-top: 1px solid var(--line-strong); }
+.assessment-history-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-top: 1px solid var(--line); }
+.assessment-history-row p { margin: .3rem 0; }
+.evidence-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 70ch; }
+.ux-checkbox { display: flex; align-items: center; gap: .6rem; padding: 1rem 0; }
+.ux-checkbox input { width: 20px; height: 20px; }
+.habit-cadence { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: .75rem 0 1rem; padding: .7rem 0; }
+.cadence-progress { margin: .1rem 0 .5rem; font-size: 1rem; }
+.habit-cadence progress { width: min(100%, 300px); height: 8px; accent-color: var(--habit); display: block; margin-bottom: .5rem; }
+.cadence-form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .8rem; padding: .65rem 0; }
+.cadence-form > p { width: 100%; margin: 0; }
+.cadence-form label { max-width: 260px; }
+@media (max-width: 768px) {
+  .app { padding-left: .9rem; padding-right: .9rem; }
+  .btn, .track-toggle, .icon-btn { min-height: 44px; }
+  .skill-progress .section-head { align-items: stretch; }
+  .ux-filter { width: 100%; }
+  .progress-form .btn { width: 100%; }
+  .assessment-history-row { flex-direction: column; }
+}
+
+/* Everyday content uses clear type; the page title and brand carry the gothic identity. */
+h1 { font-family: var(--font-editorial); font-size: clamp(1.8rem, 2.6vw, 2.4rem); letter-spacing: -.035em; line-height: 1.2; }
+h2, .section-title, .sec-label { font-family: var(--font-body); font-size: 1.0625rem; font-weight: 650; text-transform: none; letter-spacing: -.015em; color: var(--text); }
+h3 { font-family: var(--font-body); font-weight: 600; letter-spacing: -.015em; }
+.subtitle { font-style: normal; font-size: .9375rem; line-height: 1.6; margin-top: .4rem; }
+.card { border-color: var(--line-strong); border-radius: 12px; }
+.btn, .track-toggle, .link-btn, .back, .seg button { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .875rem; line-height: 1.4; }
+.btn { min-height: 42px; font-weight: 550; border-radius: 7px; }
+.btn-sm { min-height: 38px; }
+.back { text-decoration: underline; text-underline-offset: 4px; }
+.field label, .gf-field > span, .gf-label, .macro-label, .micro-label, .mf-macros label, .garmin-days { font-size: .875rem; letter-spacing: 0; text-transform: none; }
+.badge, .pill, .ch-pill, .pri, .pace-pill, .src-badge, .rv-prio, .lowconf { font-size: .75rem; letter-spacing: 0; text-transform: none; }
+.kpi-name, .v-name, .conn-mode, .legend, .ins-group h3, .day-col h3, .tgroup { font-size: .875rem; letter-spacing: 0; text-transform: none; }
+.dashboard-shell .planning-actions .btn, .dashboard-shell .planning-date, .dashboard-shell .planning-copy small { font-size: .875rem; }
+.dashboard-shell .planning-note, .dashboard-shell .health-freshness { font-size: .875rem; line-height: 1.6; }
+.goal-meta, .goal-target-date, .ch-meta, .skill-meta, .entry-date { font-size: .875rem; }
+.dashboard-shell input, .dashboard-shell select, .dashboard-shell textarea { font-family: var(--font-body); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

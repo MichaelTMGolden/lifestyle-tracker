@@ -17,19 +17,18 @@ export function ChallengesSection() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [error, setError] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
-  const [celebrating, setCelebrating] = useState<Challenge | null>(null)
+  const [celebrated, setCelebrated] = useState(loadCelebrated)
 
-  const load = () => api.challenges().then(setChallenges).catch((e) => setError(String(e)))
+  const load = () => api.challenges().then(data => { setChallenges(data); setError(null) }).catch((e) => setError(String(e)))
   useEffect(() => { load() }, [])
 
   // Fire the celebration once when a challenge first reads complete.
-  useEffect(() => {
-    if (celebrating) return
-    const done = loadCelebrated()
-    const fresh = challenges.find((c) => c.isComplete && !done.includes(c.id))
-    if (fresh) setCelebrating(fresh)
-  }, [challenges, celebrating])
-  const dismissCelebration = () => { if (celebrating) markCelebrated(celebrating.id); setCelebrating(null) }
+  const celebrating = challenges.find(c => c.isComplete && !celebrated.includes(c.id)) ?? null
+  const dismissCelebration = () => {
+    if (!celebrating) return
+    markCelebrated(celebrating.id)
+    setCelebrated(ids => [...ids, celebrating.id])
+  }
 
   // Mutations return the recomputed challenge — splice it back in (optimistic-ish).
   const replace = (c: Challenge) => setChallenges((cs) => cs.map((x) => (x.id === c.id ? c : x)))
@@ -43,12 +42,11 @@ export function ChallengesSection() {
   async function increment(id: number, body: { amount?: number; label?: string }) { replace(await api.incrementChallenge(id, body)) }
   async function removeEntry(entryId: number) { replace(await api.deleteChallengeEntry(entryId)) }
 
-  if (error) return <p className="error">Couldn't load challenges ({error}).</p>
-
   const active = challenges.filter((c) => !c.archived)
 
   return (
     <section className="challenges-section">
+      {error && <p className="error" role="alert">Couldn't refresh challenges ({error}). <button className="btn btn-ghost" onClick={load}>Retry</button></p>}
       <div className="section-head">
         <h3 className="section-title">Challenges</h3>
         {!showNew && <button className="btn btn-ghost" onClick={() => setShowNew(true)}>+ New challenge</button>}

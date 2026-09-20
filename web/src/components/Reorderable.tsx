@@ -1,102 +1,134 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
-// Props to spread onto whatever element should act as the drag grip. Dragging
-// only starts from the handle, so checkboxes / buttons in the row keep working.
 export interface DragHandleProps {
   onPointerDown: (e: React.PointerEvent) => void
+  onKeyDown: (e: React.KeyboardEvent) => void
   style: CSSProperties
   className: string
   'aria-label': string
+  title: string
 }
 
-/**
- * A small dependency-free sortable list driven by Pointer Events, so it works
- * with both mouse and touch (native HTML5 drag does not fire on touch). While a
- * drag is in progress we reorder a local working copy live; on release we hand
- * the parent the new id order to persist. `touch-action: none` on the handle
- * stops the page scrolling mid-drag.
- */
+/** Pointer dragging and arrow-key reordering share the same persistence callback. */
 export function Reorderable<T>({ items, getId, onReorder, renderRow }: {
   items: T[]
   getId: (t: T) => number
   onReorder: (orderedIds: number[]) => void
   renderRow: (item: T, handle: DragHandleProps, dragging: boolean) => ReactNode
 }) {
-  // `work` is non-null only during a drag — otherwise we render straight from props.
   const [work, setWork] = useState<T[] | null>(null)
   const [dragId, setDragId] = useState<number | null>(null)
+  const [announcement, setAnnouncement] = useState('')
   const rows = useRef(new Map<number, HTMLElement>())
-  const workRef = useRef<T[]>(items)
-
+  const latestItems = useRef(items)
+  const cleanup = useRef<(() => void) | null>(null)
+  useEffect(() => { latestItems.current = items }, [items])
+  useEffect(() => () => { cleanup.current?.() }, [])
   const display = work ?? items
 
-  function startDrag(id: number, e: React.PointerEvent) {
-    e.preventDefault()
-    workRef.current = [...items]
-    setWork(workRef.current)
-    setDragId(id)
+  function keyboardMove(id: number, event: React.KeyboardEvent) {
+    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key) || dragId !== null) return
+    event.preventDefault()
+    const from = items.findIndex(item => getId(item) === id)
+    if (from < 0) return
+    const to = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : Math.max(0, Math.min(items.length - 1, from + (event.key === 'ArrowUp' ? -1 : 1)))
+    if (from === to) return
+    const next = [...items]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onReorder(next.map(getId))
+    setAnnouncement(`Moved item to position ${to + 1} of ${items.length}.`)
+  }
 
+  function startDrag(id: number, event: React.PointerEvent) {
+    if (event.button !== 0 || !event.isPrimary) return
+    event.preventDefault()
+    cleanup.current?.()
+    const initial = [...items]
+    const pointerId = event.pointerId
+    let working = initial
+    setWork(initial)
+    setDragId(id)
     const move = (ev: PointerEvent) => {
-      const cur = workRef.current
-      const dragged = cur.find((t) => getId(t) === id)
+      if (ev.pointerId !== pointerId) return
+      const current = working
+      const dragged = current.find(item => getId(item) === id)
       if (!dragged) return
-      const others = cur.filter((t) => getId(t) !== id)
-      let to = others.length
-      for (let i = 0; i < others.length; i++) {
-        const el = rows.current.get(getId(others[i]))
-        if (!el) continue
-        const r = el.getBoundingClientRect()
-        if (ev.clientY < r.top + r.height / 2) { to = i; break }
+      const others = current.filter(item => getId(item) !== id)
+      let destination = others.length
+      for (let index = 0; index < others.length; index++) {
+        const element = rows.current.get(getId(others[index]))
+        if (!element) continue
+        const rect = element.getBoundingClientRect()
+        if (ev.clientY < rect.top + rect.height / 2) { destination = index; break }
       }
       const next = [...others]
-      next.splice(to, 0, dragged)
-      if (next.some((t, i) => getId(t) !== getId(cur[i]))) {
-        workRef.current = next
+      next.splice(destination, 0, dragged)
+      if (next.some((item, index) => getId(item) !== getId(current[index]))) {
+        working = next
         setWork(next)
       }
     }
-    const up = () => {
+    const removeListeners = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
-      const ordered = workRef.current.map(getId)
-      setWork(null)
-      setDragId(null)
-      // Only persist if the order actually changed.
-      if (ordered.some((x, i) => x !== getId(items[i]))) onReorder(ordered)
+      window.removeEventListener('pointercancel', pointerCancel)
+      window.removeEventListener('blur', cancel)
+      window.removeEventListener('keydown', escape)
+      cleanup.current = null
     }
+    const cancel = () => { removeListeners(); setWork(null); setDragId(null); setAnnouncement('Reordering cancelled.') }
+    const pointerCancel = (ev: PointerEvent) => { if (ev.pointerId === pointerId) cancel() }
+    const escape = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.preventDefault(); cancel() } }
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return
+      removeListeners()
+      const currentIds = latestItems.current.map(getId)
+      const currentSet = new Set(currentIds)
+      const ordered = working.map(getId).filter(itemId => currentSet.has(itemId))
+      // A background refresh may add or remove rows while a pointer is held.
+      const orderedSet = new Set(ordered)
+      ordered.push(...currentIds.filter(itemId => !orderedSet.has(itemId)))
+      setWork(null); setDragId(null)
+      if (ordered.some((itemId, index) => itemId !== currentIds[index])) {
+        onReorder(ordered)
+        setAnnouncement(`Moved item to position ${ordered.indexOf(id) + 1} of ${ordered.length}.`)
+      }
+    }
+    cleanup.current = removeListeners
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', pointerCancel)
+    window.addEventListener('blur', cancel)
+    window.addEventListener('keydown', escape)
   }
 
-  // Safety net: drop listeners if unmounted mid-drag.
-  useEffect(() => () => { setWork(null); setDragId(null) }, [])
-
-  return (
-    <>
-      {display.map((item) => {
-        const id = getId(item)
-        const handle: DragHandleProps = {
-          onPointerDown: (e) => startDrag(id, e),
-          style: { touchAction: 'none', cursor: 'grab' },
-          className: 'drag-handle',
-          'aria-label': 'Drag to reorder',
-        }
-        return (
-          <div
-            key={id}
-            ref={(el) => { if (el) rows.current.set(id, el); else rows.current.delete(id) }}
-            className={dragId === id ? 'reorder-row dragging' : 'reorder-row'}
-          >
-            {renderRow(item, handle, dragId === id)}
-          </div>
-        )
-      })}
-    </>
-  )
+  return <>
+    <span className="ux-sr-only" role="status" aria-live="polite">{announcement}</span>
+    {display.map((item, index) => <ReorderableRow key={getId(item)} id={getId(item)} item={item} index={index} count={display.length} dragging={dragId === getId(item)}
+      onStart={startDrag} onKeyMove={keyboardMove} renderRow={renderRow}
+      register={(id, element) => { if (element) rows.current.set(id, element); else rows.current.delete(id) }} />)}
+  </>
 }
 
-/** The default grip glyph — spread the handle props onto it. A <button> (not a
- * <span>) so generic `.todo span` layout rules never treat it as content. */
+function ReorderableRow<T>({ id, item, index, count, dragging, onStart, onKeyMove, renderRow, register }: {
+  id: number; item: T; index: number; count: number; dragging: boolean
+  onStart: (id: number, event: React.PointerEvent) => void
+  onKeyMove: (id: number, event: React.KeyboardEvent) => void
+  register: (id: number, element: HTMLDivElement | null) => void
+  renderRow: (item: T, handle: DragHandleProps, dragging: boolean) => ReactNode
+}) {
+  const handle: DragHandleProps = {
+    onPointerDown: event => onStart(id, event),
+    onKeyDown: event => onKeyMove(id, event),
+    style: { touchAction: 'none', cursor: 'grab' },
+    className: 'drag-handle',
+    'aria-label': `Reorder item ${index + 1} of ${count}. Use up and down arrow keys, or drag.`,
+    title: 'Drag or use arrow keys to reorder',
+  }
+  return <div ref={element => register(id, element)} className={dragging ? 'reorder-row dragging' : 'reorder-row'}>{renderRow(item, handle, dragging)}</div>
+}
+
 export function DragGrip(props: DragHandleProps) {
   return <button type="button" {...props}>⠿</button>
 }

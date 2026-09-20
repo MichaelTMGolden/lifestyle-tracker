@@ -8,6 +8,7 @@ using PersonalDashboard.Api.Alerts;
 using PersonalDashboard.Api.Challenges;
 using PersonalDashboard.Api.Garmin;
 using PersonalDashboard.Api.Goals;
+using PersonalDashboard.Api.Health;
 using PersonalDashboard.Api.Integrations;
 using PersonalDashboard.Api.Nutrition;
 using PersonalDashboard.Api.Reviews;
@@ -50,16 +51,6 @@ public record FoodEntryInput(
     double Calories, double ProteinG, double CarbsG, double FatG,
     double FiberG = 0, double SugarG = 0, double SatFatG = 0,
     double SodiumMg = 0, double PotassiumMg = 0, double CalciumMg = 0, double IronMg = 0);
-
-/// <summary>
-/// Daily macro targets. Constant for now — the obvious place to make these
-/// user-editable later (a settings row or a Goal-style record).
-/// </summary>
-public static class NutritionTargets
-{
-    public const double ProteinG = 150;
-    public const double Calories = 2200;
-}
 
 public static class ApiEndpoints
 {
@@ -136,8 +127,6 @@ public static class ApiEndpoints
     private const string ArtistSourceName = "Spotify for Artists (manual)";
     private static readonly string[] ArtistKpiKeys =
         { "artist_monthly_listeners", "artist_followers", "artist_streams_total" };
-    private static readonly Dictionary<string, double?> ArtistKpiTargets = new()
-        { ["artist_monthly_listeners"] = 1000 };
 
     private static async Task<DataSource> GetOrCreateSourceAsync(AppDbContext db, SourceKind kind, string name)
     {
@@ -437,6 +426,7 @@ public static class ApiEndpoints
     public static void MapApiEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api");
+        api.MapDailyPlanningEndpoints();
 
         // --- Dashboard summary: one call the frontend can render a homepage from ---
         api.MapGet("/summary", async (AppDbContext db) =>
@@ -503,29 +493,16 @@ public static class ApiEndpoints
                 .ToListAsync());
 
         // --- Per-night sleep breakdown for a stacked-bar chart ---
-        api.MapGet("/sleep", async (AppDbContext db, int days = 30) =>
+        api.MapGet("/sleep", async (AppDbContext db, HttpRequest req, int days = 30) =>
         {
-            var since = DateTimeOffset.UtcNow.AddDays(-days);
-            var rows = await db.MetricSamples
-                .Where(m => m.RecordedAt >= since && new[]
-                    { "sleep_deep_min", "sleep_light_min", "sleep_rem_min", "sleep_awake_min", "sleep_score" }
-                    .Contains(m.MetricKey))
-                .Select(m => new { m.MetricKey, m.RecordedAt, m.Value })
+            // Sleep summaries are stored under their source calendar date in UTC.
+            var today = ClientClock.From(req).Today;
+            var end = new DateTimeOffset(today.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var since = end.AddDays(-Math.Clamp(days, 1, 3650));
+            var rows = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
+                .Where(m => m.RecordedAt >= since && m.RecordedAt < end && SleepAggregation.Keys.Contains(m.MetricKey))
                 .ToListAsync();
-
-            return rows
-                .GroupBy(r => DateOnly.FromDateTime(r.RecordedAt.UtcDateTime))
-                .OrderBy(g => g.Key)
-                .Select(g => new
-                {
-                    date = g.Key,
-                    deep = g.Where(x => x.MetricKey == "sleep_deep_min").Sum(x => x.Value),
-                    light = g.Where(x => x.MetricKey == "sleep_light_min").Sum(x => x.Value),
-                    rem = g.Where(x => x.MetricKey == "sleep_rem_min").Sum(x => x.Value),
-                    awake = g.Where(x => x.MetricKey == "sleep_awake_min").Sum(x => x.Value),
-                    score = g.Where(x => x.MetricKey == "sleep_score").Select(x => (double?)x.Value).FirstOrDefault(),
-                })
-                .ToList();
+            return Results.Ok(SleepAggregation.Build(rows));
         });
 
         // --- Metrics: time series for charting ---
@@ -535,7 +512,11 @@ public static class ApiEndpoints
             var data = await db.MetricSamples
                 .Where(m => m.MetricKey == key && m.RecordedAt >= since)
                 .OrderBy(m => m.RecordedAt)
-                .Select(m => new { m.RecordedAt, m.Value, m.Unit })
+                .Select(m => new { m.RecordedAt, m.Value, m.Unit,
+                    sourceName = m.DataSource!.Name, sourceKind = m.DataSource.Kind,
+                    isDerived = m.DataSource.Name.Contains("(sample)") ||
+                        (m.DataSource.Name.Contains("(imported)") &&
+                         (m.MetricKey == "sleep_score" || m.MetricKey == "stress_avg" || m.MetricKey == "resting_hr")) })
                 .ToListAsync();
             return Results.Ok(data);
         });
@@ -703,26 +684,31 @@ public static class ApiEndpoints
             var todayOnly = clock.Today;
             var nowMinutes = clock.NowMinutes;
 
-            async Task<double> SumTodayAsync(string key) =>
-                await db.MetricSamples
-                    .Where(m => m.MetricKey == key && m.RecordedAt >= todayStart && m.RecordedAt < todayEnd)
-                    .SumAsync(m => (double?)m.Value) ?? 0;
+            // Daily health and nutrition samples carry their source's calendar date.
+            // Multiple syncs/sources replace a day's snapshot; they must not add up.
+            var metricEnd = new DateTimeOffset(todayOnly.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var metricStart = metricEnd.AddDays(-14);
+            var summaryKeys = new[] { "steps", "calories_in", "sleep_score", "resting_hr", "body_battery" };
+            var summaryRows = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
+                .Where(m => summaryKeys.Contains(m.MetricKey) && m.RecordedAt >= metricStart && m.RecordedAt < metricEnd)
+                .ToListAsync();
+            var dailyMetrics = DailyMetricAggregation.Select(summaryRows);
+            double? TodayValue(string key) => dailyMetrics
+                .FirstOrDefault(m => m.MetricKey == key && DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) == todayOnly)?.Value;
+            var stepsToday = TodayValue("steps");
+            var caloriesInToday = TodayValue("calories_in");
 
-            var stepsToday = await SumTodayAsync("steps");
-            var caloriesInToday = await SumTodayAsync("calories_in");
+            var settings = await db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync() ?? new DashboardSettings();
+            var readinessSamples = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
+                .Where(m => m.MetricKey == "sleep_score" || m.MetricKey == "resting_hr" || m.MetricKey == "stress_avg")
+                .OrderByDescending(m => m.RecordedAt).Take(1100).ToListAsync();
+            var readinessResult = ReadinessCalculator.Calculate(readinessSamples, clock, settings.RestingHrBaseline);
+            double? FreshValue(string key) => readinessResult.Components.First(c => c.Key == key) is { Status: "fresh" } c ? c.Value : null;
+            var restingHr = FreshValue("resting_hr");
+            var lastSleepScore = FreshValue("sleep_score");
 
-            var restingHr = await db.MetricSamples
-                .Where(m => m.MetricKey == "resting_hr").OrderByDescending(m => m.RecordedAt)
-                .Select(m => (double?)m.Value).FirstOrDefaultAsync();
-
-            // Most recent night's sleep score (quality).
-            var lastSleepScore = await db.MetricSamples
-                .Where(m => m.MetricKey == "sleep_score").OrderByDescending(m => m.RecordedAt)
-                .Select(m => (double?)m.Value).FirstOrDefaultAsync();
-
-            var bodyBattery = await db.MetricSamples
-                .Where(m => m.MetricKey == "body_battery").OrderByDescending(m => m.RecordedAt)
-                .Select(m => (double?)m.Value).FirstOrDefaultAsync();
+            var bodyBattery = dailyMetrics.LastOrDefault(m => m.MetricKey == "body_battery" &&
+                DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) >= todayOnly.AddDays(-1))?.Value;
 
             var habitsTotal = await db.Habits.CountAsync(h => !h.Archived);
             var habitsCompletedToday = await db.HabitLogs.CountAsync(l => l.Date == todayOnly && l.Completed);
@@ -733,49 +719,36 @@ public static class ApiEndpoints
                 t.CompletedAt == null && t.DueAt != null && t.DueAt < todayStart);
 
             // Recent 14-day sparklines + averages for the homepage health summary.
-            async Task<List<double>> SparkAsync(string key) =>
-                (await db.MetricSamples.AsNoTracking()
-                    .Where(m => m.MetricKey == key)
-                    .OrderByDescending(m => m.RecordedAt).Take(14)
-                    .Select(m => m.Value).ToListAsync())
-                .AsEnumerable().Reverse().ToList();
-
-            var sleepSpark = await SparkAsync("sleep_score");
-            var rhrSpark = await SparkAsync("resting_hr");
-            var stepsSpark = await SparkAsync("steps");
+            List<double> Spark(string key) => dailyMetrics.Where(m => m.MetricKey == key).Select(m => m.Value).ToList();
+            var sleepSpark = Spark("sleep_score");
+            var rhrSpark = Spark("resting_hr");
+            var stepsSpark = Spark("steps");
             var sleepAvg14 = sleepSpark.Count > 0 ? Math.Round(sleepSpark.Average()) : (double?)null;
-            var stressRecent = await db.MetricSamples.AsNoTracking()
-                .Where(m => m.MetricKey == "stress_avg").OrderByDescending(m => m.RecordedAt).Take(7)
-                .Select(m => (double?)m.Value).ToListAsync();
-            var stressAvg = stressRecent.Count > 0 ? stressRecent.Average(v => v ?? 0) : 50;
-
-            // Composite readiness from the signals we have (mirrors the Health page).
-            var sleepComp = lastSleepScore ?? 60;
-            var rhrComp = Math.Clamp(100 - ((restingHr ?? 55) - 55) * 8, 0, 100);
-            var stressComp = Math.Clamp(100 - stressAvg, 0, 100);
-            var readiness = (int)Math.Round(0.45 * sleepComp + 0.25 * rhrComp + 0.30 * stressComp);
-            var readinessLabel = readiness >= 80 ? "Primed" : readiness >= 65 ? "Steady"
-                : readiness >= 45 ? "Strained" : "Depleted";
+            var readiness = readinessResult.Score;
+            var readinessLabel = readinessResult.Label;
 
             // Next-up from the schedule (current block if now is inside one, else the next).
             var dow = clock.DayOfWeek;
+            await EnsureScheduleCurrentAsync(db, todayOnly);
             var todays = await db.ScheduleBlocks.AsNoTracking().Where(b => b.Day == dow)
                 .OrderBy(b => b.StartMinutes).ToListAsync();
-            var current = todays.LastOrDefault(b => b.StartMinutes <= nowMinutes &&
-                nowMinutes < b.StartMinutes + (b.DurationMinutes ?? 0));
-            var next = todays.FirstOrDefault(b => b.StartMinutes > nowMinutes);
+            var appointments = await db.CalendarEvents.AsNoTracking()
+                .Where(e => e.StartsAt < todayEnd.AddDays(1) && e.EndsAt > todayStart).ToListAsync();
+            var agenda = DayAgenda.Build(todays, appointments, todayStart);
+            var current = DayAgenda.Current(agenda, nowMinutes);
+            var next = agenda.FirstOrDefault(b => b.StartMinutes > nowMinutes);
 
             // Tomorrow's first block (for the evening wind-down preview).
             var tomorrowDow = (DayOfWeek)(((int)dow + 1) % 7);
-            var tomorrowFirst = await db.ScheduleBlocks.AsNoTracking()
+            var tomorrowBlocks = await db.ScheduleBlocks.AsNoTracking()
                 .Where(b => b.Day == tomorrowDow).OrderBy(b => b.StartMinutes)
-                .Select(b => new { b.Activity, b.StartMinutes })
-                .FirstOrDefaultAsync();
+                .ToListAsync();
+            var tomorrowFirst = DayAgenda.Build(tomorrowBlocks, appointments, todayEnd).FirstOrDefault();
 
             return Results.Ok(new
             {
-                stepsToday = (long)stepsToday,
-                caloriesInToday = (long)caloriesInToday,
+                stepsToday = stepsToday.HasValue ? Math.Round(stepsToday.Value) : (double?)null,
+                caloriesInToday = caloriesInToday.HasValue ? Math.Round(caloriesInToday.Value) : (double?)null,
                 restingHr,
                 bodyBattery = bodyBattery.HasValue ? Math.Round(bodyBattery.Value) : (double?)null,
                 lastSleepScore = lastSleepScore.HasValue ? Math.Round(lastSleepScore.Value) : (double?)null,
@@ -785,6 +758,8 @@ public static class ApiEndpoints
                 stepsSpark,
                 readiness,
                 readinessLabel,
+                readinessComponents = readinessResult.Components,
+                settings,
                 habitsCompletedToday,
                 habitsTotal,
                 todosDueToday,
@@ -932,6 +907,7 @@ public static class ApiEndpoints
         // and an optional target. Trend charts themselves reuse /metrics/{key}.
         api.MapGet("/artist/summary", async (AppDbContext db) =>
         {
+            var settings = await db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync() ?? new DashboardSettings();
             var rows = await db.MetricSamples.AsNoTracking()
                 .Where(m => ArtistKpiKeys.Contains(m.MetricKey))
                 .OrderBy(m => m.RecordedAt)
@@ -949,7 +925,11 @@ public static class ApiEndpoints
                     asOf = last?.RecordedAt,
                     previous = prev?.Value,
                     change = last is not null && prev is not null ? (double?)(last.Value - prev.Value) : null,
-                    target = ArtistKpiTargets.GetValueOrDefault(k),
+                    target = (k switch {
+                        "artist_monthly_listeners" => settings.ArtistMonthlyListenersTarget,
+                        "artist_followers" => settings.ArtistFollowersTarget,
+                        _ => settings.ArtistTotalStreamsTarget,
+                    }) is var target && target > 0 ? (double?)target : null,
                 };
             }).ToList();
         });
@@ -987,7 +967,7 @@ public static class ApiEndpoints
                 {
                     h.Id,
                     h.Name,
-                    h.Cadence,
+                    h.Cadence, h.TargetPerPeriod,
                     h.TracksTime,
                     h.ShowInQuickActions,
                     last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
@@ -1003,7 +983,7 @@ public static class ApiEndpoints
             {
                 h.Id,
                 h.Name,
-                h.Cadence,
+                h.Cadence, h.TargetPerPeriod,
                 h.TracksTime,
                 h.ShowInQuickActions,
                 h.last30Completed,
@@ -1011,7 +991,7 @@ public static class ApiEndpoints
                 h.minutesToday,
                 h.totalMinutes,
                 h.totalCompletions,
-                currentStreak = CurrentStreak(h.completedDates, today),
+                currentStreak = HabitCadencePolicy.Streak(h.completedDates, today, h.Cadence, h.TargetPerPeriod),
             });
         });
 
@@ -1027,6 +1007,7 @@ public static class ApiEndpoints
                     h.Id,
                     h.Name,
                     h.TracksTime,
+                    h.Cadence, h.TargetPerPeriod,
                     // presence = "on"; minutes drives intensity shading for timed skills
                     days = h.Logs.Where(l => l.Date >= since && l.Completed)
                         .Select(l => new { l.Date, l.Minutes })
@@ -1485,6 +1466,11 @@ public static class ApiEndpoints
         });
 
         // --- Weekly review (LLM synthesis over the deterministic digest) ---
+        api.MapGet("/reviews/digest", async (AppDbContext db, HttpRequest req) =>
+        {
+            var clock = ClientClock.From(req);
+            return Results.Ok(await WeeklyDigestService.BuildAsync(db, WeekStartOf(clock.Today), clock.Today));
+        });
         // Refresh alerts first so the digest reflects current conditions, then build + synthesise.
         api.MapPost("/review/generate", async (ReviewGenerateInput? body, AppDbContext db, ReviewSynthesisService reviews, AlertService alerts, HttpRequest req) =>
         {
@@ -1568,9 +1554,14 @@ public static class ApiEndpoints
 
         api.MapPost("/todos", async (TodoItem input, AppDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(input.Title)) return Results.BadRequest(new { error = "A title is required." });
             input.Id = 0;
+            input.Title = input.Title.Trim();
             input.CreatedAt = DateTimeOffset.UtcNow;
             input.CompletedAt = null;
+            // Daily planning must go through the validated three-priority endpoint.
+            input.PlannedFor = null;
+            input.IsPriority = false;
             // New tasks land at the bottom of the manual order.
             input.SortOrder = (await db.TodoItems.MaxAsync(t => (int?)t.SortOrder) ?? 0) + 1;
             db.TodoItems.Add(input);
@@ -1591,18 +1582,24 @@ public static class ApiEndpoints
 
         api.MapPost("/todos/{id:long}/toggle", async (long id, AppDbContext db) =>
         {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            if (db.Database.IsNpgsql())
+                await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71520901)");
             var todo = await db.TodoItems.FindAsync(id);
             if (todo is null) return Results.NotFound();
             todo.CompletedAt = todo.CompletedAt is null ? DateTimeOffset.UtcNow : null;
+            todo.IsPriority = false;
             await db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Results.Ok(todo);
         });
 
         api.MapPut("/todos/{id:long}", async (long id, TodoItem input, AppDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(input.Title)) return Results.BadRequest(new { error = "A title is required." });
             var todo = await db.TodoItems.FindAsync(id);
             if (todo is null) return Results.NotFound();
-            todo.Title = input.Title;
+            todo.Title = input.Title.Trim();
             todo.Notes = input.Notes;
             todo.Priority = input.Priority;
             todo.DueAt = input.DueAt;
@@ -1619,9 +1616,8 @@ public static class ApiEndpoints
             return Results.NoContent();
         });
 
-        // --- Daily to-dos (today only, not long-term) ---
+        // --- Daily to-dos (date-scoped, retained until explicitly removed) ---
         // Pure read — no side effects (StrictMode/Promise.all/retries call this).
-        // Prior-day cleanup runs at startup (Program.cs) and on create instead.
         api.MapGet("/daily-todos", async (AppDbContext db, HttpRequest req) =>
         {
             var today = ClientClock.From(req).Today;
@@ -1636,14 +1632,13 @@ public static class ApiEndpoints
         api.MapPost("/daily-todos", async (DailyTodo input, AppDbContext db, HttpRequest req) =>
         {
             var today = ClientClock.From(req).Today;
-            // Daily to-dos aren't kept long-term — purge previous days on create.
-            await db.DailyTodos.Where(t => t.Date < today).ExecuteDeleteAsync();
+            if (string.IsNullOrWhiteSpace(input.Title)) return Results.BadRequest(new { error = "A title is required." });
             // Default to today; allow planning ahead (tomorrow). Never backdate.
             var date = input.Date >= today ? input.Date : today;
             var item = new DailyTodo
             {
                 Date = date,
-                Title = input.Title,
+                Title = input.Title.Trim(),
                 CreatedAt = DateTimeOffset.UtcNow,
                 // New items land at the bottom of that day's manual order.
                 SortOrder = (await db.DailyTodos.Where(t => t.Date == date).MaxAsync(t => (int?)t.SortOrder) ?? 0) + 1,
@@ -1818,6 +1813,17 @@ public static class ApiEndpoints
         {
             var clock = ClientClock.From(req);
             var d = date is not null && DateOnly.TryParse(date, out var pd) ? pd : clock.Today;
+            var settings = await db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync() ?? new DashboardSettings();
+            // These are daily samples keyed by the source's calendar date (Garmin stamps noon UTC).
+            var dayStart = new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var activeCandidates = await db.MetricSamples.AsNoTracking()
+                .Where(m => m.MetricKey == "active_calories" && m.RecordedAt >= dayStart && m.RecordedAt < dayStart.AddDays(1))
+                .Select(m => new { m.Id, m.RecordedAt, m.Value, SourceName = m.DataSource!.Name }).ToListAsync();
+            var activeCalories = activeCandidates
+                .Where(m => double.IsFinite(m.Value) && m.Value >= 0 &&
+                    !(m.SourceName ?? "").Contains("(sample)", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(m => m.RecordedAt).ThenByDescending(m => m.Id)
+                .Select(m => (double?)m.Value).FirstOrDefault();
             var entries = await db.FoodEntries.AsNoTracking()
                 .Where(e => e.Date == d)
                 .OrderBy(e => e.Meal).ThenBy(e => e.LoggedAt)
@@ -1833,6 +1839,7 @@ public static class ApiEndpoints
             return Results.Ok(new
             {
                 date = d.ToString("yyyy-MM-dd"),
+                activeCalories,
                 entries,
                 totals = new
                 {
@@ -1848,7 +1855,8 @@ public static class ApiEndpoints
                     calciumMg = Math.Round(entries.Sum(e => e.CalciumMg)),
                     ironMg = Math.Round(entries.Sum(e => e.IronMg), 1),
                 },
-                targets = new { proteinG = NutritionTargets.ProteinG, calories = NutritionTargets.Calories },
+                targets = new { proteinG = settings.ProteinGTarget, calories = settings.CaloriesTarget,
+                    carbsG = settings.CarbsGTarget, fatG = settings.FatGTarget, restingCaloriesEstimate = settings.RestingCaloriesEstimate },
             });
         });
 

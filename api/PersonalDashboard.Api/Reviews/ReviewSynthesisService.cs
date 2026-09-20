@@ -74,12 +74,26 @@ public class ReviewSynthesisService
         {
             var parsed = JsonSerializer.Deserialize<ReviewOutput>(ExtractJson(raw), Json)
                 ?? throw new JsonException("empty");
+            var digest = JsonSerializer.Deserialize<WeeklyDigest>(digestJson, Json) ?? throw new JsonException("missing digest");
+            if (!ReferencesAreValid(parsed, digest))
+                return ("Failed", JsonSerializer.Serialize(new { error = "The generated review could not be linked to your recorded facts. Your weekly summary is still available; try generating again." }), null);
             return ("Generated", JsonSerializer.Serialize(parsed, Json), parsed.Narrative);
         }
         catch
         {
             return ("Failed", JsonSerializer.Serialize(new { error = "Couldn't parse the model's output as JSON.", raw = Truncate(raw, 1500) }), null);
         }
+    }
+
+    public static bool ReferencesAreValid(ReviewOutput output, WeeklyDigest digest)
+    {
+        var ids = digest.Goals.Select(x => x.Id).Concat(digest.Skills.Select(x => x.Id))
+            .Concat(digest.Health.Select(x => x.Id)).Concat(digest.Alerts.Select(x => x.Id))
+            .Append(digest.Nutrition.Id).Append(digest.Tasks.Id).ToHashSet();
+        return (output.Wins ?? new()).Concat(output.Misses ?? new()).All(f =>
+                   !string.IsNullOrWhiteSpace(f.Text) && ids.Contains(f.FactId)) &&
+               (output.Recommendations ?? new()).All(r => !string.IsNullOrWhiteSpace(r.Text) &&
+                   r.RelatedFactIds is { Count: > 0 } && r.RelatedFactIds.All(ids.Contains));
     }
 
     private async Task<string?> CallAnthropicAsync(string digestJson, string? prevOutputJson, CancellationToken ct)

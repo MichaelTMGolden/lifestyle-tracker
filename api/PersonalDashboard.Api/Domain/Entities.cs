@@ -360,8 +360,8 @@ public class FoodEntry : IFoodMacros
 
 /// <summary>
 /// A lightweight to-do for a single day. Unlike <see cref="TodoItem"/> (long-term
-/// "tasks"), these are filled fresh each day and not kept long-term — older ones
-/// are purged. This is what the dashboard previews.
+/// "tasks"), these belong to a specific day. Older entries remain available for
+/// explicit carry-forward, promotion to Tasks, or removal.
 /// </summary>
 public class DailyTodo
 {
@@ -458,8 +458,51 @@ public class TodoItem
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? DueAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+    public DateOnly? PlannedFor { get; set; }
+    public bool IsPriority { get; set; }
     /// <summary>Manual drag-to-reorder position among open tasks (ascending). Ties break on Priority then DueAt.</summary>
     public int SortOrder { get; set; }
+}
+
+/// <summary>Personal targets shared by summaries, logging and reviews.</summary>
+public class DashboardSettings
+{
+    public int Id { get; set; } = 1;
+    public int CaloriesTarget { get; set; } = 2200;
+    public int ProteinGTarget { get; set; } = 150;
+    public int CarbsGTarget { get; set; } = 250;
+    public int FatGTarget { get; set; } = 70;
+    public int StepsTarget { get; set; } = 8000;
+    public int SleepMinutesTarget { get; set; } = 480;
+    public int SleepScoreTarget { get; set; } = 70;
+    public int RestingHrBaseline { get; set; } = 55;
+    public int RestingCaloriesEstimate { get; set; } = 1700;
+    public int ArtistMonthlyListenersTarget { get; set; } = 1000;
+    public int ArtistFollowersTarget { get; set; }
+    public int ArtistTotalStreamsTarget { get; set; }
+}
+
+/// <summary>A stable, user-defined assessment rubric for a tracked skill.</summary>
+public class SkillBenchmark
+{
+    public int Id { get; set; }
+    public int HabitId { get; set; }
+    public Habit? Habit { get; set; }
+    public required string Name { get; set; }
+    public required string Rubric { get; set; }
+    public bool Archived { get; set; }
+    public List<SkillAssessment> Assessments { get; set; } = new();
+}
+
+public class SkillAssessment
+{
+    public long Id { get; set; }
+    public int SkillBenchmarkId { get; set; }
+    public SkillBenchmark? SkillBenchmark { get; set; }
+    public DateOnly AssessedOn { get; set; }
+    public double Score { get; set; }
+    public string? EvidenceUrl { get; set; }
+    public string? Notes { get; set; }
 }
 
 /// <summary>

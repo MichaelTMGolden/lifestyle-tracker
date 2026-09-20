@@ -81,4 +81,64 @@ public class WeeklyDigestServiceTests
         Assert.Empty(digest.Skills);
         Assert.Equal(0, digest.Tasks.CompletedThisWeek);
     }
+
+    [Fact]
+    public async Task Daily_snapshots_are_deduplicated_and_synthetic_history_is_not_evidence()
+    {
+        using var db = NewDb();
+        var observed = new DataSource { Name = "Garmin", Kind = SourceKind.Garmin };
+        var sample = new DataSource { Name = "Garmin (sample)", Kind = SourceKind.Garmin };
+        var imported = new DataSource { Name = "Garmin (imported)", Kind = SourceKind.Garmin };
+        db.DataSources.AddRange(observed, sample, imported);
+        await db.SaveChangesAsync();
+        void Add(DataSource source, string key, DateOnly date, double value, int hour) => db.MetricSamples.Add(
+            new MetricSample { DataSourceId = source.Id, MetricKey = key, RecordedAt = At(date, hour), Value = value });
+
+        for (var day = 0; day < 7; day++)
+        {
+            var date = WeekStart.AddDays(day);
+            Add(observed, "calories_in", date, 1000, 8);
+            Add(observed, "calories_in", date, 1800 + day * 20, 12);
+            Add(sample, "calories_in", date, 9900, 20);
+            Add(observed, "protein_g", date, 50, 8);
+            Add(observed, "protein_g", date, day < 4 ? 160 : 120, 12);
+            Add(sample, "protein_g", date, 500, 20);
+            Add(observed, "resting_hr", date, 70, 8);
+            Add(observed, "resting_hr", date, 50 + day, 12);
+            Add(imported, "resting_hr", date, 88, 20);
+            Add(imported, "stress_avg", date, 30, 12);
+        }
+        Add(observed, "resting_hr", WeekStart.AddDays(-1), 60, 12);
+        await db.SaveChangesAsync();
+
+        var digest = await WeeklyDigestService.BuildAsync(db, WeekStart, WeekStart.AddDays(7));
+        Assert.Equal(7, digest.Nutrition.DaysLogged);
+        Assert.Equal(4, digest.Nutrition.ProteinDaysOnTarget);
+        Assert.Equal(1860, digest.Nutrition.AvgCalories);
+        Assert.Equal(143, digest.Nutrition.AvgProtein);
+        var heartRate = Assert.Single(digest.Health, metric => metric.Key == "resting_hr");
+        Assert.Equal(53, heartRate.AvgThisWeek);
+        Assert.Equal(60, heartRate.AvgLastWeek);
+        Assert.Equal(-7, heartRate.Delta);
+        Assert.DoesNotContain(digest.Health, metric => metric.Key == "stress_avg");
+    }
+
+    [Fact]
+    public async Task A_week_with_only_sample_data_has_no_measured_health_or_nutrition()
+    {
+        using var db = NewDb();
+        var source = new DataSource { Name = "Garmin (sample)", Kind = SourceKind.Garmin };
+        db.DataSources.Add(source);
+        await db.SaveChangesAsync();
+        db.MetricSamples.AddRange(new[] { "steps", "calories_in", "protein_g" }.Select(key =>
+            new MetricSample { DataSourceId = source.Id, MetricKey = key, RecordedAt = At(WeekStart), Value = 200 }));
+        await db.SaveChangesAsync();
+
+        var digest = await WeeklyDigestService.BuildAsync(db, WeekStart, Today);
+        Assert.Empty(digest.Health);
+        Assert.Null(digest.Nutrition.AvgCalories);
+        Assert.Null(digest.Nutrition.AvgProtein);
+        Assert.Equal(0, digest.Nutrition.DaysLogged);
+        Assert.Equal(0, digest.Nutrition.ProteinDaysOnTarget);
+    }
 }

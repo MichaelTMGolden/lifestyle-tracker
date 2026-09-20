@@ -1,21 +1,6 @@
 import { useState, type MouseEvent } from 'react'
 import { fmtDay } from './lib'
-
-// ---- shared stats ----
-export const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0)
-export const std = (a: number[]) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))) }
-export const round = (v: number, d = 0) => { const p = 10 ** d; return Math.round(v * p) / p }
-export function pearson(xs: number[], ys: number[]) {
-  const n = xs.length; if (n < 3) return 0
-  const mx = mean(xs), my = mean(ys)
-  let nu = 0, dx = 0, dy = 0
-  for (let i = 0; i < n; i++) { const a = xs[i] - mx, b = ys[i] - my; nu += a * b; dx += a * a; dy += b * b }
-  const d = Math.sqrt(dx * dy); return d ? nu / d : 0
-}
-export const movingAvg = (a: number[], w: number) =>
-  a.map((_, i) => mean(a.slice(Math.max(0, i - w + 1), i + 1)))
-
-export const STATUS = { good: '#7faf93', watch: '#d8a24f', off: '#c45a68' } as const
+import { mean, round, sampleX, seriesSegments, STATUS } from './chartMath'
 const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 // ---- Ring (readiness) ----
@@ -35,26 +20,25 @@ export function Spark({ data, color, goal, baseline, h = 42, fill = true }: {
   data: (number | null)[]; color: string; goal?: number; baseline?: number; h?: number; fill?: boolean
 }) {
   const w = 150
-  const vals = data.filter((v): v is number => v != null)
+  const segments = seriesSegments(data)
+  const vals = segments.flat().map(point => point.v)
   if (!vals.length) return <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%' }} />
   let lo = Math.min(...vals, goal ?? Infinity, baseline ?? Infinity)
   let hi = Math.max(...vals, goal ?? -Infinity, baseline ?? -Infinity)
   if (lo === hi) { lo -= 1; hi += 1 }
   const n = data.length, pad = 3
-  const X = (i: number) => pad + (i / (n - 1)) * (w - 2 * pad)
+  const X = (i: number) => sampleX(i, n, pad, w - 2 * pad)
   const Y = (v: number) => pad + (1 - (v - lo) / (hi - lo)) * (h - 2 * pad)
-  let dpath = '', started = false
-  data.forEach((v, i) => { if (v == null) { started = false; return } dpath += `${started ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)} `; started = true })
-  const first = data.findIndex((v) => v != null)
-  const area = fill && first >= 0
-    ? `M${X(first)},${h - pad} ` + data.map((v, i) => v == null ? '' : `L${X(i).toFixed(1)},${Y(v).toFixed(1)} `).join('') + `L${X(n - 1)},${h - pad} Z`
-    : ''
+  const dpath = segments.map(segment => segment.map((point, index) => `${index ? 'L' : 'M'}${X(point.i).toFixed(1)},${Y(point.v).toFixed(1)}`).join(' ')).join(' ')
+  const area = segments.filter(segment => segment.length > 1).map(segment =>
+    `M${X(segment[0].i)},${h - pad} ` + segment.map(point => `L${X(point.i).toFixed(1)},${Y(point.v).toFixed(1)}`).join(' ') + ` L${X(segment[segment.length - 1].i)},${h - pad} Z`).join(' ')
   return (
     <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%' }} preserveAspectRatio="none">
       {fill && <path d={area} fill={color} opacity=".10" />}
       {goal != null && <line x1={pad} x2={w - pad} y1={Y(goal)} y2={Y(goal)} stroke={STATUS.good} strokeWidth="1" strokeDasharray="3 3" opacity=".7" />}
       {baseline != null && <line x1={pad} x2={w - pad} y1={Y(baseline)} y2={Y(baseline)} stroke={color} strokeWidth="1" strokeDasharray="2 3" opacity=".5" />}
       <path d={dpath} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+      {segments.filter(segment => segment.length === 1).map(([point]) => <circle key={point.i} cx={X(point.i)} cy={Y(point.v)} r={2.5} fill={color}><title>{point.v}</title></circle>)}
     </svg>
   )
 }
@@ -77,22 +61,25 @@ export function AnnotatedLine({ dates, data, color, band, baseline, annotations 
   annotations?: Record<number, Anno>; height?: number; unit?: string
 }) {
   const [tip, setTip] = useState<{ i: number; px: number; py: number } | null>(null)
-  if (data.length === 0 || dates.length === 0) return <EmptyChart height={height} />
+  const series = data.slice(0, dates.length).map((value, i) => value != null && Number.isFinite(value) && Number.isFinite(dates[i].getTime()) ? value : null)
+  const segments = seriesSegments(series)
+  if (!segments.length) return <EmptyChart height={height} />
   const W = 720, H = height, P = { l: 34, r: 14, t: 14, b: 24 }
-  const pts = data.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v != null)
+  const pts = segments.flat()
   const vals = pts.map((p) => p.v)
   let lo = Math.min(...vals, band ? band[0] : Infinity, baseline ?? Infinity)
   let hi = Math.max(...vals, band ? band[1] : -Infinity, baseline ?? -Infinity)
   const pv = (hi - lo) * 0.1 || 1; lo -= pv; hi += pv
-  const X = (i: number) => P.l + (i / (data.length - 1)) * (W - P.l - P.r)
+  const X = (i: number) => sampleX(i, series.length, P.l, W - P.l - P.r)
   const Y = (v: number) => P.t + (1 - (v - lo) / (hi - lo)) * (H - P.t - P.b)
-  const path = pts.map((p, k) => `${k ? 'L' : 'M'}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')
+  const path = segments.map(segment => segment.map((p, k) => `${k ? 'L' : 'M'}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')).join(' ')
+  const activeTip = tip && series[tip.i] != null ? tip : null
   const ticks = 4
   function move(e: MouseEvent<SVGSVGElement>) {
     const r = e.currentTarget.getBoundingClientRect()
     const rx = (e.clientX - r.left) / r.width * W
-    let i = Math.round((rx - P.l) / (W - P.l - P.r) * (data.length - 1))
-    i = clampN(i, 0, data.length - 1); if (data[i] == null) return
+    let i = Math.round((rx - P.l) / (W - P.l - P.r) * (series.length - 1))
+    i = clampN(i, 0, series.length - 1); if (series[i] == null) { setTip(null); return }
     setTip({ i, px: e.clientX - r.left, py: e.clientY - r.top })
   }
   return (
@@ -103,14 +90,15 @@ export function AnnotatedLine({ dates, data, color, band, baseline, annotations 
         {baseline != null && <line x1={P.l} x2={W - P.r} y1={Y(baseline)} y2={Y(baseline)} stroke={color} strokeDasharray="4 4" opacity=".55" />}
         {baseline != null && <text className="axis" x={W - P.r} y={Y(baseline) - 4} textAnchor="end" fill={color} opacity=".8">baseline</text>}
         <path d={path} fill="none" stroke={color} strokeWidth="2" />
-        {Object.keys(annotations).map((k) => { const i = +k; if (data[i] == null) return null; return <g key={k}><line x1={X(i)} x2={X(i)} y1={P.t} y2={H - P.b} stroke="var(--watch,#d8a24f)" strokeDasharray="2 3" opacity=".5" /><circle cx={X(i)} cy={Y(data[i] as number)} r="3.5" fill="var(--watch,#d8a24f)" /></g> })}
-        {tip && <g><line x1={X(tip.i)} x2={X(tip.i)} y1={P.t} y2={H - P.b} stroke="var(--line-strong)" /><circle cx={X(tip.i)} cy={Y(data[tip.i] as number)} r="4" fill={color} /></g>}
-        {[0, Math.floor(data.length / 2), data.length - 1].map((i) => <text key={i} className="axis" x={X(i)} y={H - 8} textAnchor="middle">{fmtDay(dates[i].toISOString())}</text>)}
+        {segments.filter(segment => segment.length === 1).map(([point]) => <circle key={point.i} cx={X(point.i)} cy={Y(point.v)} r={3.5} fill={color}><title>{fmtDay(dates[point.i].toISOString())}: {point.v}{unit}</title></circle>)}
+        {Object.keys(annotations).map((k) => { const i = +k; if (series[i] == null) return null; return <g key={k}><line x1={X(i)} x2={X(i)} y1={P.t} y2={H - P.b} stroke="var(--watch,#d8a24f)" strokeDasharray="2 3" opacity=".5" /><circle cx={X(i)} cy={Y(series[i] as number)} r="3.5" fill="var(--watch,#d8a24f)" /></g> })}
+        {activeTip && <g><line x1={X(activeTip.i)} x2={X(activeTip.i)} y1={P.t} y2={H - P.b} stroke="var(--line-strong)" /><circle cx={X(activeTip.i)} cy={Y(series[activeTip.i] as number)} r="4" fill={color} /></g>}
+        {[...new Set([0, Math.floor(series.length / 2), series.length - 1])].filter(i => Number.isFinite(dates[i].getTime())).map((i) => <text key={i} className="axis" x={X(i)} y={H - 8} textAnchor="middle">{fmtDay(dates[i].toISOString())}</text>)}
       </svg>
-      {tip && <div className="tip" style={{ left: tip.px, top: tip.py }}>
-        <div className="t-date">{fmtDay(dates[tip.i].toISOString())}</div>
-        <div className="t-row"><b>{round(data[tip.i] as number, 1)}{unit}</b></div>
-        {annotations[tip.i] && <div className="t-anno">⚑ {annotations[tip.i].label}</div>}
+      {activeTip && <div className="tip" style={{ left: activeTip.px, top: activeTip.py }}>
+        <div className="t-date">{fmtDay(dates[activeTip.i].toISOString())}</div>
+        <div className="t-row"><b>{round(series[activeTip.i] as number, 1)}{unit}</b></div>
+        {annotations[activeTip.i] && <div className="t-anno">⚑ {annotations[activeTip.i].label}</div>}
       </div>}
     </div>
   )
@@ -136,7 +124,7 @@ export function StackedBars({ dates, data, keys, colors, height = 200, unit = 'm
         {slice.map((d, i) => { let acc = 0; const x = P.l + i * bw; return <g key={i} onMouseEnter={(e) => { const r = (e.currentTarget.closest('svg') as SVGSVGElement).getBoundingClientRect(); setTip({ i, px: (x + bw / 2) / W * r.width, py: Y(totals[i]) / H * r.height }) }}>
           {keys.map((k, ki) => { const hh = (d[k] / hi) * (H - P.t - P.b); const y = Y(acc + d[k]); acc += d[k]; return <rect key={k} x={x + 0.6} y={y} width={Math.max(0.6, bw - 1.2)} height={hh} fill={colors[ki]} opacity=".88" /> })}
         </g> })}
-        {[0, Math.floor(slice.length / 2), slice.length - 1].map((i) => <text key={i} className="axis" x={P.l + i * bw + bw / 2} y={H - 7} textAnchor="middle">{fmtDay(dslice[i].toISOString())}</text>)}
+        {[...new Set([0, Math.floor(slice.length / 2), slice.length - 1])].map((i) => <text key={i} className="axis" x={P.l + i * bw + bw / 2} y={H - 7} textAnchor="middle">{fmtDay(dslice[i].toISOString())}</text>)}
       </svg>
       {tip && <div className="tip" style={{ left: tip.px, top: tip.py }}>
         <div className="t-date">{fmtDay(dslice[tip.i].toISOString())}</div>

@@ -16,6 +16,8 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true       # redeploy on every push to the connected branch
     envVars:
+      - key: SEED_DUMMY_DATA
+        value: "false"  # keep sample history out of the live dashboard
       - key: ConnectionStrings__Postgres
         fromDatabase:
           name: dashboard-db

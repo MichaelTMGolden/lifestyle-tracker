@@ -1,0 +1,177 @@
+.planning-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; margin: 12px 0; border: 1px solid var(--line-strong); border-radius: 8px; }
+.planning-feedback.error { border-color: var(--bad); }
+.planning-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.planning-actions .btn { min-height: 38px; padding: 7px 10px; font-size: 12px; }
+.planning-item { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--line-strong); }
+.planning-item:first-child { border-top: 0; }
+.planning-copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.planning-copy small { display: block; color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+.planning-focus { margin-bottom: 16px; }
+.planning-focus h2, .planning-carry h2 { display: flex; justify-content: space-between; gap: 12px; }
+.planning-focus h2 span { font: inherit; color: var(--text-dim); }
+.planning-date { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.planning-date input { min-height: 38px; max-width: 165px; }
+.planning-priority { color: var(--watch); }
+.planning-carry { margin-bottom: 16px; }
+.planning-note { margin: 0 0 12px; color: var(--text-dim); font-size: 13px; }
+.digest-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 16px; }
+.digest-stats strong { display: block; font-size: 24px; color: var(--text); }
+.digest-stats span { font-size: 13px; color: var(--text-dim); }
+.review-follow-up { margin-top: 16px; }
+.sheet-close { float: right; }
+.quick-add-dialog { color: var(--text); top: auto; margin: 0; width: 100%; max-width: none; max-height: 85dvh; overflow-y: auto; box-sizing: border-box; }
+.quick-add-dialog:not([open]) { display: none; }
+.quick-add-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+@media (max-width: 640px) {
+  .planning-item { align-items: flex-start; flex-direction: column; }
+  .planning-actions { width: 100%; }
+  .planning-actions .btn { min-height: 44px; }
+}
+
+.health-freshness { margin: 10px 0 0; font-size: 12px; line-height: 1.5; }
+
+/* Task planning: quiet cards, readable controls and a clear distinction between plans and deadlines. */
+.tasks-workspace { max-width: 1120px; margin: 0 auto; }
+.tasks-workspace h2, .tasks-workspace h3, .planning-focus h2 { font-family: inherit; text-transform: none; letter-spacing: normal; }
+.tasks-page-head { align-items: center; }
+.tasks-head-count { display: flex; align-items: baseline; gap: 9px; color: var(--text-dim); font-size: 13px; white-space: nowrap; }
+.tasks-head-count strong { color: var(--text); font-size: 28px; font-weight: 500; }
+.task-capture { margin-bottom: 20px; }
+.task-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.task-section-head h2 { margin: 0; font-size: 17px; }
+.task-section-head .planning-note { margin: 0; }
+.task-capture-main { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(145px, 200px) auto; align-items: end; gap: 12px; }
+.tasks-workspace .field { min-width: 0; }
+.tasks-workspace .field label { display: block; margin: 0 0 7px; font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.tasks-workspace .field input, .tasks-workspace .field select, .tasks-workspace .field textarea { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 14px; min-height: 43px; }
+.tasks-workspace .field textarea { resize: vertical; min-height: 72px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg-1); color: var(--text); padding: 10px 12px; }
+.task-add-button { min-height: 43px; white-space: nowrap; }
+.task-extra-fields { margin-top: 14px; font-size: 13px; }
+.task-extra-fields > summary { color: var(--text-dim); cursor: pointer; padding: 6px 0; width: fit-content; }
+.task-extra-fields[open] > summary { color: var(--text); margin-bottom: 10px; }
+.task-form-details { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.task-notes-field { grid-column: 1 / -1; }
+.task-view-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line-strong); padding-bottom: 14px; }
+.task-view-tab { display: inline-flex; gap: 9px; align-items: center; min-height: 42px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-dim); font: inherit; font-size: 13px; padding: 8px 13px; cursor: pointer; }
+.task-view-tab:hover { background: var(--bg-2); color: var(--text); }
+.task-view-tab.selected { background: var(--bg-2); border-color: var(--line-strong); color: var(--text); }
+.task-view-tab.selected::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--crimson); }
+.task-view-count { border-radius: 5px; font-size: 11px; line-height: 20px; min-width: 20px; text-align: center; background: rgba(255,255,255,.05); }
+.task-view-tab.has-overdue .task-view-count { color: var(--bad); background: rgba(201,75,91,.12); }
+.task-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 0 12px; }
+.task-list-toolbar h2 { font-size: 20px; font-weight: 500; margin: 0 0 7px; }
+.task-result-count { display: inline-block; margin-left: 10px; font-size: 13px; color: var(--text-dim); }
+.task-list-toolbar .planning-note { margin: 0; max-width: 440px; line-height: 1.5; }
+.task-search { flex: 0 1 300px; min-width: 210px; }
+.task-search label { display: block; margin-bottom: 7px; font-size: 12px; color: var(--text-dim); }
+.task-search > div { display: flex; align-items: center; gap: 5px; }
+.task-search input { width: 100%; min-width: 0; min-height: 42px; font-size: 13px; }
+.task-search .btn { padding: 9px; }
+.task-reorder-hint { color: var(--text-dim); font-size: 11px; margin: 2px 0 12px; }
+.task-rows { display: grid; gap: 10px; }
+.task-row { border: 1px solid var(--line-strong); background: var(--bg-1); border-radius: 10px; padding: 16px; min-width: 0; }
+.task-row.is-overdue { border-left: 3px solid var(--bad); }
+.task-row-main { display: flex; gap: 12px; align-items: flex-start; }
+.task-row .drag-handle { flex-shrink: 0; align-self: flex-start; margin: 0 -5px; }
+.task-complete-check { flex: 0 0 19px; width: 19px; height: 19px; margin: 3px 0 0; cursor: pointer; accent-color: var(--good); }
+.task-row-copy { flex: 1; min-width: 0; }
+.task-row-copy h3 { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 500; overflow-wrap: anywhere; }
+.task-row-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 11px; color: var(--text-dim); margin-top: 7px; }
+.task-priority-label { border-radius: 4px; padding: 2px 6px; background: rgba(255,255,255,.045); }
+.task-priority-label.priority-1 { color: var(--watch); }
+.task-overdue-label { color: var(--bad); }
+.task-row-notes { color: var(--text-dim); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; margin: 9px 0 0; }
+.task-row-tools { display: flex; align-items: center; gap: 4px; }
+.task-row-tools .btn { min-height: 34px; padding: 6px 8px; font-size: 12px; }
+.task-row-tools .task-delete { color: var(--text-dim); }
+.task-row-tools .task-delete:hover, .planning-discard:hover { color: var(--bad); }
+.task-row-plan { margin: 12px 0 0 31px; }
+.task-row-plan .planning-actions .btn { min-height: 34px; font-size: 11px; padding: 6px 9px; }
+.task-row.is-complete .task-row-copy h3 { text-decoration: line-through; color: var(--text-dim); }
+.task-edit-row .planning-actions { margin-top: 15px; }
+.task-empty { text-align: center; padding: 32px 20px 38px; border: 1px dashed var(--line-strong); border-radius: 10px; margin: 8px 0 20px; }
+.task-empty-mark { color: var(--text-dim); font-size: 28px; display: block; margin-bottom: 10px; }
+.task-empty h3 { font-size: 16px; font-weight: 500; margin: 0 0 9px; }
+.task-empty p { max-width: 420px; margin: 0 auto 16px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.task-empty .planning-actions { justify-content: center; }
+.task-daily-tomorrow { margin-top: 24px; }
+.task-disclosure { display: flex; justify-content: space-between; align-items: center; gap: 15px; width: 100%; text-align: left; border: 0; padding: 0; color: var(--text); background: none; font: inherit; cursor: pointer; min-height: 42px; }
+.task-disclosure strong { font-size: 14px; font-weight: 500; }
+.task-disclosure small { display: block; color: var(--text-dim); font-size: 12px; margin-top: 5px; }
+.task-disclosure > span:last-child { font-size: 21px; color: var(--text-dim); }
+.task-disclosure-body { margin-top: 18px; }
+.task-completed { border-top: 1px solid var(--line-strong); padding-top: 18px; margin-top: 24px; }
+.task-completed .task-rows { margin-top: 18px; }
+.task-tomorrow-row { gap: 10px; }
+.task-tomorrow-row .planning-actions { width: auto; }
+.task-tomorrow-row .daily-check { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.planning-carry { padding: 16px 18px; }
+.planning-carry-toggle { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--text); text-align: left; background: none; border: 0; font: inherit; padding: 0; cursor: pointer; }
+.planning-carry-count { display: grid; place-items: center; width: 35px; height: 35px; flex: 0 0 35px; border: 1px solid var(--line-strong); border-radius: 8px; font-size: 15px; color: var(--watch); }
+.planning-carry-heading { flex: 1; min-width: 0; }
+.planning-carry-heading strong { font-size: 14px; font-weight: 500; }
+.planning-carry-heading small { display: block; font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 3px; }
+.planning-carry-chevron { font-size: 20px; color: var(--text-dim); }
+.planning-carry-preview { font-size: 11px; color: var(--text-dim); margin: 10px 0 0 47px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.planning-carry-body { margin-top: 14px; }
+.planning-carry-body .planning-item { flex-wrap: wrap; gap: 10px 16px; }
+.planning-carry-body .planning-copy { min-width: 180px; font-size: 13px; }
+.planning-carry-body .planning-actions { gap: 5px; }
+.planning-carry-body .planning-actions .btn { padding: 6px 9px; font-size: 11px; }
+.planning-date { flex-basis: 100%; padding: 12px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--bg-2); }
+.planning-date label { color: var(--text-dim); }
+.focus-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 17px; }
+.planning-focus .focus-heading h2 { margin: 0 0 7px; font-size: 19px; }
+.focus-heading .planning-note { margin: 0; font-size: 12px; }
+.focus-capacity { font-size: 25px; font-weight: 500; white-space: nowrap; }
+.focus-capacity small { font-size: 12px; color: var(--text-dim); margin-left: 3px; }
+.focus-empty { border: 1px dashed var(--line-strong); padding: 17px; color: var(--text-dim); font-size: 13px; border-radius: 7px; line-height: 1.6; }
+.focus-task { border-top: 1px solid var(--line-strong); padding: 14px 0; }
+.focus-task:first-child { border-top: 0; padding-top: 0; }
+.focus-task-main { display: flex; align-items: flex-start; gap: 10px; }
+.focus-complete { display: grid; place-items: center; flex: 0 0 29px; width: 29px; height: 29px; background: transparent; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-dim); cursor: pointer; }
+.focus-complete > span { opacity: .45; }
+.focus-complete:hover { color: var(--good); border-color: var(--good); }
+.focus-complete:hover > span { opacity: 1; }
+.focus-task-title { flex: 1; min-width: 0; font-size: 15px; line-height: 1.5; padding-top: 3px; overflow-wrap: anywhere; }
+.focus-rank { color: var(--text-dim); font-size: 12px; padding-top: 6px; }
+.focus-task > .planning-actions { margin: 9px 0 0 39px; gap: 6px; }
+.focus-task > .planning-actions .btn { font-size: 11px; min-height: 33px; padding: 5px 8px; }
+.focus-picker { margin-top: 12px; }
+.focus-picker > label { display: block; color: var(--text-dim); font-size: 12px; margin-bottom: 8px; }
+.focus-picker > div { display: flex; gap: 8px; }
+.focus-picker select { flex: 1; min-width: 0; width: 0; min-height: 42px; font-size: 13px; text-overflow: ellipsis; }
+.focus-picker .btn { white-space: nowrap; min-height: 42px; }
+.focus-full { font-size: 12px; line-height: 1.6; color: var(--text-dim); margin: 4px 0 0; }
+.focus-other { margin-top: 20px; border-top: 1px solid var(--line-strong); padding-top: 14px; }
+.focus-other > summary { font-size: 12px; cursor: pointer; color: var(--text-dim); padding: 5px 0; }
+.focus-other > summary span { margin-left: 8px; font-size: 11px; }
+.focus-other-task { padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+.focus-other-task > .planning-actions { margin-top: 10px; gap: 6px; }
+.focus-other-task > .planning-actions .btn { font-size: 11px; min-height: 33px; padding: 5px 8px; }
+.focus-all-link { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; font-size: 12px; color: var(--text-dim); }
+@media (max-width: 700px) {
+  .task-capture-main { grid-template-columns: minmax(0, 1fr) auto; }
+  .task-capture-main > .field:first-child { grid-column: 1 / -1; }
+  .task-section-head { display: block; }
+  .task-section-head .planning-note { display: block; margin-top: 6px; font-size: 12px; }
+  .task-list-toolbar { display: block; }
+  .task-search { margin-top: 16px; min-width: 0; }
+  .task-view-tabs { gap: 4px; }
+  .task-view-tab { padding: 8px 10px; font-size: 12px; min-height: 44px; }
+  .task-row { padding: 13px; }
+  .task-row-main { flex-wrap: wrap; gap: 10px; }
+  .task-row-copy { flex-basis: calc(100% - 68px); }
+  .task-row-tools { margin-left: 29px; }
+  .task-row-tools .btn, .task-row-plan .planning-actions .btn { min-height: 40px; }
+  .task-row-plan { margin-left: 0; }
+  .task-tomorrow-row { flex-wrap: wrap; }
+  .task-tomorrow-row > .planning-actions { margin-left: 30px; }
+  .tasks-head-count { display: none; }
+  .planning-carry-body .planning-actions .btn { min-height: 42px; }
+  .focus-task > .planning-actions .btn, .focus-other-task > .planning-actions .btn { min-height: 40px; }
+  .focus-task > .planning-actions { margin-left: 0; }
+  .focus-complete { width: 36px; height: 36px; flex-basis: 36px; }
+  .planning-date input { flex: 1; min-width: 135px; }
+}

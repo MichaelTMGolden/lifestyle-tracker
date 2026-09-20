@@ -41,7 +41,7 @@ export function useNowMinutes(intervalMs = 30_000): number {
  */
 export function usePoll(fn: () => void, intervalMs = 120_000): void {
   const ref = useRef(fn)
-  ref.current = fn
+  useEffect(() => { ref.current = fn }, [fn])
   useEffect(() => {
     const id = setInterval(() => { if (!document.hidden) ref.current() }, intervalMs)
     const onVis = () => { if (!document.hidden) ref.current() }

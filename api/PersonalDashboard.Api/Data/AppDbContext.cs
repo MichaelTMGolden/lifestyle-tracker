@@ -32,6 +32,9 @@ public class AppDbContext : DbContext
     public DbSet<QuickMealItem> QuickMealItems => Set<QuickMealItem>();
     public DbSet<Challenge> Challenges => Set<Challenge>();
     public DbSet<ChallengeEntry> ChallengeEntries => Set<ChallengeEntry>();
+    public DbSet<DashboardSettings> DashboardSettings => Set<DashboardSettings>();
+    public DbSet<SkillBenchmark> SkillBenchmarks => Set<SkillBenchmark>();
+    public DbSet<SkillAssessment> SkillAssessments => Set<SkillAssessment>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -70,6 +73,13 @@ public class AppDbContext : DbContext
             .HasForeignKey(x => x.HabitId).OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<TodoItem>().HasIndex(x => x.DueAt);
+        b.Entity<TodoItem>().HasIndex(x => new { x.PlannedFor, x.IsPriority });
+        b.Entity<DashboardSettings>().Property(x => x.Id).ValueGeneratedNever();
+        b.Entity<SkillBenchmark>().HasOne(x => x.Habit).WithMany()
+            .HasForeignKey(x => x.HabitId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SkillAssessment>().HasOne(x => x.SkillBenchmark).WithMany(x => x.Assessments)
+            .HasForeignKey(x => x.SkillBenchmarkId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SkillAssessment>().HasIndex(x => new { x.SkillBenchmarkId, x.AssessedOn }).IsUnique();
 
         b.Entity<ScheduleBlock>().HasIndex(x => new { x.Day, x.StartMinutes });
         // One override per block per week; cascade so re-importing the schedule clears them.

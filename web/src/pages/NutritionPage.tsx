@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { api, type FoodSearchResult, type FoodEntry, type NutritionDay, type FoodEntryInput, type MicroSet, type MetricPoint, type SavedFood, type QuickMeal, type QuickMealItem } from '../api'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { api, type FoodSearchResult, type FoodEntry, type NutritionDay, type FoodEntryInput, type MicroSet, type SavedFood, type QuickMeal, type QuickMealItem } from '../api'
 import { fmtKcal, fmtMacro, macroSummary, sourceLabel } from '../lib'
 
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'] as const
@@ -44,8 +45,15 @@ const round1 = (n: number) => Math.round(n * 10) / 10
 export default function NutritionPage() {
   const [date, setDate] = useState(todayKey())
   const [day, setDay] = useState<NutritionDay | null>(null)
-  const [activeKcal, setActiveKcal] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const request = useRef(0)
+  const selectedDate = useRef(date)
+  const selectDate = (value: string) => {
+    if (date !== value) { request.current++; setLoading(true) }
+    selectedDate.current = value
+    setDate(value)
+  }
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoodSearchResult[] | null>(null)
@@ -58,30 +66,42 @@ export default function NutritionPage() {
   const [rQuery, setRQuery] = useState('')
   const [quickMeals, setQuickMeals] = useState<QuickMeal[]>([])
 
-  const load = () =>
-    Promise.all([api.nutritionDay(date), api.metric('active_calories', 2).catch(() => [] as MetricPoint[])])
-      .then(([d, active]) => { setDay(d); setActiveKcal(active.length ? active[active.length - 1].value : null) })
-      .catch((e) => setError(String(e)))
+  const load = async () => {
+    // An add/edit started on an older date must not replace the current day's log.
+    if (selectedDate.current !== date) return
+    const id = ++request.current
+    setLoading(true)
+    try { const data = await api.nutritionDay(date); if (id === request.current) { setDay(data); setError(null) } }
+    catch (e) { if (id === request.current) setError(e instanceof Error ? e.message : String(e)) }
+    finally { if (id === request.current) setLoading(false) }
+  }
   const reloadRemembered = () => api.rememberedFoods(rTab, rQuery.trim() || undefined).then(setRemembered).catch(() => {})
   const reloadQuick = () => api.quickMeals().then(setQuickMeals).catch(() => {})
   const afterChange = async () => { await load(); reloadRemembered(); reloadQuick() }
 
-  useEffect(() => { load() }, [date]) // eslint-disable-line
+  useEffect(() => {
+    const id = ++request.current
+    let cancelled = false
+    api.nutritionDay(date).then(data => { if (!cancelled && id === request.current) { setDay(data); setError(null) } })
+      .catch(e => { if (!cancelled && id === request.current) setError(e instanceof Error ? e.message : String(e)) })
+      .finally(() => { if (!cancelled && id === request.current) setLoading(false) })
+    return () => { cancelled = true }
+  }, [date])
   useEffect(() => { reloadRemembered() }, [rTab, rQuery]) // eslint-disable-line
-  useEffect(() => { reloadQuick() }, []) // eslint-disable-line
+  useEffect(() => { reloadQuick() }, [])
 
   // Debounced search as you type (≥2 chars).
   useEffect(() => {
     const q = query.trim()
-    if (q.length < 2) { setResults(null); setSearchErr(null); return }
-    setSearching(true)
+    if (q.length < 2) return
+    let cancelled = false
     const t = setTimeout(() => {
       api.foodSearch(q)
-        .then((r) => { setResults(r); setSearchErr(null) })
-        .catch((e) => { setResults([]); setSearchErr(String(e)) })
-        .finally(() => setSearching(false))
+        .then((r) => { if (!cancelled) { setResults(r); setSearchErr(null) } })
+        .catch((e) => { if (!cancelled) { setResults([]); setSearchErr(String(e)) } })
+        .finally(() => { if (!cancelled) setSearching(false) })
     }, 350)
-    return () => clearTimeout(t)
+    return () => { cancelled = true; clearTimeout(t) }
   }, [query])
 
   async function addFromResult(r: FoodSearchResult, mode: 'serving' | 'grams', qty: number) {
@@ -119,10 +139,11 @@ export default function NutritionPage() {
     reloadQuick()
   }
 
-  if (error) return <p className="error">Couldn't load nutrition ({error}).</p>
-
-  const totals = day?.totals
-  const targets = day?.targets
+  const visibleDay = day?.date === date ? day : null
+  const totals = visibleDay?.totals
+  const targets = visibleDay?.targets
+  const activeKcal = visibleDay?.activeCalories ?? null
+  const hasFood = (visibleDay?.entries.length ?? 0) > 0
   const isToday = date === todayKey()
 
   return (
@@ -130,31 +151,34 @@ export default function NutritionPage() {
       <div className="page-head">
         <div>
           <h1>Nutrition</h1>
-          <p className="subtitle">Per-food logging · search rented from Open Food Facts & USDA</p>
+          <p className="subtitle">Log meals, reuse your favourites and follow your own targets. <Link to="/settings">Edit targets</Link></p>
         </div>
         <div className="date-nav">
-          <button className="icon-btn" onClick={() => setDate(shiftDay(date, -1))} title="Previous day">‹</button>
-          <input type="date" value={date} max={todayKey()} onChange={(e) => setDate(e.target.value || todayKey())} />
-          <button className="icon-btn" disabled={isToday} onClick={() => setDate(shiftDay(date, 1))} title="Next day">›</button>
+          <button className="icon-btn" onClick={() => selectDate(shiftDay(date, -1))} title="Previous day" aria-label="Previous day">‹</button>
+          <input type="date" aria-label="Food log date" value={date} max={todayKey()} onChange={(e) => selectDate(e.target.value || todayKey())} />
+          <button className="icon-btn" disabled={isToday} onClick={() => selectDate(shiftDay(date, 1))} title="Next day" aria-label="Next day">›</button>
+          {!isToday && <button className="link-btn" onClick={() => selectDate(todayKey())}>Today</button>}
         </div>
       </div>
 
+      {error && <p className="error" role="alert">Couldn't refresh nutrition: {error} <button className="link-btn" onClick={load}>Try again</button></p>}
+      {loading && <p className="muted" role="status">Loading food log…</p>}
       {/* daily totals vs targets */}
       {totals && targets && (
         <section className="card totals-card">
           <div className="totals-row">
-            <Macro label="Calories" value={fmtKcal(totals.calories)} sub={`/ ${fmtKcal(targets.calories)} kcal`}
+            <Macro label="Calories logged" value={hasFood ? fmtKcal(totals.calories) : '—'} sub={`/ ${fmtKcal(targets.calories)} kcal`}
               pct={totals.calories / targets.calories} color="#d8a24f" />
-            <Macro label="Protein" value={fmtMacro(totals.proteinG)} sub={`/ ${fmtMacro(targets.proteinG)}`}
+            <Macro label="Protein" value={hasFood ? fmtMacro(totals.proteinG) : '—'} sub={`/ ${fmtMacro(targets.proteinG)}`}
               pct={totals.proteinG / targets.proteinG} color="#e0697a" highlight />
-            <Macro label="Carbs" value={fmtMacro(totals.carbsG)} color="#4fb0c6" />
-            <Macro label="Fat" value={fmtMacro(totals.fatG)} color="#9d8cff" />
-            {activeKcal != null && (
-              <Macro label="Net (in − out)" value={`${Math.round(totals.calories - (1700 + activeKcal)) > 0 ? '+' : ''}${Math.round(totals.calories - (1700 + activeKcal))}`}
-                sub={`out ≈ ${fmtKcal(1700 + activeKcal)}`} color="#7faf93" />
+            <Macro label="Carbs" value={hasFood ? fmtMacro(totals.carbsG) : '—'} sub={`/ ${fmtMacro(targets.carbsG)}`} pct={totals.carbsG / targets.carbsG} color="#4fb0c6" />
+            <Macro label="Fat" value={hasFood ? fmtMacro(totals.fatG) : '—'} sub={`/ ${fmtMacro(targets.fatG)}`} pct={totals.fatG / targets.fatG} color="#9d8cff" />
+            {hasFood && activeKcal != null && (
+              <Macro label="Logged in − estimated out" value={`${Math.round(totals.calories - (targets.restingCaloriesEstimate + activeKcal)) > 0 ? '+' : ''}${Math.round(totals.calories - (targets.restingCaloriesEstimate + activeKcal))}`}
+                sub={`out ≈ ${fmtKcal(targets.restingCaloriesEstimate + activeKcal)} kcal`} color="#7faf93" />
             )}
           </div>
-          <div className="micros-row">
+          {hasFood && <div className="micros-row">
             <Micro label="Fiber" value={`${Math.round(totals.fiberG)} g`} />
             <Micro label="Sugar" value={`${Math.round(totals.sugarG)} g`} />
             <Micro label="Sat fat" value={`${Math.round(totals.satFatG)} g`} />
@@ -162,18 +186,18 @@ export default function NutritionPage() {
             <Micro label="Potassium" value={`${Math.round(totals.potassiumMg)} mg`} />
             <Micro label="Calcium" value={`${Math.round(totals.calciumMg)} mg`} />
             <Micro label="Iron" value={`${totals.ironMg.toFixed(1)} mg`} />
-          </div>
-          <p className="subtle-note">{prettyDate(date)} · {day?.entries.length ?? 0} item{(day?.entries.length ?? 0) === 1 ? '' : 's'}{activeKcal != null ? ' · out = est. BMR 1,700 + Garmin active' : ''}</p>
+          </div>}
+          <p className="subtle-note">{prettyDate(date)} · {visibleDay?.entries.length ?? 0} item{(visibleDay?.entries.length ?? 0) === 1 ? '' : 's'} logged. {!hasFood ? 'No food logged is not the same as zero intake.' : 'Totals reflect logged food; an incomplete log can understate intake.'} {activeKcal != null ? `Expenditure uses your ${targets.restingCaloriesEstimate.toLocaleString()} kcal resting estimate plus activity recorded for this date.` : 'No activity record for this date, so no energy comparison is shown.'}</p>
         </section>
       )}
 
       <div className="nutri-cols">
         {/* ---- left (primary): the day's log ---- */}
         <div>
-          <div className="section-head"><h2 className="section-title">Today's log</h2></div>
-          {day && day.entries.length === 0 && <p className="muted">Nothing logged yet — search or add a food on the right.</p>}
+          <div className="section-head"><h2 className="section-title">{isToday ? "Today's log" : prettyDate(date)}</h2></div>
+          {visibleDay && visibleDay.entries.length === 0 && <p className="muted">Nothing logged yet — search or add a food below.</p>}
           {MEALS.map((meal) => {
-            const items = (day?.entries ?? []).filter((e) => mealOf(e.meal) === meal)
+            const items = (visibleDay?.entries ?? []).filter((e) => mealOf(e.meal) === meal)
             if (items.length === 0) return null
             const cals = items.reduce((s, e) => s + e.calories, 0)
             return (
@@ -199,13 +223,13 @@ export default function NutritionPage() {
           <section className="card">
             <div className="add-meal-row">
               <span className="muted">Add to</span>
-              <select value={addMeal} onChange={(e) => setAddMeal(e.target.value as Meal)}>
+              <select aria-label="Meal to add food to" value={addMeal} onChange={(e) => setAddMeal(e.target.value as Meal)}>
                 {MEALS.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <input
-              className="food-search" type="search" placeholder="Search foods (e.g. chicken breast)…"
-              value={query} onChange={(e) => setQuery(e.target.value)}
+              className="food-search" type="search" aria-label="Search foods" placeholder="Search foods (e.g. chicken breast)…"
+              value={query} onChange={(e) => { setQuery(e.target.value); setResults(null); setSearchErr(null); setSearching(e.target.value.trim().length >= 2) }}
             />
             {searching && <p className="muted srch-note">Searching…</p>}
             {searchErr && <p className="muted srch-note">Search unavailable right now — use manual add below.</p>}

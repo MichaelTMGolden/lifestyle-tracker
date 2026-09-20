@@ -4,8 +4,7 @@ using PersonalDashboard.Api.Goals;
 
 namespace PersonalDashboard.Api.Alerts;
 
-// Thresholds are hardcoded here; the obvious place to make them user-tunable later
-// (a settings row read in DetectAsync).
+// Personal targets come from the same settings used by the dashboard.
 
 /// <summary>Z-score anomalies on key metrics vs the trailing-28-day mean ± stddev.</summary>
 public class MetricAnomalyDetector : IAlertDetector
@@ -68,12 +67,13 @@ public class MetricAnomalyDetector : IAlertDetector
 /// <summary>Accumulated sleep deficit over the trailing 7 days vs an 8h/night target.</summary>
 public class SleepDebtDetector : IAlertDetector
 {
-    private const double TargetHours = 8;          // tunable later (or read a sleep-target metric)
     private const double DebtThresholdHours = 5;
 
     public async Task<IEnumerable<Alert>> DetectAsync(AlertContext ctx, CancellationToken ct = default)
     {
         var since = new DateTimeOffset(ctx.Today.AddDays(-6).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var settings = await ctx.Db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync(ct) ?? new DashboardSettings();
+        var targetHours = settings.SleepMinutesTarget / 60.0;
         var samples = await ctx.Db.MetricSamples
             .Where(m => m.MetricKey == "sleep_total_min" && m.RecordedAt >= since)
             .Select(m => new { m.RecordedAt, m.Value })
@@ -87,7 +87,7 @@ public class SleepDebtDetector : IAlertDetector
         double debt = 0;
         for (var i = 0; i < 7; i++)
             if (byDay.TryGetValue(ctx.Today.AddDays(-i), out var hrs))
-                debt += Math.Max(0, TargetHours - hrs);
+                debt += Math.Max(0, targetHours - hrs);
 
         if (debt < DebtThresholdHours) return Array.Empty<Alert>();
         return new[]
@@ -97,7 +97,7 @@ public class SleepDebtDetector : IAlertDetector
                 Kind = "SleepDebt", Severity = debt >= 10 ? "Urgent" : "Watch",
                 SubjectType = "Metric", SubjectKey = "sleep_total_min",
                 Title = $"Sleep debt {Math.Round(debt)}h this week",
-                Detail = $"You're ~{Math.Round(debt)}h under an {TargetHours:0}h/night target over the last 7 days.",
+                Detail = $"You're ~{Math.Round(debt)}h under your {targetHours:0.#}h/night target across {byDay.Count} recorded nights in the last 7 days.",
                 Value = Math.Round(debt, 1), ForDate = ctx.Today, DetectedAt = ctx.Now,
                 DedupeKey = $"SleepDebt:{ctx.Today:yyyy-MM-dd}",
             },
@@ -115,7 +115,7 @@ public class StreakBreakDetector : IAlertDetector
     {
         var alerts = new List<Alert>();
         var habits = await ctx.Db.Habits.Where(h => !h.Archived)
-            .Select(h => new { h.Id, h.Name, h.TracksTime, Dates = h.Logs.Where(l => l.Completed).Select(l => l.Date).ToList() })
+            .Select(h => new { h.Id, h.Name, h.TracksTime, h.Cadence, Dates = h.Logs.Where(l => l.Completed).Select(l => l.Date).ToList() })
             .ToListAsync(ct);
 
         foreach (var h in habits)
@@ -129,7 +129,7 @@ public class StreakBreakDetector : IAlertDetector
             for (var c = lastDone; set.Contains(c); c = c.AddDays(-1)) streak++;
 
             // Fresh break: a real streak ended 1–2 full days ago.
-            if (streak >= MinStreak && gap is >= 2 and <= 3)
+            if (h.Cadence == "daily" && streak >= MinStreak && gap is >= 2 and <= 3)
             {
                 alerts.Add(new Alert
                 {
@@ -142,7 +142,8 @@ public class StreakBreakDetector : IAlertDetector
             }
         }
 
-        var timedDates = habits.Where(h => h.TracksTime).SelectMany(h => h.Dates).ToList();
+        // Weekly practice allows rest days; only daily timed skills use a daily inactivity threshold.
+        var timedDates = habits.Where(h => h.TracksTime && h.Cadence == "daily").SelectMany(h => h.Dates).ToList();
         if (timedDates.Count > 0)
         {
             var lastAny = timedDates.Max();
@@ -151,8 +152,8 @@ public class StreakBreakDetector : IAlertDetector
                 alerts.Add(new Alert
                 {
                     Kind = "Inactivity", Severity = "Watch", SubjectType = "Habit", SubjectKey = "timed",
-                    Title = $"No practice in {idle} days",
-                    Detail = $"Nothing logged across your timed skills since {lastAny:MMM d}.",
+                    Title = $"No daily practice in {idle} days",
+                    Detail = $"Nothing logged across your daily timed skills since {lastAny:MMM d}.",
                     Value = idle, ForDate = ctx.Today, DetectedAt = ctx.Now,
                     DedupeKey = $"Inactivity:{lastAny:yyyy-MM-dd}",
                 });

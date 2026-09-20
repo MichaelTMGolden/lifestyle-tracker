@@ -1,0 +1,16 @@
+.health-page h2 { margin: 0 0 10px; font-size: 19px; }
+.health-page .vitals { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.health-page-actions { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+.health-readiness-signals { display: flex; flex-wrap: wrap; gap: 24px; margin: 16px 0; }
+.health-readiness-signals > div { display: flex; flex-direction: column; gap: 5px; }
+.health-readiness-signals small { color: var(--text-dim); font-size: 13px; }
+.health-note { font-size: 14px; line-height: 1.65; }
+.health-data-note { padding: 12px 16px; border-left: 3px solid var(--crimson); background: var(--bg-2); font-size: 14px; }
+.health-select-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.health-stats { display: flex; flex-wrap: wrap; gap: 24px; margin: 18px 0; }
+.health-stats .muted { font-size: 13px; }
+.health-stats strong { display: block; font-size: 26px; line-height: 1.6; }
+.health-stats small { color: var(--text-dim); }
+.health-weight-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.health-weight-form label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.health-weight-form input { max-width: 160px; min-height: 42px; }

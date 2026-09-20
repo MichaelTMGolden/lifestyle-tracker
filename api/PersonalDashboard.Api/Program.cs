@@ -98,15 +98,12 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
-    // Set SEED_DUMMY_DATA=false in production to keep a clean slate (only the real
-    // scaffold — practices, goals, timetable — seeds; no invented history).
-    var seedDummy = app.Configuration.GetValue("SEED_DUMMY_DATA", true);
+    // Invented history is a local development convenience. Production defaults
+    // to the real scaffold only; a demo deployment can explicitly opt in.
+    var seedDummy = app.Configuration.GetValue("SEED_DUMMY_DATA", app.Environment.IsDevelopment());
     await DataSeeder.SeedAsync(db, seedDummy);
 
-    // Daily to-dos aren't kept long-term — purge prior days at startup (server
-    // local date is fine here; per-request cleanup also runs on create).
-    var purgeBefore = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-    await db.DailyTodos.Where(t => t.Date < purgeBefore).ExecuteDeleteAsync();
+    // Keep prior-day tasks so the user can carry them forward or archive them.
 
     // CLI: `dotnet run -- import-garmin <dir> [--keep-dates]`
     // Imports Garmin CSVs then exits without starting the web server.
@@ -176,6 +173,8 @@ app.MapPost("/api/auth/logout", (HttpContext ctx) =>
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok", service = "personal-dashboard-api" }));
 app.MapApiEndpoints();
+app.MapSettingsEndpoints();
+app.MapSkillProgressEndpoints();
 // Anything not an API route or a static file → the SPA entrypoint (client-side routing).
 app.MapFallbackToFile("index.html");
 

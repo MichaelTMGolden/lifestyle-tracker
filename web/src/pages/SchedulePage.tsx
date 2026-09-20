@@ -3,9 +3,8 @@ import { api, type ScheduleBlock, type ScheduleDay } from '../api'
 import { categoryColor, fmtDate, fmtMinutes, withNowLine } from '../lib'
 import { useNowMinutes, usePoll } from '../hooks'
 
-const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 const endOf = (b: ScheduleBlock) => (b.durationMinutes != null ? b.startMinutes + b.durationMinutes : Infinity)
-const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA') }
 
 export default function SchedulePage() {
   const [week, setWeek] = useState<ScheduleDay[]>([])
@@ -18,7 +17,7 @@ export default function SchedulePage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = () => Promise.all([api.scheduleWeek(), api.scheduleStatus()])
-    .then(([w, s]) => { setWeek(w); setStatus(s) }).catch((e) => setError(String(e)))
+    .then(([w, s]) => { setWeek(w); setStatus(s); setError(null) }).catch((e) => setError(String(e)))
   useEffect(() => { load() }, [])
   // Advance the now-line every 30s; poll for schedule changes (e.g. a temporary
   // schedule reverting) every few minutes — no manual refresh needed.
@@ -48,13 +47,15 @@ export default function SchedulePage() {
   }
 
   const now = useNowMinutes()
+  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
 
-  if (error) return <p className="error">Couldn't load schedule ({error}).</p>
+  if (error && week.length === 0) return <div className="card" role="alert"><p>Couldn't load your schedule.</p><button className="btn" onClick={load}>Try again</button></div>
 
   const categories = [...new Set(week.flatMap((d) => d.blocks.map((b) => b.category)))]
 
   return (
     <>
+      {error && <p className="error" role="alert">Your last loaded schedule is shown. <button className="link-btn" onClick={load}>Retry refresh</button></p>}
       <div className="page-head">
         <div>
           <h1>Weekly schedule</h1>
@@ -99,6 +100,8 @@ export default function SchedulePage() {
                   <li key="now" className="now-line-mini"><span>now {fmtMinutes(now)}</span></li>
                 ) : (
                   <li key={b.id}
+                    role="button" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected({ block: b, day: d.day }) } }}
                     className={`day-block${d.day === todayName && b.startMinutes <= now && now < endOf(b) ? ' current' : ''}${b.details ? ' has-detail' : ''}`}
                     style={{ borderLeftColor: categoryColor[b.category] ?? '#999' }}
                     onClick={() => setSelected({ block: b, day: d.day })}

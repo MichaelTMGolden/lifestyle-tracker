@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput, type HabitLogEntry } from '../api'
 import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDate, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
-import { useTimer } from '../timer/TimerContext'
+import { useTimer } from '../timer/useTimer'
 import { Collapsible } from '../components/Collapsible'
 import { ChallengesSection } from '../components/Challenges'
+import { Link } from 'react-router-dom'
+import { skillProgressApi } from '../skillProgressApi'
 
 // Goal ids whose completion has already been celebrated, so a 100% goal only
 // triggers the confetti once (not on every page load).
@@ -47,7 +49,8 @@ export default function HabitsPage() {
   const [showNewSkill, setShowNewSkill] = useState(false)
   const [skillName, setSkillName] = useState('')
   const [skillTimed, setSkillTimed] = useState(true)
-  const [celebrating, setCelebrating] = useState<Goal | null>(null)
+  const [celebrated, setCelebrated] = useState(loadCelebrated)
+  const [loading, setLoading] = useState(true)
 
   // Running-timer state lives in shared context (also driven by the sticky bar).
   // Multiple habits can be timed at once, so query per-habit.
@@ -58,22 +61,18 @@ export default function HabitsPage() {
 
   const load = () =>
     Promise.all([api.habits(), api.habitsHeatmap(DAYS), api.goals()])
-      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g) })
+      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
       .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false))
   useEffect(() => { load() }, [])
   // Refetch when a timer is logged (here or from the sticky bar).
-  useEffect(() => { if (dataTick) load() }, [dataTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (dataTick) load() }, [dataTick])
   // Fire the celebration once when a goal first shows up complete (and not yet retired).
-  useEffect(() => {
-    if (celebrating) return
-    const done = loadCelebrated()
-    const fresh = goals.find((g) => g.state === 'complete' && !g.archived && !done.includes(g.id))
-    if (fresh) setCelebrating(fresh)
-  }, [goals, celebrating])
+  const celebrating = goals.find(g => g.state === 'complete' && !g.archived && !celebrated.includes(g.id)) ?? null
 
   const dismissCelebration = () => {
     if (celebrating) markCelebrated(celebrating.id)
-    setCelebrating(null)
+    if (celebrating) setCelebrated(ids => [...ids, celebrating.id])
   }
   async function retireGoal(id: number) { await api.archiveGoal(id); await load() }
   async function restoreGoal(id: number) { await api.unarchiveGoal(id); await load() }
@@ -106,8 +105,6 @@ export default function HabitsPage() {
     await api.deleteGoal(id); setEditingId(null); await load()
   }
 
-  if (error) return <p className="error">Couldn't load habits ({error}).</p>
-
   const habitIndex = new Map(habits.map((h, i) => [h.name, i] as const))
   const colorOf = (name: string) => habitColor(name, habitIndex.get(name) ?? 0)
   const activeGoals = goals.filter((g) => !g.archived)
@@ -128,9 +125,11 @@ export default function HabitsPage() {
       <div className="page-head">
         <div>
           <h1>Habits</h1>
-          <p className="subtitle">Goals & daily practice · last {WEEKS} weeks</p>
+          <p className="subtitle">Goals & your practice rhythm · last {WEEKS} weeks</p>
         </div>
       </div>
+      {loading && <p role="status">Loading your practice…</p>}
+      {error && <p className="error" role="alert">Couldn't refresh habits ({error}). <button className="btn btn-ghost" onClick={load}>Retry</button></p>}
 
       {/* ---- Goals umbrella: hour-goals (accrued from skills) + challenges (tracked directly) ---- */}
       <h2 className="umbrella-title">Goals</h2>
@@ -203,6 +202,7 @@ export default function HabitsPage() {
         <h2 className="section-title">Skills</h2>
         {!showNewSkill && <button className="btn btn-ghost" onClick={() => setShowNewSkill(true)}>+ New skill</button>}
       </div>
+      <p className="muted">Set daily or weekly practice targets below. <Link to="/artist">Track skill quality and evidence in Artist →</Link></p>
       {showNewSkill && (
         <form className="goal-form card skill-form" onSubmit={createSkill}>
           <div className="gf-row">
@@ -226,7 +226,8 @@ export default function HabitsPage() {
           const color = colorOf(h.name)
           const byDate = minsById.get(h.id) ?? new Map<string, number>()
           const running = isRunning(h.id)
-          const weekMins = Array.from({ length: 7 }).reduce<number>((sum, _, i) => {
+          const daysThisWeek = ((new Date().getDay() + 6) % 7) + 1
+          const weekMins = Array.from({ length: daysThisWeek }).reduce<number>((sum, _, i) => {
             const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
             return sum + (byDate.get(keyOf(d)) ?? 0)
           }, 0)
@@ -239,7 +240,7 @@ export default function HabitsPage() {
                   {h.tracksTime && <span className="badge" style={{ color, borderColor: `${color}66` }}>timed</span>}
                 </h2>
                 <div className="habit-stats">
-                  <span><b className="hl" style={{ color }}>{h.currentStreak}</b> day streak</span>
+                  <span><b className="hl" style={{ color }}>{h.currentStreak}</b> {h.cadence === 'weekly' ? 'week' : 'day'} streak</span>
                   <span>
                     <b className="hl" style={{ color }}>{h.tracksTime ? fmtHours(h.totalMinutes) : h.totalCompletions}</b>
                     {h.tracksTime ? ' total' : ' days'}
@@ -247,6 +248,8 @@ export default function HabitsPage() {
                   {h.tracksTime && <span><b className="hl" style={{ color }}>{fmtHours(weekMins)}</b> this week</span>}
                 </div>
               </div>
+
+              <HabitCadence key={`${h.id}:${h.cadence}:${h.targetPerPeriod}`} habit={h} dates={[...byDate.keys()]} onChange={load} />
 
               <div className="habit-body">
                 <div className="heat-wrap">
@@ -264,7 +267,7 @@ export default function HabitsPage() {
                           const level = h.tracksTime ? intensityLevel(mins) : (present ? 4 : 0)
                           const label = h.tracksTime
                             ? (present ? `${mins} min` : future ? '' : 'none')
-                            : (present ? 'done' : future ? '' : 'missed')
+                            : (present ? 'done' : future ? '' : h.cadence === 'weekly' ? 'no practice logged' : 'not logged')
                           return (
                             <span
                               key={k}
@@ -303,11 +306,11 @@ export default function HabitsPage() {
                         {running ? (
                           <>
                             <span className="timer-elapsed" style={{ color }}>{fmtElapsed(elapsedMs(h.id))}</span>
-                            <button className="btn btn-sm" onClick={() => stop(h.id)}
+                            <button className="btn btn-sm" onClick={() => { void stop(h.id).catch(() => { /* TimerProvider shows the save error. */ }) }}
                               style={{ color, borderColor: color, background: `${color}1f` }}>Stop & log</button>
                           </>
                         ) : (
-                          <button className="btn btn-ghost btn-sm" onClick={() => start(h.id, h.name)}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => { void start(h.id, h.name).catch(() => { /* TimerProvider shows the save error. */ }) }}>
                             ▶ Start timer
                           </button>
                         )}
@@ -341,6 +344,39 @@ export default function HabitsPage() {
       </div>
     </>
   )
+}
+
+function HabitCadence({ habit, dates, onChange }: { habit: Habit; dates: string[]; onChange: () => Promise<unknown> }) {
+  const [cadence, setCadence] = useState(habit.cadence)
+  const [target, setTarget] = useState(String(habit.targetPerPeriod || 1))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
+  const start = keyOf(monday), end = keyOf(now)
+  const completed = new Set(dates.filter(d => d >= start && d <= end)).size
+  const remaining = Math.max(0, habit.targetPerPeriod - completed)
+  const weekly = habit.cadence === 'weekly'
+  async function save(e: FormEvent) {
+    e.preventDefault(); setSaving(true); setError(''); setSaved(false)
+    try {
+      await skillProgressApi.cadence(habit.id, cadence, cadence === 'daily' ? 1 : Number(target))
+      setSaved(true); await onChange()
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    finally { setSaving(false) }
+  }
+  return <div className="habit-cadence">
+    <p className="cadence-progress">{weekly ? <><strong>{completed}/{habit.targetPerPeriod} practice days</strong> this week (Mon–Sun) · {remaining ? `${remaining} more to meet your target` : 'Target met · rest days welcome'}</> : <><strong>{habit.doneToday ? 'Today’s practice complete' : 'Daily practice'}</strong> · one active day meets your target</>}</p>
+    {weekly && <progress value={Math.min(completed, habit.targetPerPeriod)} max={habit.targetPerPeriod} aria-label={`${completed} of ${habit.targetPerPeriod} practice days this week`} />}
+    <details><summary>Adjust practice rhythm</summary><form className="cadence-form" onSubmit={save}>
+      <label>Frequency<select value={cadence} onChange={e => setCadence(e.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
+      {cadence === 'weekly' && <label>Practice days per week<input type="number" min={1} max={7} value={target} onChange={e => setTarget(e.target.value)} required /></label>}
+      <button className="btn btn-ghost" disabled={saving}>{saving ? 'Saving…' : 'Save rhythm'}</button>
+      <p className="muted">Weekly targets allow rest days. Multiple sessions on one day count as one practice day. Streaks use your current target.</p>
+      {error && <p className="error" role="alert">{error}</p>}{saved && <p role="status">Practice rhythm saved.</p>}
+    </form></details>
+  </div>
 }
 
 /* ---------- Goal card ---------- */

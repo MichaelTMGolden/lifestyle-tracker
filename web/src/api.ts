@@ -1,4 +1,5 @@
 // Thin typed client over the C# API. In dev, Vite proxies "/api" to :5080.
+import type { DashboardSettings } from './settings'
 
 export interface CalendarEvent {
   id: number
@@ -28,18 +29,24 @@ export interface SleepNight {
   rem: number
   awake: number
   score: number | null
+  hasCompleteStages?: boolean
+  sources?: string[]
 }
 
 export interface MetricPoint {
   recordedAt: string
   value: number
   unit: string | null
+  sourceName?: string
+  sourceKind?: string
+  isDerived?: boolean
 }
 
 export interface Habit {
   id: number
   name: string
   cadence: string
+  targetPerPeriod: number
   tracksTime: boolean
   showInQuickActions: boolean
   last30Completed: number
@@ -58,6 +65,8 @@ export interface Todo {
   createdAt: string
   dueAt: string | null
   completedAt: string | null
+  plannedFor: string | null
+  isPriority: boolean
   sortOrder: number
 }
 
@@ -84,8 +93,8 @@ export interface NextBlock {
 }
 
 export interface Today {
-  stepsToday: number
-  caloriesInToday: number
+  stepsToday: number | null
+  caloriesInToday: number | null
   restingHr: number | null
   bodyBattery: number | null
   lastSleepScore: number | null
@@ -93,8 +102,10 @@ export interface Today {
   sleepSpark: number[]
   rhrSpark: number[]
   stepsSpark: number[]
-  readiness: number
+  readiness: number | null
   readinessLabel: string
+  readinessComponents: { key: string; label: string; value: number | null; recordedAt: string | null; status: string; score: number | null }[]
+  settings: DashboardSettings
   habitsCompletedToday: number
   habitsTotal: number
   todosDueToday: number
@@ -141,6 +152,8 @@ export interface HabitHeatmap {
   id: number
   name: string
   tracksTime: boolean
+  cadence: string
+  targetPerPeriod: number
   /** active days with their accumulated minutes (drives intensity shading) */
   days: { date: string; minutes: number }[]
   /** kept for backward compatibility */
@@ -255,6 +268,7 @@ export interface DigestGoal {
 export interface DigestSkill {
   id: string; name: string; minutesThisWeek: number; minutesLastWeek: number
   currentStreak: number; daysCompletedThisWeek: number
+  cadence?: string; targetPerPeriod?: number
 }
 export interface DigestMetric {
   id: string; key: string; label: string
@@ -447,7 +461,8 @@ export interface NutritionDay {
   date: string
   entries: FoodEntry[]
   totals: NutritionTotals
-  targets: { proteinG: number; calories: number }
+  activeCalories: number | null
+  targets: { proteinG: number; calories: number; carbsG: number; fatG: number; restingCaloriesEstimate: number }
 }
 
 export interface FoodEntryInput {
@@ -477,25 +492,29 @@ export interface FoodEntryInput {
 // user's local timezone — correct even while travelling.
 const tzHeaders = () => ({ 'X-Tz-Offset': String(new Date().getTimezoneOffset()) })
 
-async function errorFrom(res: Response, url: string): Promise<Error> {
+async function errorFrom(res: Response): Promise<Error> {
   try { const j = await res.json(); if (j?.error || j?.message) return new Error(j.error || j.message) } catch { /* not json */ }
-  return new Error(`${url} -> ${res.status}`)
+  if (res.status === 401) return new Error('Your session has expired. Sign in again to continue.')
+  if (res.status === 404) return new Error('This item is no longer available. Refresh and try again.')
+  if (res.status === 429) return new Error('Too many requests. Please wait a moment and try again.')
+  if (res.status >= 500) return new Error('The dashboard is temporarily unavailable. Please try again.')
+  return new Error('The request could not be completed. Please check your entries and try again.')
 }
 
-async function get<T>(url: string): Promise<T> {
+export async function get<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: tzHeaders(), credentials: 'include' })
-  if (!res.ok) throw await errorFrom(res, url)
+  if (!res.ok) throw await errorFrom(res)
   return res.json() as Promise<T>
 }
 
-async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
+export async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...tzHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw await errorFrom(res, url)
+  if (!res.ok) throw await errorFrom(res)
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -537,7 +556,7 @@ export const api = {
     fd.append('mode', mode)
     if (revertOn) fd.append('revertOn', revertOn)
     const res = await fetch('/api/schedule/import', { method: 'POST', headers: tzHeaders(), credentials: 'include', body: fd })
-    if (!res.ok) throw await errorFrom(res, '/api/schedule/import')
+    if (!res.ok) throw await errorFrom(res)
     return res.json() as Promise<{ blocks: number; days: number; mode: string; revertOn: string | null }>
   },
   setBlockWeekNote: (id: number, details: string) => send<{ id: number; weekOverride: string | null }>('PUT', `/api/schedule/blocks/${id}/week-note`, { details }),

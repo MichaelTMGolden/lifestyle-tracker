@@ -310,6 +310,52 @@ namespace PersonalDashboard.Api.Migrations
                     b.ToTable("DailyTodos");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.DashboardSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ArtistFollowersTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ArtistMonthlyListenersTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ArtistTotalStreamsTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CaloriesTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CarbsGTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FatGTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProteinGTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RestingCaloriesEstimate")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RestingHrBaseline")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SleepMinutesTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SleepScoreTarget")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StepsTarget")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DashboardSettings");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.DataSource", b =>
                 {
                     b.Property<int>("Id")
@@ -882,6 +928,66 @@ namespace PersonalDashboard.Api.Migrations
                     b.ToTable("ScheduleOverrides");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillAssessment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("AssessedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EvidenceUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("SkillBenchmarkId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillBenchmarkId", "AssessedOn")
+                        .IsUnique();
+
+                    b.ToTable("SkillAssessments");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillBenchmark", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HabitId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Rubric")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HabitId");
+
+                    b.ToTable("SkillBenchmarks");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.TodoItem", b =>
                 {
                     b.Property<long>("Id")
@@ -899,8 +1005,14 @@ namespace PersonalDashboard.Api.Migrations
                     b.Property<DateTimeOffset?>("DueAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsPriority")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
+
+                    b.Property<DateOnly?>("PlannedFor")
+                        .HasColumnType("date");
 
                     b.Property<int>("Priority")
                         .HasColumnType("integer");
@@ -915,6 +1027,8 @@ namespace PersonalDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DueAt");
+
+                    b.HasIndex("PlannedFor", "IsPriority");
 
                     b.ToTable("TodoItems");
                 });
@@ -1128,6 +1242,28 @@ namespace PersonalDashboard.Api.Migrations
                     b.Navigation("ScheduleBlock");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillAssessment", b =>
+                {
+                    b.HasOne("PersonalDashboard.Api.Domain.SkillBenchmark", "SkillBenchmark")
+                        .WithMany("Assessments")
+                        .HasForeignKey("SkillBenchmarkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SkillBenchmark");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillBenchmark", b =>
+                {
+                    b.HasOne("PersonalDashboard.Api.Domain.Habit", "Habit")
+                        .WithMany()
+                        .HasForeignKey("HabitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Habit");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.Workout", b =>
                 {
                     b.HasOne("PersonalDashboard.Api.Domain.DataSource", "DataSource")
@@ -1162,6 +1298,11 @@ namespace PersonalDashboard.Api.Migrations
             modelBuilder.Entity("PersonalDashboard.Api.Domain.QuickMeal", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillBenchmark", b =>
+                {
+                    b.Navigation("Assessments");
                 });
 #pragma warning restore 612, 618
         }

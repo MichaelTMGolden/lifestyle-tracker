@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   api,
   type ReviewListItem,
@@ -6,8 +6,12 @@ import {
   type ReviewRecommendation,
   type WeeklyDigest,
   type WeeklyReview,
+  type Todo,
 } from '../api'
 import { fmtDate } from '../lib'
+import { Link } from 'react-router-dom'
+import { dailyPlanning, dateKey, recommendationTag } from '../dailyPlanning'
+import '../dailyPlanning.css'
 
 // Priority → display treatment. Only "high" is loud (crimson); the rest stay quiet
 // so the eye lands on what matters most, like the rest of the dashboard.
@@ -24,7 +28,7 @@ function factLabel(digest: WeeklyDigest | null, id: string): string | null {
   const g = digest.goals.find((x) => x.id === id)
   if (g) return `${g.name}: ${g.minutesThisWeek} min this week (was ${g.minutesLastWeek}) · ${g.accumulatedHours}/${g.targetHours}h · ${g.paceStatus}`
   const s = digest.skills.find((x) => x.id === id)
-  if (s) return `${s.name}: ${s.minutesThisWeek} min this week (was ${s.minutesLastWeek}) · ${s.daysCompletedThisWeek} days · streak ${s.currentStreak}`
+  if (s) return `${s.name}: ${s.minutesThisWeek} min this week (was ${s.minutesLastWeek}) · ${s.daysCompletedThisWeek} days · streak ${s.currentStreak} ${s.cadence === 'weekly' ? 'weeks' : 'days'}`
   const m = digest.health.find((x) => x.id === id)
   if (m) return `${m.label}: ${m.avgThisWeek ?? '—'}${m.unit} avg${m.delta != null ? ` (${m.delta > 0 ? '+' : ''}${m.delta} vs last week)` : ''}`
   const a = digest.alerts.find((x) => x.id === id)
@@ -49,17 +53,17 @@ export default function ReviewPage() {
   const [review, setReview] = useState<WeeklyReview | null>(null)
   const [history, setHistory] = useState<ReviewListItem[]>([])
   const [busy, setBusy] = useState(false)
+  const [currentDigest, setCurrentDigest] = useState<WeeklyDigest | null>(null)
+  const [tasks, setTasks] = useState<Todo[]>([])
+  const [actionBusy, setActionBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function loadLatest() {
-    try {
-      const [latest, list] = await Promise.all([api.latestReview(), api.reviews().catch(() => [])])
-      setEnabled(latest.enabled)
-      setReview(latest.review)
-      setHistory(list)
-    } catch (e) { setError(String(e)) }
-  }
-  useEffect(() => { loadLatest() }, [])
+  const loadLatest = useCallback(() => Promise.all([api.latestReview(), api.reviews(), dailyPlanning.digest(), api.todos()])
+    .then(([latest, list, summary, commitments]) => {
+      setEnabled(latest.enabled); setReview(latest.review); setHistory(list); setCurrentDigest(summary); setTasks(commitments); setError(null)
+    }).catch(e => setError(String(e))), [])
+  useEffect(() => { loadLatest() }, [loadLatest])
 
   async function generate() {
     setBusy(true); setError(null)
@@ -79,24 +83,53 @@ export default function ReviewPage() {
 
   const out = review && isOutput(review.output) ? review.output : null
   const failure = review ? errorOf(review.output) : null
-  const digest = review?.digest ?? null
+  const digest = review?.digest ?? currentDigest
   const weekLabel = useMemo(() => {
-    if (!review) return ''
-    const start = review.weekStart
+    if (!digest) return ''
+    const start = review?.weekStart ?? digest.weekStart
     const end = digest?.weekEnd
     return end ? `${fmtDate(start)} – ${fmtDate(end)}` : fmtDate(start)
   }, [review, digest])
+
+  async function actOnRecommendation(rec: ReviewRecommendation, planForToday: boolean) {
+    if (!review || actionBusy) return
+    const tag = recommendationTag(review.weekStart, rec)
+    const existing = tasks.find(task => task.notes?.includes(tag))
+    if (existing?.completedAt || (existing && !planForToday)) return
+    setActionBusy(true); setError(null); setNotice(null)
+    try {
+      const task = existing ?? await api.createTodo({ title: rec.text, priority: rec.priority === 'high' ? 1 : rec.priority === 'low' ? 3 : 2,
+        notes: `${tag}\nFrom weekly review, week of ${review.weekStart}.\n${(rec.relatedFactIds ?? []).map(id => factLabel(review.digest, id)).filter(Boolean).join('\n')}` })
+      // Keep the saved task in local state even if planning fails, so retrying
+      // cannot create a duplicate commitment.
+      if (!existing) setTasks(previous => [...previous, task])
+      if (planForToday) {
+        const planned = await dailyPlanning.plan(task.id, dateKey())
+        setTasks(previous => previous.map(item => item.id === task.id ? planned : item))
+      }
+      setNotice(planForToday ? 'Accepted and added to today’s plan.' : 'Task created. It will appear in next week’s follow-through.')
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    finally { setActionBusy(false) }
+  }
+  async function completeCommitment(task: Todo) {
+    if (actionBusy) return
+    setActionBusy(true); setError(null)
+    try { const updated = await api.toggleTodo(task.id); setTasks(previous => previous.map(item => item.id === task.id ? updated : item)); setNotice(updated.completedAt ? 'Commitment completed.' : 'Commitment reopened.') }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    finally { setActionBusy(false) }
+  }
+  const commitments = tasks.filter(task => task.notes?.includes('[weekly-review:'))
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Weekly Review</h1>
-          <p className="subtitle">A synthesis of the week — every figure computed here, only the judgement is the model's</p>
+          <p className="subtitle">See your progress, choose your next steps and follow through</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {history.length > 0 && (
-            <select className="rv-week" value={review?.weekStart ?? ''} onChange={(e) => pickWeek(e.target.value)}>
+            <select aria-label="Review week" className="rv-week" value={review?.weekStart ?? ''} onChange={(e) => pickWeek(e.target.value)}>
               {history.map((h) => (
                 <option key={h.weekStart} value={h.weekStart}>
                   Week of {fmtDate(h.weekStart)}{h.status === 'Failed' ? ' · failed' : ''}
@@ -108,18 +141,20 @@ export default function ReviewPage() {
         </div>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && <div className="planning-feedback error" role="alert"><span>{error}</span><button className="btn" onClick={loadLatest}>Retry</button></div>}
+      {notice && <p className="planning-feedback" role="status">{notice}</p>}
+      {enabled === null && !error && <p className="muted" role="status">Loading your week…</p>}
+      {(currentDigest ?? digest) && <DigestSummary digest={(currentDigest ?? digest)!} />}
+      {commitments.length > 0 && <section className="card review-follow-up">
+        <h2>Follow-through <Link to="/tasks" className="back">all tasks →</Link></h2>
+        <p className="planning-note">Actions you accepted from your reviews. Open commitments stay visible across weeks.</p>
+        {commitments.filter(task => !task.completedAt || (digest && task.completedAt.slice(0, 10) >= digest.weekStart)).map(task => <div className="planning-item" key={task.id}>
+          <div className="planning-copy">{task.title}<small>{task.completedAt ? 'Completed' : task.plannedFor ? `Planned for ${task.plannedFor}` : 'Ready to plan'} · {task.notes?.match(/week of (\d{4}-\d{2}-\d{2})/)?.[0] ?? 'Weekly review'}</small></div>
+          <button className="btn btn-sm" disabled={actionBusy} onClick={() => completeCommitment(task)}>{task.completedAt ? 'Reopen' : 'Complete'}</button>
+        </div>)}
+      </section>}
 
-      {enabled === false && !review && (
-        <section className="card">
-          <div className="card-h">Reviews are switched off</div>
-          <p className="muted" style={{ marginTop: 6 }}>
-            Add an Anthropic API key (<code>Anthropic:ApiKey</code> in user-secrets, or the
-            <code> ANTHROPIC_API_KEY</code> environment variable) to enable weekly synthesis.
-            Your computed digest never leaves the app until a key is set.
-          </p>
-        </section>
-      )}
+      {enabled === false && <p className="planning-note">Your weekly summary is available here. Written recommendations are available when AI reviews are enabled.</p>}
 
       {enabled && !review && (
         <section className="card">
@@ -156,7 +191,11 @@ export default function ReviewPage() {
               <div className="rv-recs">
                 {[...out.recommendations]
                   .sort((a, b) => rank(a) - rank(b))
-                  .map((r, i) => <Rec key={i} rec={r} digest={digest} />)}
+                  .map((r) => {
+                    const tag = recommendationTag(review!.weekStart, r)
+                    const task = tasks.find(item => item.notes?.includes(tag))
+                    return <Rec key={tag} rec={r} digest={digest} task={task} busy={actionBusy} onCreate={() => actOnRecommendation(r, false)} onAccept={() => actOnRecommendation(r, true)} />
+                  })}
               </div>
             </>
           )}
@@ -195,7 +234,7 @@ function FactSection({ title, mark, markColor, facts, digest, empty }: {
   )
 }
 
-function Rec({ rec, digest }: { rec: ReviewRecommendation; digest: WeeklyDigest | null }) {
+function Rec({ rec, digest, task, busy, onCreate, onAccept }: { rec: ReviewRecommendation; digest: WeeklyDigest | null; task?: Todo; busy: boolean; onCreate: () => void; onAccept: () => void }) {
   const p = PRIORITY[rec.priority ?? 'low'] ?? PRIORITY.low
   const sources = (rec.relatedFactIds ?? []).map((id) => factLabel(digest, id)).filter(Boolean) as string[]
   return (
@@ -208,7 +247,29 @@ function Rec({ rec, digest }: { rec: ReviewRecommendation; digest: WeeklyDigest 
             {sources.map((s, i) => <li key={i} className="muted">{s}</li>)}
           </ul>
         )}
+        <div className="planning-actions">
+          {task ? <><Link to="/tasks">{task.completedAt ? '✓ Completed' : '✓ Saved to Tasks'} →</Link>{!task.completedAt && task.plannedFor !== dateKey() && <button className="btn btn-sm" disabled={busy} onClick={onAccept}>Do today</button>}</> : <>
+            <button className="btn btn-sm" disabled={busy} onClick={onCreate}>Create task</button>
+            <button className="btn btn-sm" disabled={busy} onClick={onAccept}>Accept for today</button>
+          </>}
+        </div>
       </div>
     </section>
   )
+}
+
+function DigestSummary({ digest }: { digest: WeeklyDigest }) {
+  const practiceMinutes = digest.skills.reduce((sum, skill) => sum + skill.minutesThisWeek, 0)
+  const previousMinutes = digest.skills.reduce((sum, skill) => sum + skill.minutesLastWeek, 0)
+  return <section className="card">
+    <h2>Your week · {fmtDate(digest.weekStart)} – {fmtDate(digest.weekEnd)}</h2>
+    <div className="digest-stats">
+      <div><strong>{practiceMinutes} min</strong><span>Practice · {previousMinutes} min last week</span></div>
+      <div><strong>{digest.tasks.completedThisWeek}</strong><span>Tasks completed · {digest.tasks.overdue} overdue</span></div>
+      <div><strong>{digest.nutrition.daysLogged} days</strong><span>Nutrition logged</span></div>
+    </div>
+    {digest.skills.length > 0 && <ul className="list">{digest.skills.map(skill => <li key={skill.id}><span>{skill.name}</span><span className="muted">{skill.minutesThisWeek} min · {skill.daysCompletedThisWeek} days</span></li>)}</ul>}
+    {digest.goals.length > 0 && <ul className="list">{digest.goals.map(goal => <li key={goal.id}><span>{goal.name}</span><span className="muted">{goal.accumulatedHours}/{goal.targetHours}h · {goal.paceStatus}</span></li>)}</ul>}
+    <p className="planning-note">Based on your logged data. Missing entries are not treated as measured activity.</p>
+  </section>
 }

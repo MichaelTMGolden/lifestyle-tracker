@@ -49,6 +49,10 @@ dotnet run
 On first start it **applies migrations and seeds ~90 days of dummy data**
 automatically. API → http://localhost:5080. Try http://localhost:5080/api/summary.
 
+Sample data is enabled by default only in Development. Production applies
+migrations and seeds the basic practices, goals and timetable without invented
+history. Set `SEED_DUMMY_DATA=true` explicitly only for a demo deployment.
+
 ### 2b. (Optional) Import Garmin data
 
 Drop Garmin research-export CSVs (`garmin-health-daily.csv`,
@@ -114,23 +118,21 @@ the whole app on fake data now and add real syncs later without rework.
   materialized into `MetricSample` (`calories_in` / `protein_g` / `carbs_g` / `fat_g`)
   under a "Nutrition (rollup)" source so the Health page reads them generically
 - `Habit` + `HabitLog`, `TodoItem`
+- `DashboardSettings` — shared nutrition, activity, recovery and artist targets
+- `SkillBenchmark` + `SkillAssessment` — explicit scoring rubrics and dated,
+  evidence-backed assessments (practice time remains a separate measure)
 - `ScheduleBlock` — recurring weekly timetable (read-only template), seeded from
   [`SeedData/weekly_timetable.md`](api/PersonalDashboard.Api/SeedData/weekly_timetable.md)
   via [`ScheduleParser`](api/PersonalDashboard.Api/Schedule/ScheduleParser.cs).
 
 ## Frontend pages (React Router)
 
-- **`/` Today** — launchpad: time-aware framing line; a **Now + Next** panel
-  (elapsed/remaining + day-progress + tomorrow preview); a grouped **stat strip**
-  (readiness gauge, sleep/resting-HR/steps sparkline tiles, an energy/Body-Battery
-  curve, and productivity cards with **overdue surfaced**); then two columns —
-  daily to-dos + quick-log practice + **weekly habit grid** + momentum on the left,
-  calendar + schedule (merged timeline, events **render once**, overlapping blocks
-  **dimmed not struck**, collapse-past + now-line) + tasks on the right. Most of it
-  is powered by a single enriched `/api/today`. A redesigned standalone mockup of this launchpad —
-  Now+Next, grouped/context stat strip, fixed schedule (single spanning calendar
-  blocks, no auto-strikethrough, collapse-past), weekly habit grid, time-aware
-  framing — lives at [`mockups/today-homepage.html`](mockups/today-homepage.html).
+- **`/` Today** — an action-first daily workspace. Priorities and a quick-capture
+  checklist sit in the main column; Now/Next, the day's agenda, health and food
+  shortcuts sit alongside. Completed checklist items and secondary information
+  collapse away. A shared layout adapts to mobile without duplicating the page.
+  Progress counts completed actions, separately from elapsed schedule time.
+  Practice shortcuts say what a tap will do and show active timers.
 - **`/nutrition`** — **Nutrition**: per-food logging with a date selector. Search
   foods (Open Food Facts + USDA, with a source badge) → pick → quantity/serving →
   logs an entry with computed as-eaten macros; a manual form covers anything not
@@ -138,36 +140,66 @@ the whole app on fake data now and add real syncs later without rework.
   a totals bar (calories + P/C/F vs targets, protein highlighted, plus calories-in
   vs calories-out net using Garmin active). Every create/edit/delete recomputes the
   day's `calories_in` / `protein_g` / `carbs_g` / `fat_g` rollup.
-- **`/tasks`** — long-term **Tasks**: add, inline-edit, delete, due dates, priority.
+- **`/tasks`** — long-term **Tasks**: add, inline-edit, delete, due dates, priority,
+  planning views and text search. Filter state is reflected in the URL; reorder
+  the full list in All so hidden tasks retain their positions.
 - **`/connect`** — **Connections**: every data source (Garmin, MyFitnessPal, Google
   Calendar, Spotify, Manual) with status / last-sync / record count, a **Sync now**
   action, and **Upload export** for file-based import. See Integrations below.
-- **Daily to-dos** — lightweight items filled fresh each day on the Today page
-  (added/checked/removed there); they're *not* kept long-term (older days are
-  purged) and are what the "Focus" glance widget rotates through at the top.
+- **Daily to-dos** — lightweight items on Today. Unfinished older items stay in a
+  carry-forward inbox until moved to today/tomorrow, promoted to Tasks or discarded.
+  Completed history is retained. **Today's focus** lets you plan Tasks and pin up
+  to three priorities per day, separately from their due dates.
 - **`/habits`** — GitHub-style contribution heatmaps for tracked daily practices
   (Singing, Guitar, Writing, Reading, + anchors), with streak/total and a
-  one-tap "log today" per habit.
+  one-tap "log today" per habit. Each habit can follow a daily or weekly cadence;
+  weekly targets count distinct practice days, with matching streaks and reminders.
 - **`/schedule`** — the full recurring weekly timetable, colour-coded by category,
   today highlighted, with a live **"now" line** in today's column.
-- **`/health`** — a "personal intelligence briefing" dashboard: a **Readiness
-  hero** (0–100 + label, composed from sleep/resting-HR/stress with transparent
-  chips), **context-rich vitals** (each with target/range, healthy-direction trend
-  semantics, and a sparkline with goal/baseline line), **insights + actions**
-  (trends and Pearson relationships, low-confidence flagged), an **interactive
-  scatter correlation explorer** (any metric vs any metric, fitted trend line +
-  plain-English read), plus Sleep / Recovery / Activity / Nutrition / Body-comp
-  sections and **manual weight entry**. A global **time-range selector** (2W–1Y)
-  drives the page. Modules that need Garmin/MFP data not yet ingested (HRV, Body
-  Battery, training load, VO₂max, macros) render as labelled "awaiting sync"
-  placeholders. A standalone design mockup of this lives at
-  [`mockups/health-dashboard.html`](mockups/health-dashboard.html). Drill into any
-  metric at **`/health/:key`**.
+- **`/health`** — shared readiness with Today, measured inputs and freshness,
+  vitals, sleep stages, workouts, manual weight entry and daily/7-day weight
+  views. Readiness is unavailable unless its three recent observed inputs are
+  present; demo/derived values are excluded. Relationship charts pair measurements
+  by calendar date and describe association rather than cause. Nutrition comparisons
+  use the selected day's activity; missing activity stays unknown. Time ranges
+  span 2W–1Y. Drill into metrics and their provenance at **`/health/:key`**.
+- **`/artist`** — audience metrics plus skill benchmarks, 0–10 assessments with
+  evidence or notes, dated comparisons, assessment corrections and archive/restore.
+  Radar comparisons appear when at least three benchmarks have scores for both
+  selected dates. Unassessed skills have no invented score.
+- **`/settings`** — editable nutrition, sleep, activity, personal resting-HR
+  reference and artist targets, shared across pages. Starting values are estimates.
+- **`/review`** — weekly facts remain available without an AI key. Recommendations
+  can become tasks, and accepted plans persist as trackable commitments. Generated
+  recommendations must reference known fact IDs; this validates references, not
+  the truth of every generated sentence.
+- Navigation uses a grouped desktop sidebar and pinned pages on mobile. Find a
+  page with the search dialog or Ctrl/Cmd+K, then use arrows and Enter. Everyday
+  content and controls use a readable system font; the gothic brand and dark
+  crimson palette remain. Mobile pins are saved on the current device.
 
   > Note: the Garmin sample's stress & resting-HR are too sparse for trends, so
   > [`GarminCsvImporter`](api/PersonalDashboard.Api/Garmin/GarminCsvImporter.cs)
   > **derives** them from the (dense) sleep series — stress inverse to sleep, and
-  > resting HR on a gentle downward fitness trend. Real data would replace this.
+  > resting HR on a gentle downward fitness trend. These imported estimates are
+  > labelled and excluded from readiness; real observations are needed for a score.
+
+## Checking changes
+
+```powershell
+dotnet test api/PersonalDashboard.Api.Tests
+cd web
+npm ci
+npm run lint
+npm run build
+node --experimental-strip-types --test --test-isolation=none tests/healthData.test.ts tests/chartMath.test.ts tests/timer-operation-gate.test.mjs tests/task-views.test.mjs
+```
+
+The `DashboardPlanningAndProgress` migration adds task planning columns, settings,
+benchmarks and assessments. Startup applies it automatically; it does not remove
+existing task or metric data. For integration checks use a separate database with
+`SEED_DUMMY_DATA=false` and `SYNC_HOURS=0`, and a non-Development environment so
+local integration secrets are not loaded.
 
 ## API endpoints
 
@@ -193,7 +225,7 @@ the whole app on fake data now and add real syncs later without rework.
 | GET  | `/api/habits/heatmap?days=182` | Completed dates per habit (contribution grid) |
 | POST | `/api/habits/{id}/toggle` | Toggle today's habit log |
 | GET/POST/PUT/DELETE | `/api/todos[/{id}]` | Long-term **tasks** CRUD (+ `/toggle`) |
-| GET  | `/api/daily-todos` | Today's daily to-dos (purges older days) |
+| GET  | `/api/daily-todos` | Daily to-dos for the selected date; older items are retained |
 | POST | `/api/daily-todos` | Add a daily to-do for today |
 | POST | `/api/daily-todos/{id}/toggle` | Toggle done |
 | DELETE | `/api/daily-todos/{id}` | Remove |
