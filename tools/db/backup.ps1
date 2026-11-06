@@ -30,27 +30,39 @@ Assert-Docker
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
-$name = 'dashboard-' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd_HHmm') + 'Z.dump'
+# Seconds plus a random suffix: two runs can never target the same file. The dump
+# is written under a .partial name and only renamed once it has been verified,
+# so an interrupted or bad dump never replaces or shadows a good backup.
+$name = 'dashboard-' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd_HHmmss') + 'Z-' +
+    [guid]::NewGuid().ToString('N').Substring(0, 6) + '.dump'
+$partial = "$name.partial"
+$partialPath = Join-Path $OutDir $partial
 
 $env:PD_BACKUP_URL = $DatabaseUrl
 try {
     Invoke-Native 'pg_dump' {
         docker run --rm -e PD_BACKUP_URL -v "${OutDir}:/backup" $script:PgImage `
-            sh -c "pg_dump --format=custom --no-owner --no-privileges --file=/backup/$name `"`$PD_BACKUP_URL`""
+            sh -c "pg_dump --format=custom --no-owner --no-privileges --file=/backup/$partial `"`$PD_BACKUP_URL`""
     }
-} finally { Remove-Item Env:\PD_BACKUP_URL -ErrorAction SilentlyContinue }
 
-# Sanity check: the dump must be readable and contain table data.
-$entries = Invoke-Native 'Reading the new dump' { docker run --rm -v "${OutDir}:/backup" $script:PgImage pg_restore --list "/backup/$name" }
-if (-not $entries) { throw "The new dump $name is unreadable; older backups were left alone." }
-$tables = @($entries | Where-Object { $_ -match ' TABLE DATA ' }).Count
-if ($tables -eq 0) { throw "The new dump $name has no table data; older backups were left alone." }
+    # Sanity check: the dump must be readable and contain table data.
+    $entries = Invoke-Native 'Reading the new dump' { docker run --rm -v "${OutDir}:/backup" $script:PgImage pg_restore --list "/backup/$partial" }
+    if (-not $entries) { throw "The new dump is unreadable; older backups were left alone." }
+    $tables = @($entries | Where-Object { $_ -match ' TABLE DATA ' }).Count
+    if ($tables -eq 0) { throw "The new dump has no table data; older backups were left alone." }
 
-$file = Get-Item (Join-Path $OutDir $name)
+    Rename-Item -LiteralPath $partialPath -NewName $name
+} finally {
+    Remove-Item Env:\PD_BACKUP_URL -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $partialPath) { Remove-Item -LiteralPath $partialPath -ErrorAction SilentlyContinue }
+}
+
+$file = Get-Item -LiteralPath (Join-Path $OutDir $name)
 Write-Host ("Backup written: {0} ({1:N1} MB, {2} tables)" -f $file.FullName, ($file.Length / 1MB), $tables)
 
 # Keep the newest $Keep dumps.
 Get-ChildItem $OutDir -Filter 'dashboard-*.dump' |
+    Where-Object { $_.Extension -eq '.dump' } |
     Sort-Object Name -Descending |
     Select-Object -Skip $Keep |
     ForEach-Object { Write-Host "Pruning old backup $($_.Name)"; Remove-Item $_.FullName }
