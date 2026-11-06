@@ -47,12 +47,14 @@ jobs:
           STAMP=$(date -u +%Y-%m-%d_%H%MZ)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
           # pg_dump must be >= the server version (Render runs Postgres 18).
-          docker run --rm -e DATABASE_URL -v "$PWD/out:/out" postgres:18 \
+          # Run as the runner's own user so the dump isn't root-owned: the
+          # Encrypt step (unprivileged) has to shred and delete it.
+          docker run --rm --user "$(id -u):$(id -g)" -e DATABASE_URL -v "$PWD/out:/out" postgres:18 \
             sh -c 'pg_dump --format=custom --no-owner --no-privileges --file=/out/dashboard.dump "$DATABASE_URL"'
 
       - name: Check the dump is readable and has data
         run: |
-          TABLES=$(docker run --rm -v "$PWD/out:/out" postgres:18 pg_restore --list /out/dashboard.dump | grep -c ' TABLE DATA ' || true)
+          TABLES=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/out:/out" postgres:18 pg_restore --list /out/dashboard.dump | grep -c ' TABLE DATA ' || true)
           echo "Tables with data: $TABLES"
           if [ "$TABLES" -lt 1 ]; then echo "::error::The dump has no table data."; exit 1; fi
           ls -l out/dashboard.dump
