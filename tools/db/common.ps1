@@ -18,7 +18,9 @@ function Invoke-Native {
 function Remove-Container {
     param([Parameter(Mandatory)][string]$Name)
     $ErrorActionPreference = 'Continue'
-    docker rm -f $Name 2>&1 | Out-Null
+    # --volumes: the postgres image declares a VOLUME; without it every drill would
+    # leave an anonymous volume holding a full restored copy of the data.
+    docker rm -f --volumes $Name 2>&1 | Out-Null
 }
 
 function Assert-Docker {
