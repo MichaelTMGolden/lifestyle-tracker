@@ -52,7 +52,24 @@ public static class ExportEndpoints
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync(ct);
 
-        var lastMigration = (await db.Database.GetAppliedMigrationsAsync(ct)).LastOrDefault();
+        // One read-only REPEATABLE READ transaction: every table is read from the
+        // same snapshot, so an edit made mid-download (e.g. deleting a habit after
+        // its logs were written) can't leave the file internally inconsistent.
+        await using var tx = await conn.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
+        await using (var ro = conn.CreateCommand())
+        {
+            ro.Transaction = tx;
+            ro.CommandText = "SET TRANSACTION READ ONLY";
+            await ro.ExecuteNonQueryAsync(ct);
+        }
+
+        string? lastMigration;
+        await using (var mig = conn.CreateCommand())
+        {
+            mig.Transaction = tx;
+            mig.CommandText = "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1";
+            lastMigration = await mig.ExecuteScalarAsync(ct) as string;
+        }
         var counts = new Dictionary<string, long>();
 
         json.WriteStartObject();
@@ -67,6 +84,7 @@ public static class ExportEndpoints
             long n = 0;
             await using (var cmd = conn.CreateCommand())
             {
+                cmd.Transaction = tx;
                 cmd.CommandText = $"SELECT row_to_json(t)::text FROM {Quote(table)} t";
                 await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
@@ -87,6 +105,7 @@ public static class ExportEndpoints
         json.WriteEndObject();
         json.WriteEndObject();
         await json.FlushAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     static string Quote(string identifier) => "\"" + identifier.Replace("\"", "\"\"") + "\"";
