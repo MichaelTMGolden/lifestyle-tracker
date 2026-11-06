@@ -73,5 +73,10 @@ export default function SettingsPage() {
         <span role="status" aria-live="polite">{saved ? 'Settings saved.' : dirty ? 'You have unsaved changes.' : ''}</span>
       </div>
     </form>}
+    <section className="card">
+      <h2>Your data</h2>
+      <p className="muted">Download a complete copy of everything the dashboard holds: habits, logs, timers, goals, challenges, tasks, calendar and health data. Saved connection passwords are left out.</p>
+      <a className="btn secondary" href="/api/export" download>Download my data (JSON)</a>
+    </section>
   </div>
 }

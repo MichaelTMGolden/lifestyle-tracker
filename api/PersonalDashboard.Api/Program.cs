@@ -103,6 +103,16 @@ using (var scope = app.Services.CreateScope())
     var seedDummy = app.Configuration.GetValue("SEED_DUMMY_DATA", app.Environment.IsDevelopment());
     await DataSeeder.SeedAsync(db, seedDummy);
 
+    // CLI: `dotnet run -- migrate-only`
+    // Runs exactly the startup database work above (migrations + seeding), then
+    // exits. tools/db/migration-check.ps1 uses it against a restored backup.
+    if (args.Length > 0 && args[0] == "migrate-only")
+    {
+        var applied = await db.Database.GetAppliedMigrationsAsync();
+        Console.WriteLine($"[migrate-only] schema at {applied.LastOrDefault()}");
+        return;
+    }
+
     // Keep prior-day tasks so the user can carry them forward or archive them.
 
     // CLI: `dotnet run -- import-garmin <dir> [--keep-dates]`
@@ -175,6 +185,7 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok", service = "personal
 app.MapApiEndpoints();
 app.MapSettingsEndpoints();
 app.MapSkillProgressEndpoints();
+app.MapExportEndpoints();
 // Anything not an API route or a static file → the SPA entrypoint (client-side routing).
 app.MapFallbackToFile("index.html");
 

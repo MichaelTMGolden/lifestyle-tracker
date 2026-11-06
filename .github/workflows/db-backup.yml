@@ -1,0 +1,75 @@
+# Nightly off-site backup of the Render database.
+#
+# This repository is public, and anyone signed in to GitHub can download a
+# public repo's workflow artifacts. So the dump is encrypted (AES-256) before
+# upload and is kept for 30 days. Without BACKUP_PASSPHRASE it is unreadable.
+#
+# One-time setup (repo -> Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL       Render dashboard-db -> Connect -> External Database URL
+#   BACKUP_PASSPHRASE  a long random passphrase. Keep a copy in your password
+#                      manager: without it the backups cannot be decrypted.
+#
+# Restore: download the artifact, then
+#   gpg --decrypt --output dashboard.dump dashboard-<stamp>.dump.gpg
+#   ./tools/db/restore-drill.ps1 -DumpFile dashboard.dump
+name: Database backup
+
+on:
+  schedule:
+    - cron: "17 11 * * *"   # daily at 11:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check secrets are set
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Set the DATABASE_URL and BACKUP_PASSPHRASE repository secrets (see the comment at the top of db-backup.yml)."
+            exit 1
+          fi
+
+      - name: Dump the database
+        run: |
+          mkdir -p out
+          STAMP=$(date -u +%Y-%m-%d_%H%MZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          # pg_dump must be >= the server version (Render runs Postgres 18).
+          # Run as the runner's own user so the dump isn't root-owned: the
+          # Encrypt step (unprivileged) has to shred and delete it.
+          docker run --rm --user "$(id -u):$(id -g)" -e DATABASE_URL -v "$PWD/out:/out" postgres:18 \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --file=/out/dashboard.dump "$DATABASE_URL"'
+
+      - name: Check the dump is readable and has data
+        run: |
+          TABLES=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/out:/out" postgres:18 pg_restore --list /out/dashboard.dump | grep -c ' TABLE DATA ' || true)
+          echo "Tables with data: $TABLES"
+          if [ "$TABLES" -lt 1 ]; then echo "::error::The dump has no table data."; exit 1; fi
+          ls -l out/dashboard.dump
+
+      - name: Encrypt
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            --output "out/dashboard-$STAMP.dump.gpg" out/dashboard.dump <<< "$BACKUP_PASSPHRASE"
+          shred -u out/dashboard.dump
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-${{ env.STAMP }}
+          path: out/dashboard-${{ env.STAMP }}.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

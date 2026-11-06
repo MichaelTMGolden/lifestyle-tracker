@@ -18,3 +18,8 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local database backups (tools/db/backup.ps1)
+backups/
+*.dump
+*.dump.gpg
