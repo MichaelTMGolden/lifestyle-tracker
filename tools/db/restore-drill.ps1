@@ -37,7 +37,7 @@ Remove-Container $container
 try {
     Write-Host "Starting a throwaway Postgres on port $Port..."
     Invoke-Native 'Starting the drill container' {
-        docker run -d --name $container -e POSTGRES_PASSWORD=drill -p "${Port}:5432" $script:PgImage | Out-Null
+        docker run -d --name $container -e POSTGRES_PASSWORD=drill -p "127.0.0.1:${Port}:5432" $script:PgImage | Out-Null
     }
     Wait-Postgres $container
     Invoke-Native 'Creating the drill database' { docker exec $container createdb -U postgres $db }
@@ -60,7 +60,7 @@ try {
         Write-Host ''
         Write-Host 'Running the app''s startup migrations against the restored copy...'
         $project = Join-Path $PSScriptRoot '..\..\api\PersonalDashboard.Api'
-        $env:ConnectionStrings__Postgres = "Host=localhost;Port=$Port;Database=$db;Username=postgres;Password=drill"
+        $env:ConnectionStrings__Postgres = "Host=127.0.0.1;Port=$Port;Database=$db;Username=postgres;Password=drill"
         $env:ASPNETCORE_ENVIRONMENT = 'Production'
         $env:SEED_DUMMY_DATA = 'false'
         try {
@@ -92,6 +92,6 @@ try {
         Write-Host 'Migration check passed: no table lost rows.' -ForegroundColor Green
     }
 } finally {
-    if ($KeepContainer) { Write-Host "Container '$container' left running on port $Port (password: drill)." }
+    if ($KeepContainer) { Write-Host "Container '$container' left running on 127.0.0.1:$Port (password: drill)." }
     else { Remove-Container $container }
 }
