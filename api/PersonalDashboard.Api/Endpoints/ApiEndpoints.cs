@@ -423,6 +423,273 @@ public static class ApiEndpoints
         SodiumMg = e.SodiumMg, PotassiumMg = e.PotassiumMg, CalciumMg = e.CalciumMg, IronMg = e.IronMg,
     };
 
+    internal static async Task<object> TodaySummaryAsync(AppDbContext db, ClientClock clock)
+    {
+        var todayStart = clock.TodayStartUtc;
+        var todayEnd = clock.TodayEndUtc;
+        var todayOnly = clock.Today;
+        var nowMinutes = clock.NowMinutes;
+
+        // Daily health and nutrition samples carry their source's calendar date.
+        // Multiple syncs/sources replace a day's snapshot; they must not add up.
+        var metricEnd = new DateTimeOffset(todayOnly.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var metricStart = metricEnd.AddDays(-14);
+        var summaryKeys = new[] { "steps", "calories_in", "sleep_score", "resting_hr", "body_battery" };
+        var summaryRows = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
+            .Where(m => summaryKeys.Contains(m.MetricKey) && m.RecordedAt >= metricStart && m.RecordedAt < metricEnd)
+            .ToListAsync();
+        var dailyMetrics = DailyMetricAggregation.Select(summaryRows);
+        double? TodayValue(string key) => dailyMetrics
+            .FirstOrDefault(m => m.MetricKey == key && DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) == todayOnly)?.Value;
+        var stepsToday = TodayValue("steps");
+        var caloriesInToday = TodayValue("calories_in");
+
+        var settings = await db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync() ?? new DashboardSettings();
+        var readinessSamples = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
+            .Where(m => m.MetricKey == "sleep_score" || m.MetricKey == "resting_hr" || m.MetricKey == "stress_avg")
+            .OrderByDescending(m => m.RecordedAt).Take(1100).ToListAsync();
+        var readinessResult = ReadinessCalculator.Calculate(readinessSamples, clock, settings.RestingHrBaseline);
+        double? FreshValue(string key) => readinessResult.Components.First(c => c.Key == key) is { Status: "fresh" } c ? c.Value : null;
+        var restingHr = FreshValue("resting_hr");
+        var lastSleepScore = FreshValue("sleep_score");
+
+        var bodyBattery = dailyMetrics.LastOrDefault(m => m.MetricKey == "body_battery" &&
+            DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) >= todayOnly.AddDays(-1))?.Value;
+
+        var habitsTotal = await db.Habits.CountAsync(h => !h.Archived);
+        var habitsCompletedToday = await db.HabitLogs.CountAsync(l => l.Date == todayOnly && l.Completed);
+
+        var todosDueToday = await db.TodoItems.CountAsync(t =>
+            t.CompletedAt == null && t.DueAt != null && t.DueAt >= todayStart && t.DueAt < todayEnd);
+        var todosOverdue = await db.TodoItems.CountAsync(t =>
+            t.CompletedAt == null && t.DueAt != null && t.DueAt < todayStart);
+
+        // Recent 14-day sparklines + averages for the homepage health summary.
+        List<double> Spark(string key) => dailyMetrics.Where(m => m.MetricKey == key).Select(m => m.Value).ToList();
+        var sleepSpark = Spark("sleep_score");
+        var rhrSpark = Spark("resting_hr");
+        var stepsSpark = Spark("steps");
+        var sleepAvg14 = sleepSpark.Count > 0 ? Math.Round(sleepSpark.Average()) : (double?)null;
+        var readiness = readinessResult.Score;
+        var readinessLabel = readinessResult.Label;
+
+        // Next-up from the schedule (current block if now is inside one, else the next).
+        var dow = clock.DayOfWeek;
+        await EnsureScheduleCurrentAsync(db, todayOnly);
+        var todays = await db.ScheduleBlocks.AsNoTracking().Where(b => b.Day == dow)
+            .OrderBy(b => b.StartMinutes).ToListAsync();
+        var appointments = await db.CalendarEvents.AsNoTracking()
+            .Where(e => e.StartsAt < todayEnd.AddDays(1) && e.EndsAt > todayStart).ToListAsync();
+        var agenda = DayAgenda.Build(todays, appointments, todayStart);
+        var current = DayAgenda.Current(agenda, nowMinutes);
+        var next = agenda.FirstOrDefault(b => b.StartMinutes > nowMinutes);
+
+        // Tomorrow's first block (for the evening wind-down preview).
+        var tomorrowDow = (DayOfWeek)(((int)dow + 1) % 7);
+        var tomorrowBlocks = await db.ScheduleBlocks.AsNoTracking()
+            .Where(b => b.Day == tomorrowDow).OrderBy(b => b.StartMinutes)
+            .ToListAsync();
+        var tomorrowFirst = DayAgenda.Build(tomorrowBlocks, appointments, todayEnd).FirstOrDefault();
+
+        return new
+        {
+            stepsToday = stepsToday.HasValue ? Math.Round(stepsToday.Value) : (double?)null,
+            caloriesInToday = caloriesInToday.HasValue ? Math.Round(caloriesInToday.Value) : (double?)null,
+            restingHr,
+            bodyBattery = bodyBattery.HasValue ? Math.Round(bodyBattery.Value) : (double?)null,
+            lastSleepScore = lastSleepScore.HasValue ? Math.Round(lastSleepScore.Value) : (double?)null,
+            sleepAvg14,
+            sleepSpark,
+            rhrSpark,
+            stepsSpark,
+            readiness,
+            readinessLabel,
+            readinessComponents = readinessResult.Components,
+            settings,
+            habitsCompletedToday,
+            habitsTotal,
+            todosDueToday,
+            todosOverdue,
+            nowMinutes,
+            current = current == null ? null : new
+            {
+                current.Activity,
+                current.StartMinutes,
+                current.DurationMinutes,
+                category = current.Category.ToString(),
+            },
+            next = next == null ? null : new
+            {
+                next.Activity,
+                next.StartMinutes,
+                category = next.Category.ToString(),
+            },
+            tomorrowFirst,
+        };
+    }
+
+    internal static async Task<object> ScheduleTodayAsync(AppDbContext db, ClientClock clock)
+    {
+        await EnsureScheduleCurrentAsync(db, clock.Today);
+        var todayStart = clock.TodayStartUtc;
+        var todayEnd = clock.TodayEndUtc;
+        var dow = clock.DayOfWeek;
+
+        var blocks = await db.ScheduleBlocks.AsNoTracking()
+            .Where(b => b.Day == dow)
+            .OrderBy(b => b.StartMinutes)
+            .ToListAsync();
+
+        var events = await db.CalendarEvents.AsNoTracking()
+            .Where(e => e.StartsAt < todayEnd && e.EndsAt > todayStart)
+            .OrderBy(e => e.StartsAt)
+            .ToListAsync();
+
+        // Calendar events are returned as their own list (rendered once each,
+        // spanning their range). A block carries only an `overlapped` flag so
+        // the UI can dim it — we never copy event titles onto blocks.
+        var annotated = blocks.Select(b =>
+        {
+            var overlapped = SchedulePrecedence.IsOverlapped(b.StartMinutes, b.DurationMinutes, todayStart, events);
+            return new
+            {
+                b.Id, b.StartMinutes, b.DurationMinutes, b.Activity, b.Notes,
+                category = b.Category.ToString(), b.Protected,
+                overlapped,
+            };
+        }).ToList();
+
+        return new { day = dow.ToString(), blocks = annotated, events };
+    }
+
+    internal static async Task<List<Alert>> ActiveAlertsAsync(AppDbContext db, AlertService alerts, ClientClock clock, string? status)
+    {
+        await alerts.GenerateIfStaleAsync(db, clock);
+        var query = db.Alerts.AsNoTracking();
+        if (status != "all") query = query.Where(a => a.Status != "Dismissed");
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(a => SeverityRank(a.Severity)).ThenByDescending(a => a.DetectedAt).ToList();
+    }
+
+    internal static async Task<object> LatestReviewAsync(AppDbContext db, ReviewSynthesisService reviews)
+    {
+        var r = await db.WeeklyReviews.AsNoTracking().OrderByDescending(x => x.WeekStart).FirstOrDefaultAsync();
+        return new { enabled = reviews.IsEnabled, review = r is null ? null : ReviewDto(r) };
+    }
+
+    internal static async Task<List<DailyTodo>> DailyTodosAsync(AppDbContext db, DateOnly date)
+    {
+        return await db.DailyTodos.AsNoTracking()
+            .Where(t => t.Date == date)
+            .OrderBy(t => t.Done).ThenBy(t => t.SortOrder).ThenBy(t => t.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// How far back a streak is read before falling back to full history. A
+    /// streak that reaches this far back (over a year unbroken) is rare, so the
+    /// common case reads a bounded window instead of every log ever written.
+    /// </summary>
+    public const int StreakWindowDays = 400;
+
+    public record HabitRow(
+        int Id, string Name, string Cadence, int TargetPerPeriod, bool TracksTime, bool ShowInQuickActions,
+        int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak);
+
+    /// <summary>
+    /// The active habits as the Habits and Today pages show them. Pass
+    /// <paramref name="onlyId"/> to build one row, so a mutation can hand back
+    /// the habit it just changed instead of the client reloading everything.
+    /// </summary>
+    internal static async Task<List<HabitRow>> HabitRowsAsync(AppDbContext db, DateOnly today, int? onlyId = null)
+    {
+        var since = today.AddDays(-30);
+        var habits = db.Habits.AsNoTracking().Where(h => !h.Archived);
+        if (onlyId is int id) habits = habits.Where(h => h.Id == id);
+        var rows = await habits
+            .OrderBy(h => h.Id)
+            .Select(h => new
+            {
+                h.Id, h.Name, h.Cadence, h.TargetPerPeriod, h.TracksTime, h.ShowInQuickActions,
+                last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
+                doneToday = h.Logs.Any(l => l.Date == today && l.Completed),
+                minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
+                totalMinutes = h.Logs.Sum(l => (int?)l.Minutes) ?? 0,
+                totalCompletions = h.Logs.Count(l => l.Completed),
+            })
+            .ToListAsync();
+        if (rows.Count == 0) return [];
+
+        var ids = rows.Select(r => r.Id).ToList();
+        var windowStart = today.AddDays(-StreakWindowDays);
+        var dates = await CompletedDatesAsync(db, ids, windowStart, today);
+        var streaks = new Dictionary<int, int>();
+        var needFullHistory = new List<int>();
+        foreach (var r in rows)
+        {
+            var result = HabitCadencePolicy.StreakWithin(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart);
+            if (result.MayExtendPastWindow) needFullHistory.Add(r.Id);
+            else streaks[r.Id] = result.Streak;
+        }
+        if (needFullHistory.Count > 0)
+        {
+            var full = await CompletedDatesAsync(db, needFullHistory, null, today);
+            foreach (var r in rows.Where(r => needFullHistory.Contains(r.Id)))
+                streaks[r.Id] = HabitCadencePolicy.Streak(full.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod);
+        }
+
+        return rows.Select(r => new HabitRow(
+            r.Id, r.Name, r.Cadence, r.TargetPerPeriod, r.TracksTime, r.ShowInQuickActions,
+            r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id])).ToList();
+    }
+
+    private static async Task<Dictionary<int, HashSet<DateOnly>>> CompletedDatesAsync(AppDbContext db, List<int> habitIds, DateOnly? from, DateOnly to)
+    {
+        var logs = db.HabitLogs.AsNoTracking().Where(l => habitIds.Contains(l.HabitId) && l.Completed && l.Date <= to);
+        if (from is DateOnly start) logs = logs.Where(l => l.Date >= start);
+        var pairs = await logs.Select(l => new { l.HabitId, l.Date }).ToListAsync();
+        return pairs.GroupBy(p => p.HabitId).ToDictionary(g => g.Key, g => g.Select(p => p.Date).ToHashSet());
+    }
+
+    /// <summary>One habit's row after a change, or null when it is archived or missing.</summary>
+    internal static async Task<HabitRow?> HabitRowAsync(AppDbContext db, DateOnly today, int id) =>
+        (await HabitRowsAsync(db, today, id)).FirstOrDefault();
+
+    internal static async Task<object> HabitHeatmapAsync(AppDbContext db, DateOnly today, int days)
+    {
+        var since = today.AddDays(-days);
+        return await db.Habits
+            .Where(h => !h.Archived)
+            .OrderBy(h => h.Id)
+            .Select(h => new
+            {
+                h.Id,
+                h.Name,
+                h.TracksTime,
+                h.Cadence, h.TargetPerPeriod,
+                // presence = "on"; minutes drives intensity shading for timed skills
+                days = h.Logs.Where(l => l.Date >= since && l.Completed)
+                    .Select(l => new { l.Date, l.Minutes })
+                    .ToList(),
+                // kept for backward compatibility with existing callers
+                completedDates = h.Logs.Where(l => l.Date >= since && l.Completed)
+                    .Select(l => l.Date)
+                    .ToList(),
+            })
+            .ToListAsync();
+    }
+
+    internal static Task<List<TodoItem>> TodosAsync(AppDbContext db) =>
+        db.TodoItems.AsNoTracking()
+            .OrderBy(t => t.CompletedAt != null).ThenBy(t => t.SortOrder)
+            .ThenBy(t => t.Priority).ThenBy(t => t.DueAt).ToListAsync();
+
+    internal static async Task<object> ActiveTimersAsync(AppDbContext db) =>
+        await db.HabitTimers.AsNoTracking()
+            .OrderBy(t => t.StartedAt)
+            .Select(t => new { habitId = t.HabitId, habitName = t.Habit!.Name, startedAt = t.StartedAt.ToUnixTimeMilliseconds() })
+            .ToListAsync();
+
     public static void MapApiEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api");
@@ -571,40 +838,7 @@ public static class ApiEndpoints
         });
 
         // --- Today's schedule with calendar precedence ---
-        api.MapGet("/schedule/today", async (AppDbContext db, HttpRequest req) =>
-        {
-            var clock = ClientClock.From(req);
-            await EnsureScheduleCurrentAsync(db, clock.Today);
-            var todayStart = clock.TodayStartUtc;
-            var todayEnd = clock.TodayEndUtc;
-            var dow = clock.DayOfWeek;
-
-            var blocks = await db.ScheduleBlocks.AsNoTracking()
-                .Where(b => b.Day == dow)
-                .OrderBy(b => b.StartMinutes)
-                .ToListAsync();
-
-            var events = await db.CalendarEvents.AsNoTracking()
-                .Where(e => e.StartsAt < todayEnd && e.EndsAt > todayStart)
-                .OrderBy(e => e.StartsAt)
-                .ToListAsync();
-
-            // Calendar events are returned as their own list (rendered once each,
-            // spanning their range). A block carries only an `overlapped` flag so
-            // the UI can dim it — we never copy event titles onto blocks.
-            var annotated = blocks.Select(b =>
-            {
-                var overlapped = SchedulePrecedence.IsOverlapped(b.StartMinutes, b.DurationMinutes, todayStart, events);
-                return new
-                {
-                    b.Id, b.StartMinutes, b.DurationMinutes, b.Activity, b.Notes,
-                    category = b.Category.ToString(), b.Protected,
-                    overlapped,
-                };
-            }).ToList();
-
-            return Results.Ok(new { day = dow.ToString(), blocks = annotated, events });
-        });
+        api.MapGet("/schedule/today", async (AppDbContext db, HttpRequest req) => Results.Ok(await ScheduleTodayAsync(db, ClientClock.From(req))));
 
         // Whether a default schedule is saved, and any pending auto-revert date.
         api.MapGet("/schedule/status", async (AppDbContext db) => Results.Ok(new
@@ -676,111 +910,7 @@ public static class ApiEndpoints
         });
 
         // --- At-a-glance "today" rollup for the homepage ---
-        api.MapGet("/today", async (AppDbContext db, HttpRequest req) =>
-        {
-            var clock = ClientClock.From(req);
-            var todayStart = clock.TodayStartUtc;
-            var todayEnd = clock.TodayEndUtc;
-            var todayOnly = clock.Today;
-            var nowMinutes = clock.NowMinutes;
-
-            // Daily health and nutrition samples carry their source's calendar date.
-            // Multiple syncs/sources replace a day's snapshot; they must not add up.
-            var metricEnd = new DateTimeOffset(todayOnly.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var metricStart = metricEnd.AddDays(-14);
-            var summaryKeys = new[] { "steps", "calories_in", "sleep_score", "resting_hr", "body_battery" };
-            var summaryRows = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
-                .Where(m => summaryKeys.Contains(m.MetricKey) && m.RecordedAt >= metricStart && m.RecordedAt < metricEnd)
-                .ToListAsync();
-            var dailyMetrics = DailyMetricAggregation.Select(summaryRows);
-            double? TodayValue(string key) => dailyMetrics
-                .FirstOrDefault(m => m.MetricKey == key && DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) == todayOnly)?.Value;
-            var stepsToday = TodayValue("steps");
-            var caloriesInToday = TodayValue("calories_in");
-
-            var settings = await db.DashboardSettings.AsNoTracking().FirstOrDefaultAsync() ?? new DashboardSettings();
-            var readinessSamples = await db.MetricSamples.AsNoTracking().Include(m => m.DataSource)
-                .Where(m => m.MetricKey == "sleep_score" || m.MetricKey == "resting_hr" || m.MetricKey == "stress_avg")
-                .OrderByDescending(m => m.RecordedAt).Take(1100).ToListAsync();
-            var readinessResult = ReadinessCalculator.Calculate(readinessSamples, clock, settings.RestingHrBaseline);
-            double? FreshValue(string key) => readinessResult.Components.First(c => c.Key == key) is { Status: "fresh" } c ? c.Value : null;
-            var restingHr = FreshValue("resting_hr");
-            var lastSleepScore = FreshValue("sleep_score");
-
-            var bodyBattery = dailyMetrics.LastOrDefault(m => m.MetricKey == "body_battery" &&
-                DateOnly.FromDateTime(m.RecordedAt.UtcDateTime) >= todayOnly.AddDays(-1))?.Value;
-
-            var habitsTotal = await db.Habits.CountAsync(h => !h.Archived);
-            var habitsCompletedToday = await db.HabitLogs.CountAsync(l => l.Date == todayOnly && l.Completed);
-
-            var todosDueToday = await db.TodoItems.CountAsync(t =>
-                t.CompletedAt == null && t.DueAt != null && t.DueAt >= todayStart && t.DueAt < todayEnd);
-            var todosOverdue = await db.TodoItems.CountAsync(t =>
-                t.CompletedAt == null && t.DueAt != null && t.DueAt < todayStart);
-
-            // Recent 14-day sparklines + averages for the homepage health summary.
-            List<double> Spark(string key) => dailyMetrics.Where(m => m.MetricKey == key).Select(m => m.Value).ToList();
-            var sleepSpark = Spark("sleep_score");
-            var rhrSpark = Spark("resting_hr");
-            var stepsSpark = Spark("steps");
-            var sleepAvg14 = sleepSpark.Count > 0 ? Math.Round(sleepSpark.Average()) : (double?)null;
-            var readiness = readinessResult.Score;
-            var readinessLabel = readinessResult.Label;
-
-            // Next-up from the schedule (current block if now is inside one, else the next).
-            var dow = clock.DayOfWeek;
-            await EnsureScheduleCurrentAsync(db, todayOnly);
-            var todays = await db.ScheduleBlocks.AsNoTracking().Where(b => b.Day == dow)
-                .OrderBy(b => b.StartMinutes).ToListAsync();
-            var appointments = await db.CalendarEvents.AsNoTracking()
-                .Where(e => e.StartsAt < todayEnd.AddDays(1) && e.EndsAt > todayStart).ToListAsync();
-            var agenda = DayAgenda.Build(todays, appointments, todayStart);
-            var current = DayAgenda.Current(agenda, nowMinutes);
-            var next = agenda.FirstOrDefault(b => b.StartMinutes > nowMinutes);
-
-            // Tomorrow's first block (for the evening wind-down preview).
-            var tomorrowDow = (DayOfWeek)(((int)dow + 1) % 7);
-            var tomorrowBlocks = await db.ScheduleBlocks.AsNoTracking()
-                .Where(b => b.Day == tomorrowDow).OrderBy(b => b.StartMinutes)
-                .ToListAsync();
-            var tomorrowFirst = DayAgenda.Build(tomorrowBlocks, appointments, todayEnd).FirstOrDefault();
-
-            return Results.Ok(new
-            {
-                stepsToday = stepsToday.HasValue ? Math.Round(stepsToday.Value) : (double?)null,
-                caloriesInToday = caloriesInToday.HasValue ? Math.Round(caloriesInToday.Value) : (double?)null,
-                restingHr,
-                bodyBattery = bodyBattery.HasValue ? Math.Round(bodyBattery.Value) : (double?)null,
-                lastSleepScore = lastSleepScore.HasValue ? Math.Round(lastSleepScore.Value) : (double?)null,
-                sleepAvg14,
-                sleepSpark,
-                rhrSpark,
-                stepsSpark,
-                readiness,
-                readinessLabel,
-                readinessComponents = readinessResult.Components,
-                settings,
-                habitsCompletedToday,
-                habitsTotal,
-                todosDueToday,
-                todosOverdue,
-                nowMinutes,
-                current = current == null ? null : new
-                {
-                    current.Activity,
-                    current.StartMinutes,
-                    current.DurationMinutes,
-                    category = current.Category.ToString(),
-                },
-                next = next == null ? null : new
-                {
-                    next.Activity,
-                    next.StartMinutes,
-                    category = next.Category.ToString(),
-                },
-                tomorrowFirst,
-            });
-        });
+        api.MapGet("/today", async (AppDbContext db, HttpRequest req) => Results.Ok(await TodaySummaryAsync(db, ClientClock.From(req))));
 
         // --- Connections (integration framework) ---
         api.MapGet("/connections", async (AppDbContext db, IEnumerable<IDataProvider> providers) =>
@@ -955,70 +1085,11 @@ public static class ApiEndpoints
 
         // --- Habits ---
         api.MapGet("/habits", async (AppDbContext db, HttpRequest req) =>
-        {
-            var today = ClientClock.From(req).Today;
-            var since = today.AddDays(-30);
-            // Materialise per-habit completed dates so currentStreak can be
-            // computed in memory (consecutive-day logic doesn't translate to SQL).
-            var rows = await db.Habits
-                .Where(h => !h.Archived)
-                .OrderBy(h => h.Id)
-                .Select(h => new
-                {
-                    h.Id,
-                    h.Name,
-                    h.Cadence, h.TargetPerPeriod,
-                    h.TracksTime,
-                    h.ShowInQuickActions,
-                    last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
-                    doneToday = h.Logs.Any(l => l.Date == today && l.Completed),
-                    minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
-                    totalMinutes = h.Logs.Sum(l => (int?)l.Minutes) ?? 0,
-                    totalCompletions = h.Logs.Count(l => l.Completed),
-                    completedDates = h.Logs.Where(l => l.Completed).Select(l => l.Date).ToList(),
-                })
-                .ToListAsync();
-
-            return rows.Select(h => new
-            {
-                h.Id,
-                h.Name,
-                h.Cadence, h.TargetPerPeriod,
-                h.TracksTime,
-                h.ShowInQuickActions,
-                h.last30Completed,
-                h.doneToday,
-                h.minutesToday,
-                h.totalMinutes,
-                h.totalCompletions,
-                currentStreak = HabitCadencePolicy.Streak(h.completedDates, today, h.Cadence, h.TargetPerPeriod),
-            });
-        });
+            await HabitRowsAsync(db, ClientClock.From(req).Today));
 
         // --- GitHub-style contribution data: active days (+minutes) per habit ---
         api.MapGet("/habits/heatmap", async (AppDbContext db, HttpRequest req, int days = 182) =>
-        {
-            var since = ClientClock.From(req).Today.AddDays(-days);
-            return await db.Habits
-                .Where(h => !h.Archived)
-                .OrderBy(h => h.Id)
-                .Select(h => new
-                {
-                    h.Id,
-                    h.Name,
-                    h.TracksTime,
-                    h.Cadence, h.TargetPerPeriod,
-                    // presence = "on"; minutes drives intensity shading for timed skills
-                    days = h.Logs.Where(l => l.Date >= since && l.Completed)
-                        .Select(l => new { l.Date, l.Minutes })
-                        .ToList(),
-                    // kept for backward compatibility with existing callers
-                    completedDates = h.Logs.Where(l => l.Date >= since && l.Completed)
-                        .Select(l => l.Date)
-                        .ToList(),
-                })
-                .ToListAsync();
-        });
+            await HabitHeatmapAsync(db, ClientClock.From(req).Today, days));
 
         api.MapPost("/habits/{id:int}/toggle", async (int id, AppDbContext db, HttpRequest req) =>
         {
@@ -1034,7 +1105,7 @@ public static class ApiEndpoints
                 log.Completed = !log.Completed;
             }
             await db.SaveChangesAsync();
-            return Results.Ok(new { log.HabitId, log.Date, log.Completed, log.Minutes });
+            return Results.Ok(new { log.HabitId, log.Date, log.Completed, log.Minutes, habit = await HabitRowAsync(db, today, id) });
         });
 
         // Add practice minutes to today (quick-add buttons + timer-on-stop).
@@ -1059,7 +1130,7 @@ public static class ApiEndpoints
                 log.Completed = true;
             }
             await db.SaveChangesAsync();
-            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed });
+            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed, habit = await HabitRowAsync(db, today, id) });
         });
 
         // Set today's minutes to an absolute value (corrections). Completed = minutes > 0.
@@ -1082,7 +1153,7 @@ public static class ApiEndpoints
                 log.Completed = body.Minutes > 0;
             }
             await db.SaveChangesAsync();
-            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed });
+            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed, habit = await HabitRowAsync(db, today, id) });
         });
 
         // Recent logged entries for a habit — for reviewing/correcting bad timer data.
@@ -1121,11 +1192,7 @@ public static class ApiEndpoints
 
         // --- Running timers (server-side so they sync across devices) ---
         // Active timers, oldest first; each carries its server start time as epoch ms.
-        api.MapGet("/timers", async (AppDbContext db) =>
-            await db.HabitTimers.AsNoTracking()
-                .OrderBy(t => t.StartedAt)
-                .Select(t => new { habitId = t.HabitId, habitName = t.Habit!.Name, startedAt = t.StartedAt.ToUnixTimeMilliseconds() })
-                .ToListAsync());
+        api.MapGet("/timers", async (AppDbContext db) => await ActiveTimersAsync(db));
 
         // Start a timer for a habit (idempotent — keeps the existing start time if already running).
         api.MapPost("/timers/{habitId:int}", async (int habitId, AppDbContext db, HttpRequest req) =>
@@ -1159,7 +1226,7 @@ public static class ApiEndpoints
                 else { log.Minutes += mins; log.Completed = true; }
             }
             await db.SaveChangesAsync();
-            return Results.Ok(new { habitId, minutes = mins });
+            return Results.Ok(new { habitId, minutes = mins, habit = await HabitRowAsync(db, clock.Today, habitId) });
         });
 
         // --- Metric ingest (live Garmin sync via the Python tool, or any external feed) ---
@@ -1439,14 +1506,7 @@ public static class ApiEndpoints
 
         // --- Alerts (anomaly / pattern detection) ---
         // GET runs a staleness-guarded regeneration (≤ once/hour); refresh forces it.
-        api.MapGet("/alerts", async (AppDbContext db, AlertService alerts, HttpRequest req, string? status) =>
-        {
-            await alerts.GenerateIfStaleAsync(db, ClientClock.From(req));
-            var query = db.Alerts.AsNoTracking();
-            if (status != "all") query = query.Where(a => a.Status != "Dismissed");
-            var list = await query.ToListAsync();
-            return list.OrderByDescending(a => SeverityRank(a.Severity)).ThenByDescending(a => a.DetectedAt);
-        });
+        api.MapGet("/alerts", async (AppDbContext db, AlertService alerts, HttpRequest req, string? status) => await ActiveAlertsAsync(db, alerts, ClientClock.From(req), status));
 
         api.MapPost("/alerts/refresh", async (AppDbContext db, AlertService alerts, HttpRequest req) =>
         {
@@ -1483,11 +1543,7 @@ public static class ApiEndpoints
             return Results.Ok(ReviewDto(review));
         });
 
-        api.MapGet("/review/latest", async (AppDbContext db, ReviewSynthesisService reviews) =>
-        {
-            var r = await db.WeeklyReviews.AsNoTracking().OrderByDescending(x => x.WeekStart).FirstOrDefaultAsync();
-            return Results.Ok(new { enabled = reviews.IsEnabled, review = r is null ? null : ReviewDto(r) });
-        });
+        api.MapGet("/review/latest", async (AppDbContext db, ReviewSynthesisService reviews) => Results.Ok(await LatestReviewAsync(db, reviews)));
 
         api.MapGet("/review", async (string week, AppDbContext db) =>
         {
@@ -1547,10 +1603,7 @@ public static class ApiEndpoints
         });
 
         // --- Todos ---
-        api.MapGet("/todos", async (AppDbContext db) =>
-            await db.TodoItems.AsNoTracking()
-                .OrderBy(t => t.CompletedAt != null).ThenBy(t => t.SortOrder)
-                .ThenBy(t => t.Priority).ThenBy(t => t.DueAt).ToListAsync());
+        api.MapGet("/todos", async (AppDbContext db) => await TodosAsync(db));
 
         api.MapPost("/todos", async (TodoItem input, AppDbContext db) =>
         {
@@ -1619,15 +1672,8 @@ public static class ApiEndpoints
         // --- Daily to-dos (date-scoped, retained until explicitly removed) ---
         // Pure read — no side effects (StrictMode/Promise.all/retries call this).
         api.MapGet("/daily-todos", async (AppDbContext db, HttpRequest req) =>
-        {
-            var today = ClientClock.From(req).Today;
             // Optional ?date=YYYY-MM-DD to read another day (e.g. tomorrow's plan).
-            var date = DateOnly.TryParse(req.Query["date"].FirstOrDefault(), out var d) ? d : today;
-            return await db.DailyTodos.AsNoTracking()
-                .Where(t => t.Date == date)
-                .OrderBy(t => t.Done).ThenBy(t => t.SortOrder).ThenBy(t => t.CreatedAt)
-                .ToListAsync();
-        });
+            await DailyTodosAsync(db, DateOnly.TryParse(req.Query["date"].FirstOrDefault(), out var d) ? d : ClientClock.From(req).Today));
 
         api.MapPost("/daily-todos", async (DailyTodo input, AppDbContext db, HttpRequest req) =>
         {

@@ -109,16 +109,36 @@ public static class HabitCadencePolicy
 {
     public static bool IsValid(string cadence, int target) => cadence == "daily" ? target == 1 : cadence == "weekly" && target is >= 1 and <= 7;
     public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
-    public static int Streak(IEnumerable<DateOnly> dates, DateOnly today, string cadence, int target)
+    public static int Streak(IEnumerable<DateOnly> dates, DateOnly today, string cadence, int target) =>
+        StreakWithin(dates, today, cadence, target, DateOnly.MinValue).Streak;
+
+    /// <summary>
+    /// The streak counted from <paramref name="dates"/>, which may cover only
+    /// <paramref name="windowStart"/> onwards. <c>MayExtendPastWindow</c> is true
+    /// when the period that ended the count starts before the window: the dates
+    /// before it were not read, so the streak may be longer and the caller must
+    /// count again from full history.
+    /// </summary>
+    public static (int Streak, bool MayExtendPastWindow) StreakWithin(
+        IEnumerable<DateOnly> dates, DateOnly today, string cadence, int target, DateOnly windowStart)
     {
-        var complete = dates.Where(d => d <= today).ToHashSet();
+        var complete = dates as ISet<DateOnly> ?? dates.ToHashSet();
         var weekly = cadence == "weekly";
         var length = weekly ? 7 : 1;
+        var needed = weekly ? Math.Clamp(target, 1, 7) : 1;
         var cursor = weekly ? WeekStart(today) : today;
-        bool Met(DateOnly start) => complete.Count(d => d >= start && d < start.AddDays(length)) >= (weekly ? Math.Clamp(target, 1, 7) : 1);
+        bool Met(DateOnly start)
+        {
+            var hits = 0;
+            for (var d = start; d < start.AddDays(length); d = d.AddDays(1))
+                if (d <= today && complete.Contains(d)) hits++;
+            return hits >= needed;
+        }
         if (!Met(cursor)) cursor = cursor.AddDays(-length); // current period is still in progress
         var streak = 0;
-        while (Met(cursor)) { streak++; cursor = cursor.AddDays(-length); }
-        return streak;
+        // Stop before DateOnly.MinValue: AddDays would throw on full-history reads.
+        while (cursor.DayNumber >= length && Met(cursor)) { streak++; cursor = cursor.AddDays(-length); }
+        // `cursor` is now the period that broke the streak (or was never checked).
+        return (streak, cursor < windowStart);
     }
 }

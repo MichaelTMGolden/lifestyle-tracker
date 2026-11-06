@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  api, type Alert, type CalendarEvent, type DailyTodo, type Habit, type HabitHeatmap,
-  type ReviewRecommendation, type ScheduleBlock, type ScheduleToday, type Today, type Todo,
+  type Alert, type CalendarEvent, type DailyTodo, type Habit,
+  type ReviewRecommendation, type ScheduleBlock, type Today, type Todo,
   type WeeklyReview,
 } from '../api'
 import { alertSeverity, categoryColor, fmtElapsed, fmtMinutes, habitColor } from '../lib'
 import { Ring, Spark } from '../charts'
 import { STATUS } from '../chartMath'
-import { useNowMinutes, usePersistentToggle, usePoll } from '../hooks'
+import { useNowMinutes, usePersistentToggle } from '../hooks'
 import { useTimer } from '../timer/useTimer'
 import { Collapsible } from '../components/Collapsible'
 import { Reorderable, DragGrip } from '../components/Reorderable'
 import { CarryForwardPanel, TaskPlanActions, TodayPriorities, type PlanningAction } from '../components/DailyPlanning'
 import { dailyPlanning, dateKey, nextDateKey } from '../dailyPlanning'
 import { taskIsOverdue } from '../taskViews'
+import { useTodayBundle, useTodayWrites } from '../todayData'
 import '../dailyPlanning.css'
 import './TodayPage.css'
 
@@ -30,57 +31,44 @@ type TimelineRow = { start: number; end: number } & (
 )
 
 export default function TodayPage() {
-  const [today, setToday] = useState<Today | null>(null)
-  const [schedule, setSchedule] = useState<ScheduleToday | null>(null)
-  const [habits, setHabits] = useState<Habit[]>([])
-  const [heat, setHeat] = useState<HabitHeatmap[]>([])
-  const [tasks, setTasks] = useState<Todo[]>([])
-  const [daily, setDaily] = useState<DailyTodo[]>([])
-  const [pending, setPending] = useState<DailyTodo[]>([])
+  const bundle = useTodayBundle()
+  const writes = useTodayWrites()
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [alerts, setAlerts] = useState<Alert[]>([])
-  const [review, setReview] = useState<WeeklyReview | null>(null)
   const [newDaily, setNewDaily] = useState('')
   const [showPast, setShowPast] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const actionInFlight = useRef(false)
-  const loadVersion = useRef(0)
 
   const liveNow = useNowMinutes()
   const { timers, isRunning, start, stop, elapsedMs, dataTick } = useTimer()
 
-  const load = useCallback(() => {
-    const version = ++loadVersion.current
-    return Promise.all([
-    api.today(), api.scheduleToday(), api.habits(), api.habitsHeatmap(30), api.todos(), api.dailyTodos(),
-    api.alerts().catch(() => [] as Alert[]),
-    api.latestReview().catch(() => ({ enabled: false, review: null })),
-    dailyPlanning.pending(),
-  ]).then(([t, s, h, hm, tk, d, al, rv, carry]) => {
-    if (version !== loadVersion.current) return
-    setToday(t); setSchedule(s); setHabits(h); setHeat(hm); setTasks(tk); setDaily(d); setAlerts(al); setReview(rv.review); setPending(carry); setError(null)
-    }).catch(e => { if (version === loadVersion.current) setError(String(e)) })
-  }, [])
+  const data = bundle.data
+  const error = bundle.error ? (bundle.error instanceof Error ? bundle.error.message : String(bundle.error)) : null
+  const reload = () => { void bundle.refetch() }
+
+  // Planning actions change several sections at once (a task planned for today,
+  // a to-do carried forward), so they re-sync the bundle: one request.
   const onAction: PlanningAction = async (operation, message) => {
     if (actionInFlight.current) return
     actionInFlight.current = true
-    ++loadVersion.current
     setBusy(true); setActionError(null); setNotice(null)
-    try { await operation(); setNotice(message); await load() }
-    catch (e) { setActionError(e instanceof Error ? e.message : String(e)); await load() }
-    finally { actionInFlight.current = false; setBusy(false) }
+    try { await operation(); setNotice(message) }
+    catch (e) { setActionError(e instanceof Error ? e.message : String(e)) }
+    finally { await writes.refresh(); actionInFlight.current = false; setBusy(false) }
   }
-  async function dismissAlert(id: number) { await onAction(() => api.dismissAlert(id), 'Alert dismissed.') }
-  useEffect(() => { load() }, [load])
-  // Refetch when a timer is logged or a to-do is quick-added from the sticky bar.
-  useEffect(() => { if (dataTick) load() }, [dataTick, load])
-  // Poll so the current/next block and calendar stay fresh without a manual refresh
-  // (the now-line itself advances every 30s via useNowMinutes below).
-  usePoll(load, 180_000)
+  // Single-item taps update the screen at once and never lock the page.
+  const quick = (operation: () => Promise<void>) => {
+    setActionError(null); setNotice(null)
+    operation().catch(e => setActionError(e instanceof Error ? e.message : String(e)))
+  }
+  // A timer stopped here or on another device logged minutes: re-sync once.
+  const refresh = writes.refresh
+  useEffect(() => { if (dataTick) void refresh() }, [dataTick, refresh])
 
-  if (!today || !schedule) return error ? <div className="planning-feedback error" role="alert"><span>Could not load your dashboard. {error}</span><button className="btn" onClick={load}>Retry</button></div> : <p className="muted" role="status">Loading your day…</p>
+  if (!data) return error ? <div className="planning-feedback error" role="alert"><span>Could not load your dashboard. {error}</span><button className="btn" onClick={reload}>Retry</button></div> : <p className="muted" role="status">Loading your day…</p>
+  const { today, schedule, habits, heatmap: heat, todos: tasks, dailyTodos: daily, pending, alerts } = data
+  const review = data.review.review
 
   const now = liveNow
   // Do we have any real Garmin-sourced health data yet? Drives honest empty states.
@@ -123,25 +111,24 @@ export default function TodayPage() {
   const actionsDone = dailyDone + plannedToday.filter(task => task.completedAt).length
   const prioritiesCount = plannedToday.filter(task => task.isPriority && !task.completedAt).length
 
-  async function toggleHabit(id: number) {
-    await onAction(() => api.toggleHabit(id), 'Habit updated.')
+  function addDaily(e: FormEvent) {
+    e.preventDefault()
+    const title = newDaily.trim()
+    if (!title) return
+    setNewDaily('')
+    quick(() => writes.addDaily(title))
   }
-  async function addDaily(e: FormEvent) { e.preventDefault(); if (!newDaily.trim()) return; await onAction(async () => { await api.createDailyTodo(newDaily.trim()); setNewDaily('') }, 'Added to today.') }
-  async function toggleDaily(id: number) { await onAction(() => api.toggleDailyTodo(id), 'To-do updated.') }
-  async function removeDaily(id: number) { await onAction(() => api.deleteDailyTodo(id), 'To-do removed.') }
-  // Optimistic drag-reorder; reload to reconcile if the persist fails.
-  async function reorderDaily(ids: number[]) {
-    if (actionInFlight.current) return
-    const byId = new Map(daily.map((d) => [d.id, d]))
-    setDaily(ids.map((id) => byId.get(id)!).filter(Boolean))
-    await onAction(() => api.reorderDailyTodos(ids), 'Order saved.')
-  }
+  const toggleDaily = (item: DailyTodo) => quick(() => writes.toggleDaily(item))
+  const removeDaily = (item: DailyTodo) => quick(() => writes.removeDaily(item))
+  const reorderDaily = (ids: number[]) => quick(() => writes.reorderDaily(ids))
+  const dismissAlert = (id: number) => quick(() => writes.dismissAlert(id))
   // Tapping a timed skill starts its timer (tap a running one again to stop & log);
-  // binary skills just toggle done. Multiple timers can run at once.
-  async function mobileSkill(h: Habit) {
-    if (!h.tracksTime) { await toggleHabit(h.id); return }
-    if (isRunning(h.id)) await onAction(() => stop(h.id), 'Practice stopped and synced.')
-    else await onAction(() => start(h.id, h.name), 'Practice timer started.')
+  // binary skills just toggle done. Multiple timers can run at once. The timer
+  // context already shows the change at once and reports save failures itself.
+  function mobileSkill(h: Habit) {
+    if (!h.tracksTime) { quick(() => writes.toggleHabit(h)); return }
+    if (isRunning(h.id)) void stop(h.id).catch(() => { /* TimerProvider shows the save error. */ })
+    else void start(h.id, h.name).catch(() => { /* TimerProvider shows the save error. */ })
   }
   const runningIds = timers.map((t) => t.habitId)
   // Only the habits the user pinned to quick actions (managed on the Habits page).
@@ -163,12 +150,12 @@ export default function TodayPage() {
   const addForm = (
     <form className="daily-add" onSubmit={addDaily}>
       <input id="today-capture" aria-label="New to-do for today" value={newDaily} placeholder="Something to get done today…" onChange={(e) => setNewDaily(e.target.value)} />
-      <button className="btn" type="submit" disabled={busy || !newDaily.trim()}>Add to today</button>
+      <button className="btn" type="submit" disabled={!newDaily.trim()}>Add to today</button>
     </form>
   )
 
   const feedback = <>
-    {error && <div className="planning-feedback error" role="alert"><span>Could not refresh. Your last loaded data is still shown. {error}</span><button className="btn" onClick={load}>Retry</button></div>}
+    {error && <div className="planning-feedback error" role="alert"><span>Could not refresh. Your last loaded data is still shown. {error}</span><button className="btn" onClick={reload}>Retry</button></div>}
     {actionError && <div className="planning-feedback error" role="alert">{actionError}<button className="btn" onClick={() => setActionError(null)}>Dismiss</button></div>}
     {notice && <p className="planning-feedback" role="status">{notice}</p>}
   </>
@@ -198,8 +185,8 @@ export default function TodayPage() {
           {dailyActions}
           <section className="card today-practice" id="today-practice">
             <div className="today-section-heading"><div><p className="today-eyebrow">Keep showing up</p><h2>Make time for practice</h2></div><Link to="/habits">All habits ↗</Link></div>
-            {timers.map(timer => <RunningTimer key={timer.habitId} name={timer.habitName} elapsedMs={elapsedMs(timer.habitId)} onStop={() => onAction(() => stop(timer.habitId), 'Practice stopped and synced.')} />)}
-            <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} busy={busy} />
+            {timers.map(timer => <RunningTimer key={timer.habitId} name={timer.habitName} elapsedMs={elapsedMs(timer.habitId)} onStop={() => { void stop(timer.habitId).catch(() => { /* TimerProvider shows the save error. */ }) }} />)}
+            <SkillChips habits={quickHabits} onSkill={mobileSkill} runningIds={runningIds} />
             {!quickHabits.length && <p className="muted">Pin your regular practice on the <Link to="/habits">Habits page</Link> for a quick start here.</p>}
             <details className="today-practice-week"><summary>This week's practice <span>{today.habitsCompletedToday} logged today</span></summary><WeeklyGrid habits={habits} heatById={heatById} week={weekDays} todayKey={todayKey} /><MomentumInner weekPct={weekPct} weekHits={targetHits} weeklyTarget={weeklyTarget} longest={longest} /></details>
           </section>
@@ -359,14 +346,14 @@ function RunningTimer({ name, elapsedMs, onStop }: { name: string; elapsedMs: nu
   )
 }
 
-function SkillChips({ habits, onSkill, runningIds, busy }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[]; busy: boolean }) {
+function SkillChips({ habits, onSkill, runningIds }: { habits: Habit[]; onSkill: (h: Habit) => void; runningIds?: number[] }) {
   return (
     <div className="skill-grid">
       {habits.map((h, idx) => {
         const color = habitColor(h.name, idx)
         const running = runningIds?.includes(h.id) ?? false
         return (
-          <button key={h.id} disabled={busy} aria-label={`${running ? 'Stop' : h.tracksTime ? 'Start' : h.doneToday ? 'Uncheck' : 'Complete'} ${h.name}`} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
+          <button key={h.id} aria-label={`${running ? 'Stop' : h.tracksTime ? 'Start' : h.doneToday ? 'Uncheck' : 'Complete'} ${h.name}`} className={`skill-tile${h.doneToday ? ' done' : ''}${running ? ' running' : ''}`} style={{ ['--skill' as string]: color }} onClick={() => onSkill(h)}>
             <span className="skill-name">{h.name}<span className="skill-check">{running ? '●' : h.doneToday ? '✓' : ''}</span></span>
             <span className="skill-meta">{running ? 'Stop timer' : h.tracksTime ? 'Start a session' : h.doneToday ? 'Completed today' : 'Mark done'}</span>
           </button>
@@ -432,7 +419,7 @@ function TasksInner({ overdue, upcoming, busy, onAction }: { overdue: Todo[]; up
 }
 
 function TodoListItems({ daily, toggleDaily, removeDaily, onReorder, onAction, busy }: {
-  daily: DailyTodo[]; toggleDaily: (id: number) => void; removeDaily: (id: number) => void
+  daily: DailyTodo[]; toggleDaily: (item: DailyTodo) => void; removeDaily: (item: DailyTodo) => void
   onReorder: (ids: number[]) => void; onAction: PlanningAction; busy: boolean
 }) {
   const open = daily.filter(item => !item.done)
@@ -443,16 +430,16 @@ function TodoListItems({ daily, toggleDaily, removeDaily, onReorder, onAction, b
       <Reorderable items={open} getId={(d) => d.id} onReorder={ids => onReorder([...ids, ...complete.map(item => item.id)])}
         renderRow={(d, handle) => (
           <div className="todo daily-row">
-            {!busy && <DragGrip {...handle} />}
+            {!busy && d.id > 0 && <DragGrip {...handle} />}
             <label className="daily-check">
-              <input type="checkbox" disabled={busy} checked={d.done} onChange={() => toggleDaily(d.id)} />
+              <input type="checkbox" disabled={d.id < 0} checked={d.done} onChange={() => toggleDaily(d)} />
               <span>{d.title}</span>
             </label>
-            <button className="btn btn-sm" disabled={busy} onClick={() => onAction(() => dailyPlanning.carry(d.id, nextDateKey()), 'Moved to tomorrow.')}>Tomorrow</button>
-            <button className="icon-btn danger" disabled={busy} onClick={() => removeDaily(d.id)} aria-label={`Remove ${d.title}`} title="Remove">✕</button>
+            <button className="btn btn-sm" disabled={busy || d.id < 0} onClick={() => onAction(() => dailyPlanning.carry(d.id, nextDateKey()), 'Moved to tomorrow.')}>Tomorrow</button>
+            <button className="icon-btn danger" disabled={d.id < 0} onClick={() => removeDaily(d)} aria-label={`Remove ${d.title}`} title="Remove">✕</button>
           </div>
         )} />
-      {complete.length > 0 && <details className="today-completed"><summary>Completed today <span>{complete.length}</span></summary>{complete.map(item => <div className="todo daily-row" key={item.id}><label className="daily-check"><input type="checkbox" disabled={busy} checked onChange={() => toggleDaily(item.id)} /><span className="done">{item.title}</span></label><button className="icon-btn danger" disabled={busy} onClick={() => removeDaily(item.id)} aria-label={`Remove ${item.title}`}>✕</button></div>)}</details>}
+      {complete.length > 0 && <details className="today-completed"><summary>Completed today <span>{complete.length}</span></summary>{complete.map(item => <div className="todo daily-row" key={item.id}><label className="daily-check"><input type="checkbox" checked onChange={() => toggleDaily(item)} /><span className="done">{item.title}</span></label><button className="icon-btn danger" onClick={() => removeDaily(item)} aria-label={`Remove ${item.title}`}>✕</button></div>)}</details>}
     </div>
   )
 }
