@@ -183,6 +183,7 @@ app.MapPost("/api/auth/logout", (HttpContext ctx) =>
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok", service = "personal-dashboard-api" }));
 app.MapApiEndpoints();
+app.MapGroup("/api").MapTodayBundleEndpoints();
 app.MapSettingsEndpoints();
 app.MapSkillProgressEndpoints();
 app.MapExportEndpoints();

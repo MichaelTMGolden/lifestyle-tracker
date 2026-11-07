@@ -18,12 +18,13 @@ public static class DailyPlanningEndpoints
         return api;
     }
 
-    public static async Task<List<DailyTodo>> Pending(AppDbContext db, HttpRequest req)
-    {
-        var today = ClientClock.From(req).Today;
-        return await db.DailyTodos.AsNoTracking().Where(t => !t.Done && t.Date < today)
+    public static Task<List<DailyTodo>> Pending(AppDbContext db, HttpRequest req) =>
+        PendingAsync(db, ClientClock.From(req).Today);
+
+    /// <summary>Unfinished to-dos from earlier days, waiting to be carried forward.</summary>
+    public static Task<List<DailyTodo>> PendingAsync(AppDbContext db, DateOnly today) =>
+        db.DailyTodos.AsNoTracking().Where(t => !t.Done && t.Date < today)
             .OrderBy(t => t.Date).ThenBy(t => t.SortOrder).ThenBy(t => t.Id).ToListAsync();
-    }
 
     public static async Task<IResult> Carry(long id, CarryDailyInput input, AppDbContext db, HttpRequest req)
     {

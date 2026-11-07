@@ -531,6 +531,22 @@ async function login(password: string): Promise<boolean> {
   return res.ok
 }
 
+/** A habit log write. `habit` is the habit's refreshed row (streak included), or null when archived. */
+export interface HabitLogChange { habitId: number; date: string; completed: boolean; minutes: number; habit: Habit | null }
+
+/** Everything the Today page shows, in one request (GET /api/today/bundle). */
+export interface TodayBundle {
+  today: Today
+  schedule: ScheduleToday
+  habits: Habit[]
+  heatmap: HabitHeatmap[]
+  todos: Todo[]
+  dailyTodos: DailyTodo[]
+  pending: DailyTodo[]
+  alerts: Alert[]
+  review: { enabled: boolean; review: WeeklyReview | null }
+}
+
 export interface TodoInput {
   title: string
   notes?: string | null
@@ -548,6 +564,7 @@ export const api = {
   metricKeys: () => get<MetricKey[]>('/api/metrics'),
   sleep: (days = 30) => get<SleepNight[]>(`/api/sleep?days=${days}`),
   today: () => get<Today>('/api/today'),
+  todayBundle: () => get<TodayBundle>('/api/today/bundle'),
   scheduleToday: () => get<ScheduleToday>('/api/schedule/today'),
   scheduleWeek: () => get<ScheduleDay[]>('/api/schedule/week'),
   importSchedule: async (file: File, mode: 'default' | 'temporary', revertOn?: string) => {
@@ -565,15 +582,15 @@ export const api = {
   workouts: () => get<Workout[]>('/api/workouts'),
   habits: () => get<Habit[]>('/api/habits'),
   habitsHeatmap: (days = 182) => get<HabitHeatmap[]>(`/api/habits/heatmap?days=${days}`),
-  toggleHabit: (id: number) => post(`/api/habits/${id}/toggle`),
+  toggleHabit: (id: number) => post<HabitLogChange>(`/api/habits/${id}/toggle`),
   createHabit: (name: string, tracksTime: boolean) => post<Habit>('/api/habits', { name, tracksTime }),
   deleteHabit: (id: number) => send<void>('DELETE', `/api/habits/${id}`),
-  logHabitTime: (id: number, minutes: number) => post(`/api/habits/${id}/log-time`, { minutes }),
+  logHabitTime: (id: number, minutes: number) => post<HabitLogChange>(`/api/habits/${id}/log-time`, { minutes }),
 
   // Server-side running timers (sync across devices). startedAt is epoch ms (server clock).
   activeTimers: () => get<{ habitId: number; habitName: string; startedAt: number }[]>('/api/timers'),
   startTimer: (habitId: number) => post<{ habitId: number; habitName: string; startedAt: number }>(`/api/timers/${habitId}`),
-  stopTimer: (habitId: number) => send<{ habitId: number; minutes: number }>('DELETE', `/api/timers/${habitId}`),
+  stopTimer: (habitId: number) => send<{ habitId: number; minutes: number; habit?: Habit | null }>('DELETE', `/api/timers/${habitId}`),
   setHabitToday: (id: number, minutes: number) => send('PUT', `/api/habits/${id}/today`, { minutes }),
   habitLogs: (id: number, days = 30) => get<HabitLogEntry[]>(`/api/habits/${id}/logs?days=${days}`),
   setHabitLog: (id: number, date: string, minutes: number) => send('PUT', `/api/habits/${id}/logs/${date}`, { minutes }),

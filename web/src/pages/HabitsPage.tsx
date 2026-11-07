@@ -77,14 +77,45 @@ export default function HabitsPage() {
   async function retireGoal(id: number) { await api.archiveGoal(id); await load() }
   async function restoreGoal(id: number) { await api.unarchiveGoal(id); await load() }
 
-  async function quickAdd(id: number, mins: number) { await api.logHabitTime(id, mins); await load() }
+  // Show a habit change at once: the habit row and today's heatmap cell.
+  function showHabit(row: Habit) {
+    setHabits(list => list.map(h => h.id === row.id ? row : h))
+    setHeat(list => list.map(r => {
+      if (r.id !== row.id) return r
+      const days = r.days.filter(d => d.date !== today)
+      const dates = r.completedDates.filter(d => d !== today)
+      return row.doneToday
+        ? { ...r, days: [...days, { date: today, minutes: row.minutesToday }], completedDates: [...dates, today] }
+        : { ...r, days, completedDates: dates }
+    }))
+  }
+  // A failed write reloads so the page shows what was actually saved.
+  const failed = (e: unknown) => { setError(e instanceof Error ? e.message : String(e)); void load() }
+
+  async function quickAdd(id: number, mins: number) {
+    const habit = habits.find(h => h.id === id)
+    if (habit) showHabit({ ...habit, doneToday: true, minutesToday: habit.minutesToday + mins, totalMinutes: habit.totalMinutes + mins })
+    try {
+      const reply = await api.logHabitTime(id, mins)
+      if (reply.habit) showHabit(reply.habit)
+      // Minutes feed goal progress, so only goals need fetching again.
+      setGoals(await api.goals())
+    } catch (e) { failed(e) }
+  }
   async function addCustom(id: number) {
     const mins = parseInt(custom[id] ?? '', 10)
     if (!mins || mins <= 0) return
     setCustom((c) => ({ ...c, [id]: '' }))
-    await api.logHabitTime(id, mins); await load()
+    await quickAdd(id, mins)
   }
-  async function toggle(id: number) { await api.toggleHabit(id); await load() }
+  async function toggle(id: number) {
+    const habit = habits.find(h => h.id === id)
+    if (habit) showHabit({ ...habit, doneToday: !habit.doneToday })
+    try {
+      const reply = await api.toggleHabit(id)
+      if (reply.habit) showHabit(reply.habit)
+    } catch (e) { failed(e) }
+  }
   async function flipTracksTime(id: number) { await api.toggleHabitTracksTime(id); await load() }
   async function flipQuickActions(id: number) { await api.toggleHabitQuickActions(id); await load() }
   async function createSkill(e: FormEvent) {
