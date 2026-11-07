@@ -4,13 +4,13 @@ databases:
   - name: dashboard-db
     databaseName: personal_dashboard
     user: dashboard
-    plan: free            # free Postgres expires after ~90 days; bump to a paid plan to keep it
+    plan: basic-256mb     # paid, so the data doesn't expire (free Postgres expires)
 
 services:
   - type: web
     name: personal-dashboard
     runtime: docker
-    plan: free            # free web services sleep when idle (cold starts); fine for personal use
+    plan: starter         # paid, so it doesn't sleep when idle (no cold starts)
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
