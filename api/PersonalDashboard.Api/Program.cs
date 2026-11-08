@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.StaticFiles;
 using PersonalDashboard.Api.Alerts;
 using Microsoft.EntityFrameworkCore;
 using PersonalDashboard.Api.Data;
@@ -136,7 +137,18 @@ app.UseResponseCompression();
 // Serve the built React SPA (copied into wwwroot by the Docker image). No-op in
 // dev where the SPA runs on the Vite server instead.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// Static files only serve known types; make sure the PWA manifest is one of them.
+var staticTypes = new FileExtensionContentTypeProvider();
+staticTypes.Mappings[".webmanifest"] = "application/manifest+json";
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = staticTypes,
+    // The service worker must be revalidated on every check so a deploy reaches installed apps.
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name == "sw.js") ctx.Context.Response.Headers.CacheControl = "no-cache";
+    },
+});
 app.UseCors(DevCors);
 
 // --- Shared-password gate (only enforced when APP_PASSWORD is set) ---
