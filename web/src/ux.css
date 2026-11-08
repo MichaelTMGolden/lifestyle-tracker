@@ -7,34 +7,30 @@
 .skip-link:focus { top: .5rem; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 .route-loading { border: 1px solid var(--line); padding: 2rem; border-radius: .6rem; color: var(--text-dim); }
-.sheet-label, .field label { font-size: .875rem; letter-spacing: 0; text-transform: none; }
 .badge { font-size: .7rem; }
-.nn-meta { font-size: .9rem; }
 .panel { background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
 .ux-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .ux-actions { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
 .rubric { padding: .75rem 1rem; border-left: 2px solid var(--crimson); background: var(--bg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 768px) {
   .app { padding-left: .9rem; padding-right: .9rem; }
-  .btn, .icon-btn { min-height: 44px; }
+  .btn { min-height: 44px; }
 }
 
 /* Everyday content uses clear type; the page title and brand carry the gothic identity. */
 h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(2rem, 2.8vw, 2.6rem); letter-spacing: 0; line-height: 1.1; }
-h2, .section-title { font-family: var(--font-body); font-size: 1.0625rem; font-weight: 650; text-transform: none; letter-spacing: -.015em; color: var(--text); }
+h2 { font-family: var(--font-body); font-size: 1.0625rem; font-weight: 650; text-transform: none; letter-spacing: -.015em; color: var(--text); }
 h3 { font-family: var(--font-body); font-weight: 600; letter-spacing: -.015em; }
 .subtitle { font-style: normal; font-size: .9375rem; line-height: 1.6; margin-top: .4rem; }
 .card { border-color: var(--line-strong); border-radius: 12px; }
-.btn, .link-btn, .back, .seg button { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .875rem; line-height: 1.4; }
+.btn, .back { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: .875rem; line-height: 1.4; }
 .btn { min-height: 42px; font-weight: 550; border-radius: 7px; }
 .btn-sm { min-height: 38px; }
 .back { text-decoration: underline; text-underline-offset: 4px; }
-.field label, .gf-field > span, .gf-label, .garmin-days { font-size: .875rem; letter-spacing: 0; text-transform: none; }
-.badge, .pill, .ch-pill, .pri { font-size: .75rem; letter-spacing: 0; text-transform: none; }
-.conn-mode, .legend, .day-col h3 { font-size: .875rem; letter-spacing: 0; text-transform: none; }
+.badge, .pill { font-size: .75rem; letter-spacing: 0; text-transform: none; }
+.legend { font-size: .875rem; letter-spacing: 0; text-transform: none; }
 .dashboard-shell .planning-actions .btn, .dashboard-shell .planning-date, .dashboard-shell .planning-copy small { font-size: .875rem; }
 .dashboard-shell .planning-note { font-size: .875rem; line-height: 1.6; }
-.ch-meta { font-size: .875rem; }
 .dashboard-shell input, .dashboard-shell select, .dashboard-shell textarea { font-family: var(--font-body); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }

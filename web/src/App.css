@@ -37,14 +37,6 @@ h2 {
 }
 h3 { font-family: var(--font-head); margin: 0; font-weight: 500; }
 .subtitle { margin: 0; color: var(--text-dim); font-size: 1rem; font-style: italic; }
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0.2rem 0 1.5rem;
-}
 .back { font-family: var(--font-head); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-dim); text-decoration: none; }
 .back:hover { color: var(--crimson); }
 
@@ -55,22 +47,12 @@ h3 { font-family: var(--font-head); margin: 0; font-weight: 500; }
   border-radius: 5px;
   padding: 1.2rem 1.35rem;
 }
-.muted { color: var(--text-dim); font-size: 0.9rem; }
 
 /* ---------- next up ---------- */
 
 /* ---------- stat tiles ---------- */
-.stat {
-  background: var(--bg-1);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 1rem 1.15rem;
-}
-.stat.clickable { cursor: pointer; transition: border-color 0.18s; }
-.stat.clickable:hover { border-color: var(--crimson); }
 
 /* ---------- layout ---------- */
-.stack { display: flex; flex-direction: column; gap: 1.1rem; }
 
 /* ---------- generic list ---------- */
 .list { list-style: none; margin: 0; padding: 0; }
@@ -97,85 +79,26 @@ h3 { font-family: var(--font-head); margin: 0; font-weight: 500; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- daily to-do ---------- */
-.daily-add { display: flex; gap: 0.5rem; margin-bottom: 0.9rem; }
-.daily-add input { flex: 1; }
-.daily-row { gap: 0.6rem; }
-.daily-check { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0; cursor: pointer; }
-.daily-row input[type='checkbox'] { accent-color: var(--crimson); width: 16px; height: 16px; flex-shrink: 0; }
-.daily-row .icon-btn { padding: 0.1rem 0.45rem; }
 
 /* ---------- skill quick-log tiles ---------- */
 
 /* ---------- timeline ---------- */
-.tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 0.5rem; opacity: 0.85; }
-.tl-dot.cal { background: var(--crimson); }
 .badge { font-family: var(--font-head); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--crimson); border: 1px solid rgba(178, 58, 91, 0.4); padding: 0.1rem 0.4rem; border-radius: 3px; }
 
 /* ---------- 'now' marker ---------- */
-.now-line { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
-.now-line-mini { list-style: none; position: relative; height: 2px; background: var(--crimson); border-radius: 2px; margin: 2px 0; }
-.now-line-mini::before { content: ''; position: absolute; left: -2px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); }
 
 /* ---------- weekly schedule ---------- */
 .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; font-family: var(--font-head); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); }
-.legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
-.week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.55rem; }
-@media (max-width: 920px) { .week-grid { grid-template-columns: repeat(2, 1fr); } }
-.day-col { background: var(--bg-1); border: 1px solid var(--line); border-radius: 5px; padding: 0.6rem 0.5rem; }
-.day-col.today { border-color: var(--crimson); }
-.day-col h3 { font-family: var(--font-head); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.14em; text-align: center; color: var(--text-dim); margin-bottom: 0.5rem; }
-.day-col.today h3 { color: var(--crimson); }
-.day-blocks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.day-block { border-left: 3px solid #555; padding: 0.25rem 0.5rem; background: var(--bg-2); border-radius: 0 4px 4px 0; }
-.db-time { font-variant-numeric: tabular-nums; font-size: 0.68rem; color: var(--text-dim); }
-.db-act { font-size: 0.84rem; display: flex; gap: 0.3rem; align-items: baseline; }
-.day-block { cursor: pointer; transition: background 0.12s ease; }
-.day-block:hover { background: var(--bg-3); }
-.day-block.current { background: var(--crimson-soft, rgba(178,58,91,.12)); box-shadow: inset 0 0 0 1px var(--crimson); }
-.now-line-mini span { position: absolute; right: 0; top: -7px; font-size: 0.6rem; color: var(--crimson);
-  font-variant-numeric: tabular-nums; background: var(--bg-1); padding: 0 2px; }
-.sched-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
-.sched-temp { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; color: var(--watch);
-  background: rgba(216, 162, 79, 0.08); border-color: rgba(216, 162, 79, 0.3); }
-.sched-mode { margin-top: 0.8rem; }
-.sched-revert { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.7rem; font-size: 0.78rem; color: var(--text-dim); }
-.sched-revert input { max-width: 180px; }
 
 /* ---------- generic modal (schedule block detail, etc.) ---------- */
-.modal-scrim { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-  background: rgba(8, 8, 10, 0.66); padding: 1rem; }
-.modal-card { --accent: var(--crimson); position: relative; width: min(440px, 92vw); background: var(--bg-1);
-  border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; padding: 1.4rem 1.5rem;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6); }
-.modal-x { position: absolute; top: 0.7rem; right: 0.8rem; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem; }
-.modal-x:hover { color: var(--text); }
-.modal-eyebrow { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.66rem; }
-.modal-title { font-family: var(--font-head); font-size: 1.5rem; margin: 0.25rem 0 0.3rem; }
-.modal-when { color: var(--text-dim); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-.modal-notes { margin: 0.9rem 0 0; font-style: italic; color: var(--text-dim); }
-.modal-details { margin: 0.6rem 0 0; line-height: 1.55; }
-.week-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--watch);
-  border: 1px solid #d8a24f80; border-radius: 20px; padding: 0.05rem 0.4rem; margin-left: 0.4rem; white-space: nowrap; }
-.week-edit { margin-top: 0.7rem; }
-.week-edit textarea { width: 100%; resize: vertical; margin: 0.3rem 0 0.5rem; }
 
 /* ---------- health dashboard ---------- */
 
 /* ---------- health index grid ---------- */
 
 /* ---------- segmented controls ---------- */
-.seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; }
-.seg button {
-  border: none; background: none; color: var(--text-dim); cursor: pointer;
-  padding: 0.32rem 0.75rem; border-radius: 3px; font-family: var(--font-head);
-  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.15s;
-}
-.seg button:hover { color: var(--text); }
-.seg button.on { background: var(--crimson-soft); color: var(--crimson); }
 
 /* ---------- forms / buttons ---------- */
-.field { display: flex; flex-direction: column; gap: 0.25rem; }
-.field label { font-family: var(--font-head); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); }
 input, select, textarea {
   font-family: var(--font-body); font-size: 1rem;
   background: var(--bg-2); color: var(--text);
@@ -202,17 +125,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .btn-ghost { background: none; border-color: var(--line-strong); color: var(--text-dim); }
 .btn-ghost:hover { background: var(--bg-3); color: var(--text); border-color: var(--text-dim); box-shadow: none; }
 .btn-ghost:active { transform: translateY(1px); }
-.icon-btn { background: none; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; color: var(--text-dim); padding: 0.3rem 0.5rem; font-size: 0.9rem; transition: all 0.15s; }
-.icon-btn:hover { color: var(--crimson); border-color: var(--crimson); }
-.icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
 
 /* ---------- tasks ---------- */
-.pri { font-family: var(--font-head); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.15rem 0.5rem; border-radius: 3px; }
-
-.section-title { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.74rem; color: var(--text-dim); margin: 1.7rem 0 0.7rem; }
-
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-.section-head .section-title { margin-bottom: 0.5rem; }
 
 /* Umbrella heading grouping related subsections (e.g. Goals → hour-goals + challenges). */
 
@@ -222,25 +136,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 /* "where you'd need to be today" tick for a target-dated goal */
 
 /* ahead/behind pace pill */
-.gf-clear { align-self: end; }
 
 /* completed (frozen "trophy") goal card */
 
 /* completed-goals list (inside the collapsible) */
 
 /* completion celebration overlay */
-.celebrate-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-  background: rgba(8, 8, 10, 0.74); animation: celebrate-fade 0.25s ease; overflow: hidden; cursor: pointer; }
-.celebrate-card { --goal: var(--crimson); position: relative; text-align: center; padding: 2rem 2.6rem; border-radius: 12px;
-  background: var(--bg-1); border: 1px solid var(--line); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--goal) inset;
-  animation: celebrate-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.3); cursor: default; max-width: 90vw; }
-.celebrate-eyebrow { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.22em; font-size: 0.72rem; color: var(--watch); }
-.celebrate-name { font-family: var(--font-head); font-size: 1.9rem; margin: 0.4rem 0 0.2rem; }
-.celebrate-hours { font-family: var(--font-head); font-size: 3rem; line-height: 1; color: var(--goal); }
-.celebrate-sub { color: var(--text-dim); margin: 0.5rem 0 1.2rem; }
-.celebrate-confetti { position: absolute; inset: 0; pointer-events: none; }
-.shard { position: absolute; top: -6%; width: 8px; height: 14px; border-radius: 1px; opacity: 0; transform: translateY(0) rotate(0deg);
-  animation-name: shard-fall; animation-timing-function: ease-in; animation-iteration-count: 1; animation-fill-mode: both; }
 @keyframes shard-fall {
   0% { opacity: 0; transform: translateY(-10vh) rotate(0deg); }
   12% { opacity: 1; }
@@ -248,30 +149,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 }
 @keyframes celebrate-pop { from { opacity: 0; transform: scale(0.86) translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes celebrate-fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-  .celebrate-card { animation: none; }
-  .celebrate-overlay { animation: none; }
-}
 
 /* ---------- goal form ---------- */
-.goal-form { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
-.gf-row { display: flex; gap: 0.9rem; flex-wrap: wrap; }
-.gf-field { display: flex; flex-direction: column; gap: 0.3rem; }
-.gf-field > span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
-.gf-grow { flex: 1; min-width: 180px; }
-.gf-narrow { width: 120px; }
-.gf-field input[type=text], .gf-field input:not([type]), .gf-field input[type=number] {
-  background: var(--bg); border: 1px solid var(--line-strong); border-radius: 5px; color: var(--text);
-  padding: 0.5rem 0.6rem; font-family: var(--font-body); font-size: 0.95rem; }
-.gf-color input[type=color] { width: 46px; height: 40px; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; background: none; cursor: pointer; }
-.gf-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); display: block; margin-bottom: 0.4rem; }
-.gf-count { vertical-align: middle; }
-.gf-hint { display: block; margin-top: 0.4rem; font-size: 0.78rem; }
-.gf-checks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.gf-check { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border: 1px solid var(--line-strong);
-  border-radius: 20px; cursor: pointer; font-size: 0.9rem; color: var(--text-dim); transition: all 0.15s; }
-.gf-check.on { color: var(--text); border-color: var(--crimson); background: var(--crimson-soft); }
-.gf-actions { display: flex; gap: 0.6rem; }
 
 /* ---------- habit heatmaps ---------- */
 .heat { display: flex; gap: 3px; }
@@ -347,18 +226,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; background: var(--bg-1);
   border-top: 1px solid var(--line-strong); border-radius: 14px 14px 0 0;
   padding: 0.4rem 1rem calc(1.1rem + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 1rem; }
-.sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--line-strong); margin: 0.3rem auto 0.1rem; }
-.sheet-sec { display: flex; flex-direction: column; gap: 0.5rem; }
-.sheet-label { font-family: var(--font-head); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.66rem; color: var(--text-dim); }
-.sheet-skills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.sheet-skill { --skill: var(--crimson); min-height: 44px; padding: 0 0.95rem; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--skill); background: var(--bg-3); color: var(--text); font-size: 0.92rem; }
 
 /* ---------- nutrition ---------- */
 .macro { min-width: 92px; }
 
 /* secondary nutrients under the macro totals */
-.micro { display: flex; flex-direction: column; min-width: 64px; }
 
 /* log = primary (left, wider); add food = sidebar (right).
    minmax(0,…) lets the tracks shrink below their content's intrinsic width so a
@@ -367,10 +239,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .results { display: flex; flex-direction: column; margin-top: 0.5rem; }
 .result { border-top: 1px solid var(--line); }
 .result:first-child { border-top: none; }
-.seg.sm button { font-size: 0.72rem; padding: 0.2rem 0.5rem; }
-.link-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-dim); font-size: 0.74rem;
-  text-decoration: underline; text-underline-offset: 2px; }
-.link-btn:hover { color: var(--crimson); }
 
 /* remembered foods */
 
@@ -381,76 +249,34 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .error { background: rgba(196, 90, 104, 0.1); border: 1px solid rgba(196, 90, 104, 0.4); border-radius: 5px; padding: 1rem; line-height: 1.5; color: var(--text); }
 
 /* ===================== connections ===================== */
-.conn-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem; }
-.conn-card{ display:flex; flex-direction:column; gap:.7rem; }
-.conn-top{ display:flex; align-items:center; gap:.7rem; }
-.conn-ico{ width:34px; height:34px; border-radius:9px; background:var(--bg-2); display:grid; place-items:center; font-size:18px; flex:0 0 auto; }
-.conn-id{ flex:1; min-width:0; }
-.conn-name{ font-family:var(--font-head); font-size:1.05rem; }
-.conn-mode{ font-family:var(--font-head); text-transform:uppercase; letter-spacing:.14em; font-size:.58rem; color:var(--text-dim); }
 .pill{ font-family:var(--font-head); text-transform:uppercase; letter-spacing:.1em; font-size:.58rem; padding:.2rem .55rem; border-radius:999px; white-space:nowrap; }
 .pill.ok{ color:var(--good); border:1px solid rgba(127,175,147,.4); background:rgba(127,175,147,.1); }
 .pill.pending{ color:var(--text-dim); border:1px solid var(--line-strong); }
-.conn-status{ font-size:.86rem; color:var(--text-dim); margin:0; line-height:1.45; min-height:2.4em; }
-.conn-meta{ display:flex; justify-content:space-between; font-size:.82rem; font-variant-numeric:tabular-nums; border-top:1px solid var(--line); padding-top:.6rem; }
-.conn-msg{ font-size:.8rem; color:var(--cyan,#7faf93); background:rgba(127,175,147,.08); border:1px solid rgba(127,175,147,.25); border-radius:6px; padding:.5rem .65rem; line-height:1.45; }
-.conn-msg.err{ color:var(--bad); background:rgba(178,58,91,.08); border-color:rgba(178,58,91,.3); }
 
 /* Garmin live-sync panel */
-.garmin-panel{ margin-bottom:1.1rem; display:flex; flex-direction:column; gap:.7rem; }
-.garmin-form{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
-.garmin-form input{ flex:1; min-width:180px; }
-.garmin-row{ display:flex; align-items:flex-end; gap:.6rem; flex-wrap:wrap; }
-.garmin-days{ display:flex; flex-direction:column; gap:.25rem; font-size:.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
-.garmin-days input{ width:84px; }
-.garmin-foot{ display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:.7rem; }
-.garmin-foot .sep{ color:var(--text-dim); }
-.cal-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
-.cal-row{ display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
-.cal-row:first-child{ border-top:none; }
-.cal-label{ flex:1; font-family:var(--font-head); }
-.cal-label-in{ max-width:160px; }
-.conn-actions{ display:flex; gap:.5rem; flex-wrap:wrap; }
 code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background:var(--bg-2); border:1px solid var(--line); border-radius:4px; padding:.05rem .35rem; }
 
 /* ===================== health dashboard ===================== */
 
 /* readiness hero */
 .chips{ display:flex; flex-wrap:wrap; gap:7px; }
-.chip{ display:inline-flex; align-items:center; gap:7px; background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:.8rem; color:#cdc8bd; }
-.chip .dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
 
 /* vitals */
 
 /* insights */
-.ins{ font-family:var(--font-body); font-size:1.02rem; line-height:1.5; color:#d6d2c8; padding:.6rem 0; border-bottom:1px solid var(--line); display:flex; gap:.6rem; }
-.ins:last-child{ border-bottom:0; }
-.ins .mark{ font-family:var(--font-body); font-weight:700; flex:0 0 auto; width:16px; text-align:center; }
-.ins b{ color:#f0ebe0; }
-.ins .act{ display:block; font-family:var(--font-body); font-size:.86rem; color:var(--crimson); margin-top:5px; font-style:italic; }
-.rval{ font-family:var(--font-body); font-size:.78rem; color:var(--text-dim); }
 
 /* layouts */
 .legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:.78rem; color:var(--text-dim); margin-top:.6rem; }
 .legend i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
-.workout{ display:flex; align-items:center; gap:12px; padding:.55rem 0; border-bottom:1px solid var(--line); font-size:.9rem; }
-.workout:last-child{ border-bottom:0; }
-.w-meta{ margin-left:auto; color:var(--text-dim); font-size:.8rem; text-align:right; }
 
 /* charts */
 .chart{ position:relative; width:100%; }
 .chart svg{ width:100%; height:auto; display:block; }
-.tip{ position:absolute; pointer-events:none; background:#0a0a0c; border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; font-size:12px; transform:translate(-50%,-115%); white-space:nowrap; z-index:5; box-shadow:0 8px 24px rgba(0,0,0,.5); }
-.tip .t-row{ display:flex; gap:8px; align-items:center; }
 /* wide desktops: use the room — vitals in a single row */
 
 /* ===================== homepage (Today redesign) ===================== */
 
 /* now + next */
-.nn-act { font-family: var(--font-head); font-size: 1.45rem; margin: 5px 0 3px; line-height: 1.1; }
-.nn-meta { font-size: 0.82rem; color: var(--text-dim); }
-.prog { height: 6px; border-radius: 4px; background: var(--bg-3); overflow: hidden; }
-.prog > i { display: block; height: 100%; background: linear-gradient(90deg, var(--crimson), #d98aa0); }
 
 /* grouped stat strip */
 .strip { display: grid; grid-template-columns: auto 1fr; gap: 0; overflow: hidden; margin-bottom: 1.4rem; padding: 0; }
@@ -458,7 +284,6 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 /* weekly habit grid */
 
 /* momentum */
-.mom { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
 /* tasks groups */
 .task { display: flex; justify-content: space-between; gap: 0.7rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
@@ -472,8 +297,6 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 
   /* Compact Now+Next: current | next side by side with a thin progress row
      below, so the to-do list & quick actions sit higher on the page. */
-  .nn-act { font-size: 1.05rem; margin: 2px 0; }
-  .nn-meta { font-size: 0.74rem; }
 }
 
 /* Reserve space for the sticky action bar across the whole mobile range
@@ -496,18 +319,12 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
   }
 
   h1 { font-size: 1.55rem; }
-  .page-head { flex-direction: column; align-items: stretch; gap: 0.7rem; margin-bottom: 1.1rem; }
-  .stat { padding: 0.7rem 0.8rem; }
   .card { padding: 1rem 1.05rem; }
 
   /* keep weekly grid usable: horizontal scroll rather than cramming 7 cols */
-  .week-grid { grid-template-columns: repeat(7, minmax(118px, 1fr)); overflow-x: auto; gap: 0.45rem; padding-bottom: 0.4rem; }
 
   /* larger touch targets on the home capture surfaces */
-  .daily-row input[type=checkbox], .todo input[type=checkbox] { width: 22px; height: 22px; }
-  .daily-check { min-height: 44px; } /* full-width 44px toggle target around checkbox + label */
-  .daily-row { gap: 0.5rem; padding: 0.1rem 0; }
-  .daily-row .icon-btn, .icon-btn { min-width: 44px; min-height: 44px; }
+  .todo input[type=checkbox] { width: 22px; height: 22px; } /* full-width 44px toggle target around checkbox + label */
 
   /* Goals stack to a single column on narrow screens. */
 
@@ -518,44 +335,12 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 /* ===================== weekly review ===================== */
 
 /* ===================== challenges ===================== */
-.challenges-section { margin-top: 2.2rem; }
-.challenge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.1rem; align-items: start; }
-.challenge-card { border-left: 3px solid var(--ch, var(--crimson)); display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
-.challenge-card.challenge-done { box-shadow: 0 0 0 1px var(--ch, var(--crimson)) inset; }
-.ch-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
-.ch-titlewrap { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
-.ch-name { margin: 0; font-size: 1.15rem; }
-.ch-pill { font-family: var(--font-head); font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase;
-  border: 1px solid var(--line-strong); border-radius: 999px; padding: 0.18rem 0.55rem; color: var(--text-dim); }
-.ch-pill.strict { color: var(--crimson); border-color: rgba(178, 58, 91, 0.5); }
-.ch-pill.forgiving, .ch-pill.quantity { color: var(--text-dim); }
-.ch-pill.done { color: var(--good); border-color: rgba(127, 175, 147, 0.5); }
 .ch-figures { display: flex; align-items: baseline; gap: 0.5rem; }
 .ch-big { font-family: var(--font-head); font-size: 2.1rem; font-weight: 600; line-height: 1; }
-.ch-unit { color: var(--text-dim); font-size: 0.9rem; }
-.ch-pct { margin-left: auto; font-family: var(--font-head); font-size: 1.1rem; color: var(--text-dim); }
-.ch-bar { height: 7px; border-radius: 5px; background: var(--bg-3); overflow: hidden; }
-.ch-seg { display: block; height: 100%; border-radius: 5px; transition: width 0.3s ease; }
-.ch-meta { font-size: 0.82rem; color: var(--text-dim); }
 .ch-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 0.3rem; }
-.ch-cell { width: 20px; height: 20px; border-radius: 4px; background: var(--bg-3); border: 1px solid var(--line);
-  padding: 0; cursor: pointer; transition: transform 0.1s ease, background 0.15s ease; }
-.ch-cell:hover { transform: scale(1.12); border-color: var(--text-dim); }
-.ch-cell.on { border-color: transparent; }
-.ch-cell.today { outline: 1.5px solid var(--line-strong); outline-offset: 1px; }
-.ch-hint { font-size: 0.74rem; margin-top: 0.2rem; }
 .ch-add { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.2rem; }
-.ch-add-form { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
-.ch-label { flex: 1; min-width: 80px; }
-.ch-amt { width: 64px; }
 .ch-entries { list-style: none; margin: 0.4rem 0 0; padding: 0; max-height: 190px; overflow-y: auto; }
-.ch-entry { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
-.ch-entry:last-child { border-bottom: 0; }
-.ch-entry-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-entry-meta { font-size: 0.78rem; flex: 0 0 auto; }
-@media (max-width: 640px) {
-  .challenge-grid { grid-template-columns: 1fr; }
-  .ch-cell { width: 26px; height: 26px; } /* bigger tap targets on phones */
+@media (max-width: 640px) { /* bigger tap targets on phones */
 }
 
 /* ===================== drag-to-reorder ===================== */
@@ -568,16 +353,7 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 .drag-handle:hover { color: var(--text); }
 .reorder-row { position: relative; }
 .reorder-row.dragging { cursor: grabbing; }
-.reorder-row.dragging .daily-row {
-  background: var(--bg-3); border-radius: 6px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); position: relative; z-index: 2;
-}
 /* daily rows used to be <li> (styled via `.list li`); as divs they need their own layout */
-.todo.daily-row {
-  display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 1rem;
-}
-.list .reorder-row:last-child .todo.daily-row { border-bottom: none; }
 @media (max-width: 640px) {
   .drag-handle { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0; }
 }

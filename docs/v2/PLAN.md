@@ -1,6 +1,28 @@
 # Personal Dashboard — Version 2 Plan
 
-*Revised 6 Nov 2026 with your answers. Items marked **[YOU]** still need your input.*
+*Revised 6 Nov 2026 with your answers. Updated 8 Nov 2026: all phases done (see Status).*
+
+## Status (8 Nov 2026): revamp complete
+
+Every phase below has shipped. Each pull request linked here is merged into `main` and deployed to Render.
+
+| Phase | What shipped | PRs |
+|---|---|---|
+| 0 · Safety net | Data export, nightly backups and a restore drill. `render.yaml` plans now match the live services. | [#1](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/1), [#4](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/4) |
+| 1 · Speed | One Today request, instant taps through the query cache, bounded streaks, and the API split by feature. | [#2](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/2), [#3](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/3) |
+| 2 · Look and shell | The Rite look, the bottom-tab shell and the component kit in `web/src/ui/`. | [#5](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/5) |
+| 3 · Core pages | Habits, Today and Plan rebuilt. | [#6](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/6), [#7](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/7), [#8](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/8) |
+| 4 · Hide and tidy | Unused pages hidden (their data is kept), dead code deleted, and unknown `/api` paths now return 404. | [#9](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/9), [#10](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/10) |
+| 5 · Extras | Installable app, offline habit logging, quick log, habit reminders, and Health with a weekly summary. | [#11](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/11) to [#15](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/15) |
+| Remaining pages | Routine (was Schedule), Connect, Settings, Challenges and the goal form moved to the Rite kit, plus the v1 CSS cleanup. | [#16](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/16) to [#19](https://github.com/MichaelTMGolden/lifestyle-tracker/pull/19) |
+
+**Decisions made along the way**
+- **Challenges** stay a separate section under Habits, restyled on the kit. They were not folded into Goals: daily chains and counts don't fit the hours model that goals use.
+- **Calendar** stays read-only, through each calendar's secret iCal address.
+
+**Still needs you**
+- **Weekly summary:** add `ANTHROPIC_API_KEY` to the Render web service's environment. Until you do, the Health page explains how to set it up. The first summary is written the Monday after at 8:00.
+- **Reminders:** turn on a reminder for one habit on your phone, to confirm a real notification arrives. This hasn't been tested on a phone yet.
 
 ## 1. What v2 is for
 
