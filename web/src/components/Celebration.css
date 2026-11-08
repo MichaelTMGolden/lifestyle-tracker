@@ -1,4 +1,6 @@
-.cel { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: var(--rite-5); background: rgba(5, 4, 6, .78); }
+.cel { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; color: inherit; }
+.cel[open] { display: flex; align-items: center; justify-content: center; padding: var(--rite-5); background: rgba(5, 4, 6, .78); }
+.cel::backdrop { background: transparent; }
 .cel__card { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--rite-2); width: min(360px, 100%); padding: var(--rite-6) var(--rite-5); border-radius: 22px; background: var(--rite-surface); border: 1px solid var(--rite-border-accent); text-align: center; animation: cel-in .35s ease-out; }
 .cel__eyebrow { font-size: 12px; font-weight: 600; color: var(--rite-accent-light); }
 .cel__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1.1; letter-spacing: 0; }
