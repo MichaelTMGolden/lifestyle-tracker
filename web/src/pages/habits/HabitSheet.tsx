@@ -1,5 +1,5 @@
 // Everything for one habit: stats, the year view, logging, rhythm, entries and settings.
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitLogEntry } from '../../api'
 import { fmtDate, fmtElapsed, fmtHours } from '../../lib'
 import { skillProgressApi } from '../../skillProgressApi'
@@ -75,7 +75,7 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
         </Button>}
 
     <Rhythm habit={h} onChanged={onChanged} />
-    {h.tracksTime && <Entries habitId={h.id} onChanged={onChanged} />}
+    {h.tracksTime && <Entries habitId={h.id} version={`${h.minutesToday}:${h.totalMinutes}`} onChanged={onChanged} />}
 
     <section className="hb-sheet__section" aria-labelledby="hb-settings">
       <h3 id="hb-settings" className="hb-sheet__label">Settings</h3>
@@ -122,15 +122,32 @@ function Rhythm({ habit, onChanged }: { habit: Habit; onChanged: () => Promise<u
   </form>
 }
 
-/** Edit or delete the last 30 days of logged minutes (fixes bad timer data). */
-function Entries({ habitId, onChanged }: { habitId: number; onChanged: () => Promise<unknown> }) {
+/**
+ * Edit or delete the last 30 days of logged minutes (fixes bad timer data).
+ * Entries are fetched each time the list opens and again whenever the habit's
+ * minutes change (`version`), and pending edits are dropped then, so a stale
+ * value can never overwrite time logged since.
+ */
+function Entries({ habitId, version, onChanged }: { habitId: number; version: string; onChanged: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false)
   const [logs, setLogs] = useState<HabitLogEntry[] | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
-  const reload = async () => {
-    try { setLogs(await api.habitLogs(habitId, 30)); setError('') } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-  }
+  const reload = useCallback(async () => {
+    try {
+      const fresh = await api.habitLogs(habitId, 30)
+      setLogs(fresh); setEdits({}); setError('')
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+  }, [habitId])
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    api.habitLogs(habitId, 30).then(
+      fresh => { if (live) { setLogs(fresh); setEdits({}); setError('') } },
+      e => { if (live) setError(e instanceof Error ? e.message : String(e)) })
+    return () => { live = false }
+  }, [open, version, habitId])
   const save = async (date: string) => {
     const v = parseInt(edits[date] ?? '', 10)
     if (isNaN(v) || v < 0) return
@@ -143,7 +160,7 @@ function Entries({ habitId, onChanged }: { habitId: number; onChanged: () => Pro
     await api.deleteHabitLog(habitId, date); await reload(); await onChanged()
   }
 
-  return <details className="hb-sheet__section hb-entries" onToggle={e => { if ((e.target as HTMLDetailsElement).open && !logs) void reload() }}>
+  return <details className="hb-sheet__section hb-entries" onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}>
     <summary className="hb-sheet__label">Edit entries</summary>
     {error && <p role="alert" className="hb-error">{error}</p>}
     {!logs && !error && <p className="hb-hint">Loading…</p>}

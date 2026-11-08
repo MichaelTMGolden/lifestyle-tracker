@@ -80,9 +80,18 @@ export function Heatmap({ cells, variant = 'strip', label, today, cellSize }: {
   // Monday-first weekday of the first cell, so calendar rows line up.
   const pad = variant === 'calendar' && cells.length > 0 ? (new Date(`${cells[0].date}T00:00:00Z`).getUTCDay() + 6) % 7 : 0
   const style = cellSize ? { '--ui-cell': `${cellSize}px` } as CSSProperties : undefined
-  // A calendar wider than its box opens on the most recent weeks.
+  // A calendar wider than its box opens on the most recent weeks. Inside a
+  // dialog that is not shown yet it has no width, so wait until it is laid out.
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (variant === 'calendar' && ref.current) ref.current.scrollLeft = ref.current.scrollWidth }, [variant, cells.length])
+  useEffect(() => {
+    const el = ref.current
+    if (variant !== 'calendar' || !el) return
+    const toEnd = () => { el.scrollLeft = el.scrollWidth }
+    if (el.clientWidth > 0) { toEnd(); return }
+    const observer = new ResizeObserver(() => { if (el.clientWidth > 0) { toEnd(); observer.disconnect() } })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [variant, cells.length])
   return <div ref={ref} className={cx('ui-heatmap', `ui-heatmap--${variant}`)} role="img" aria-label={label} style={style}>
     {Array.from({ length: pad }, (_, i) => <span key={`pad${i}`} className="ui-heatmap__cell" data-pad="" />)}
     {cells.map(c => <span key={c.date} className="ui-heatmap__cell" data-level={c.level || undefined} data-today={c.date === today ? '' : undefined} title={c.title} />)}
