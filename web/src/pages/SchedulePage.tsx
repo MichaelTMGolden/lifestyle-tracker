@@ -163,22 +163,30 @@ function BlockDetail({ block, day, onSave }: { block: ScheduleBlock; day: string
 function ImportSheet({ file, hasDefault, busy, onCancel, onApply }: {
   file: File | null; hasDefault: boolean; busy: boolean; onCancel: () => void; onApply: (mode: 'default' | 'temporary', revertOn?: string) => void
 }) {
+  // The form mounts per chosen file, so its starting mode reflects the loaded status
+  // (temporary whenever a default exists: an upload never silently replaces it).
+  return <Sheet open={file != null} onClose={onCancel} title="Apply routine" labelledBy="sc-import-title">
+    {file && <ImportForm key={`${file.name}:${file.lastModified}:${file.size}`} file={file} hasDefault={hasDefault} busy={busy} onApply={onApply} />}
+  </Sheet>
+}
+
+function ImportForm({ file, hasDefault, busy, onApply }: {
+  file: File; hasDefault: boolean; busy: boolean; onApply: (mode: 'default' | 'temporary', revertOn?: string) => void
+}) {
   const [mode, setMode] = useState<'default' | 'temporary'>(hasDefault ? 'temporary' : 'default')
   const [revertOn, setRevertOn] = useState(plusDays(7))
   const modes = [{ value: 'default', label: 'New default' }, ...(hasDefault ? [{ value: 'temporary', label: 'Temporary' }] : [])] as { value: 'default' | 'temporary'; label: string }[]
-  return <Sheet open={file != null} onClose={onCancel} title="Apply routine" labelledBy="sc-import-title">
-    <div className="sc-detail">
-      <p className="sc-p">{file?.name}</p>
-      {!hasDefault && <p className="sc-muted">No default routine yet: save this one as your default first. After that you can apply temporary routines that revert to it.</p>}
-      <Tabs options={modes} value={mode} onChange={setMode} label="Apply as" />
-      {mode === 'temporary'
-        ? <label className="sc-label">Back to the default on
-            <input className="sc-input" type="date" value={revertOn} min={plusDays(1)} onChange={e => setRevertOn(e.target.value)} />
-          </label>
-        : <p className="sc-muted">This becomes your weekly routine.</p>}
-      <Button variant="primary" block disabled={busy || (mode === 'temporary' && !revertOn)} onClick={() => onApply(mode, mode === 'temporary' ? revertOn : undefined)}>
-        {busy ? 'Applying…' : mode === 'default' ? 'Save as default' : 'Apply until then'}
-      </Button>
-    </div>
-  </Sheet>
+  return <div className="sc-detail">
+    <p className="sc-p">{file.name}</p>
+    {!hasDefault && <p className="sc-muted">No default routine yet: save this one as your default first. After that you can apply temporary routines that revert to it.</p>}
+    <Tabs options={modes} value={mode} onChange={setMode} label="Apply as" />
+    {mode === 'temporary'
+      ? <label className="sc-label">Back to the default on
+          <input className="sc-input" type="date" value={revertOn} min={plusDays(1)} onChange={e => setRevertOn(e.target.value)} />
+        </label>
+      : <p className="sc-muted">{hasDefault ? 'This replaces your current default routine.' : 'This becomes your weekly routine.'}</p>}
+    <Button variant="primary" block disabled={busy || (mode === 'temporary' && !revertOn)} onClick={() => onApply(mode, mode === 'temporary' ? revertOn : undefined)}>
+      {busy ? 'Applying…' : mode === 'default' ? (hasDefault ? 'Replace default' : 'Save as default') : 'Apply until then'}
+    </Button>
+  </div>
 }
