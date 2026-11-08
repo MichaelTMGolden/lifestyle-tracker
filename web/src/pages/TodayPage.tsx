@@ -1,7 +1,7 @@
 // Today: date and what's next, running timers, habits as tap tiles, today's list,
 // anything carried over, and what's coming up. Essentials fit without scrolling.
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, type DailyTodo, type Habit, type Todo } from '../api'
 import { CarryForwardPanel, type PlanningAction } from '../components/DailyPlanning'
@@ -32,10 +32,16 @@ export default function TodayPage() {
   const inFlight = useRef(false)
   // Goals only matter for the running-timer card; fetch them while a timer runs.
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.goals, enabled: timers.length > 0 })
+  const qc = useQueryClient()
 
-  // A timer stopped here, in the action bar or on another device logged minutes: re-sync once.
+  // A timer stopped here, in the action bar or on another device logged minutes:
+  // re-sync once, goals included so other running timers' cards stay accurate.
   const refresh = writes.refresh
-  useEffect(() => { if (dataTick) void refresh() }, [dataTick, refresh])
+  useEffect(() => {
+    if (!dataTick) return
+    void refresh()
+    void qc.invalidateQueries({ queryKey: ['goals'] })
+  }, [dataTick, refresh, qc])
 
   const failed = (e: unknown) => toast.show({ message: `Couldn't save: ${message(e)}`, tone: 'error' })
   // Planning actions change several sections at once, so they re-sync the bundle.
@@ -81,7 +87,7 @@ export default function TodayPage() {
     toast.show({ message: h.doneToday ? `${h.name} unmarked` : `${h.name} done`, action: { label: 'Undo', onClick: () => quick(() => writes.toggleHabit({ ...h, doneToday: !h.doneToday })) } })
   }
   async function logPast(h: Habit, mins: number) {
-    try { await api.logHabitTime(h.id, mins); toast.show({ message: `${h.name} · ${mins} min logged` }); await writes.refresh() }
+    try { await api.logHabitTime(h.id, mins); toast.show({ message: `${h.name} · ${mins} min logged` }); await Promise.all([writes.refresh(), qc.invalidateQueries({ queryKey: ['goals'] })]) }
     catch (e) { failed(e) }
   }
   const completeTask = (t: Todo) => void onAction(() => api.toggleTodo(t.id), t.completedAt ? 'Task reopened.' : 'Task done.')
