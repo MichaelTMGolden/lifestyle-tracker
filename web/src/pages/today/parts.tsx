@@ -76,11 +76,14 @@ export function LogTimeSheet({ open, habits, onClose, onLog }: {
   const timed = habits.filter(h => h.tracksTime)
   const [habitId, setHabitId] = useState<number | null>(null)
   const [custom, setCustom] = useState('')
+  // The API adds each request's minutes to the day, so a second submit would double-count.
+  const [saving, setSaving] = useState(false)
   const chosen = timed.find(h => h.id === habitId) ?? timed[0]
   async function log(mins: number) {
-    if (!chosen || !(mins > 0)) return
-    await onLog(chosen, mins)
-    setCustom(''); onClose()
+    if (saving || !chosen || !(mins > 0)) return
+    setSaving(true)
+    try { await onLog(chosen, mins); setCustom(''); onClose() }
+    finally { setSaving(false) }
   }
   const submit = (e: FormEvent) => { e.preventDefault(); void log(parseInt(custom, 10)) }
   return <Sheet open={open} onClose={onClose} title="Log time" labelledBy="td-log-title">
@@ -90,11 +93,11 @@ export function LogTimeSheet({ open, habits, onClose, onLog }: {
           {timed.map(h => <button key={h.id} type="button" role="radio" aria-checked={chosen?.id === h.id}
             className={`td-chip${chosen?.id === h.id ? ' td-chip--on' : ''}`} onClick={() => setHabitId(h.id)}>{h.name}</button>)}
         </div>
-        <div className="td-log__row">{[15, 30, 45, 60].map(m => <Button key={m} size="sm" onClick={() => void log(m)}>+{m} min</Button>)}</div>
+        <div className="td-log__row">{[15, 30, 45, 60].map(m => <Button key={m} size="sm" disabled={saving} onClick={() => void log(m)}>+{m} min</Button>)}</div>
         <form className="td-log__row" onSubmit={submit}>
           <label className="ui-sr-only" htmlFor="td-log-mins">Minutes</label>
           <input id="td-log-mins" className="td-input" type="number" inputMode="numeric" min={1} placeholder="Minutes" value={custom} onChange={e => setCustom(e.target.value)} />
-          <Button type="submit" size="sm" variant="primary" disabled={!(parseInt(custom, 10) > 0)}>Log</Button>
+          <Button type="submit" size="sm" variant="primary" disabled={saving || !(parseInt(custom, 10) > 0)}>{saving ? 'Saving…' : 'Log'}</Button>
         </form>
         <p className="td-hint">Logged to today. Edit past days from the habit's sheet on the Habits page.</p>
       </div>}

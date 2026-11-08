@@ -35,12 +35,19 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
   onChanged: () => Promise<unknown>; onDelete: () => void
 }) {
   const [custom, setCustom] = useState('')
+  // The API adds each request's minutes to the day, so block repeats until the save settles.
+  const [saving, setSaving] = useState(false)
+  async function log(mins: number) {
+    if (saving || !(mins > 0)) return
+    setSaving(true)
+    try { await onLog(mins) } finally { setSaving(false) }
+  }
   const addCustom = (e: FormEvent) => {
     e.preventDefault()
     const mins = parseInt(custom, 10)
-    if (!mins || mins <= 0) return
+    if (!mins || mins <= 0 || saving) return
     setCustom('')
-    void onLog(mins)
+    void log(mins)
   }
 
   return <div className="hb-sheet">
@@ -59,12 +66,12 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
     {h.tracksTime ? <section className="hb-sheet__section" aria-labelledby="hb-log">
       <h3 id="hb-log" className="hb-sheet__label">Today · {h.minutesToday} min</h3>
       <div className="hb-sheet__row">
-        {[15, 30, 45, 60].map(m => <Button key={m} size="sm" onClick={() => void onLog(m)}>+{m}</Button>)}
+        {[15, 30, 45, 60].map(m => <Button key={m} size="sm" disabled={saving} onClick={() => void log(m)}>+{m}</Button>)}
       </div>
       <form className="hb-sheet__row" onSubmit={addCustom}>
         <label className="ui-sr-only" htmlFor="hb-custom">Minutes to log</label>
         <input id="hb-custom" className="hb-input" type="number" inputMode="numeric" min={1} placeholder="Minutes" value={custom} onChange={e => setCustom(e.target.value)} />
-        <Button type="submit" size="sm">Log</Button>
+        <Button type="submit" size="sm" disabled={saving}>{saving ? 'Saving…' : 'Log'}</Button>
       </form>
       {running
         ? <Button variant="primary" block icon="stop" onClick={onStop}>Stop &amp; log · {fmtElapsed(elapsedMs)}</Button>
