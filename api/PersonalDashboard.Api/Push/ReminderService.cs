@@ -28,7 +28,7 @@ public class ReminderService(IServiceScopeFactory scopes, ILogger<ReminderServic
         // The devices' time zone: the most recently seen one (a single-user dashboard).
         var device = await db.PushSubscriptions.AsNoTracking().OrderByDescending(s => s.LastSeenAt).FirstOrDefaultAsync(ct);
         if (device is null) return;
-        var localNow = utcNow.AddMinutes(-device.TzOffsetMinutes);
+        var localNow = ReminderPolicy.LocalNow(utcNow, device.TimeZoneId, device.TzOffsetMinutes);
         var today = DateOnly.FromDateTime(localNow);
 
         var habits = await db.Habits.Where(h => !h.Archived && h.ReminderMinutes != null).ToListAsync(ct);

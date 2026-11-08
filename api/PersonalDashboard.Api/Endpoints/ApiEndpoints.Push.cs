@@ -6,7 +6,7 @@ using DbPushSubscription = PersonalDashboard.Api.Domain.PushSubscription;
 namespace PersonalDashboard.Api.Endpoints;
 
 public record PushKeysInput(string P256dh, string Auth);
-public record PushSubscribeInput(string Endpoint, PushKeysInput Keys);
+public record PushSubscribeInput(string Endpoint, PushKeysInput Keys, string? TimeZone = null);
 public record PushUnsubscribeInput(string Endpoint);
 public record ReminderInput(int? Minutes);
 
@@ -26,14 +26,16 @@ public static partial class ApiEndpoints
                 return Results.BadRequest(new { message = "invalid push subscription" });
             var now = DateTimeOffset.UtcNow;
             var offset = ClientClock.From(req).OffsetMinutes;
+            // Keep only a time zone this server recognises; otherwise the offset is used.
+            var zone = body.TimeZone is { Length: > 0 and <= 64 } z && TimeZoneInfo.TryFindSystemTimeZoneById(z, out _) ? z : null;
             var sub = await db.PushSubscriptions.FirstOrDefaultAsync(s => s.Endpoint == body.Endpoint);
             if (sub is null)
                 db.PushSubscriptions.Add(new DbPushSubscription
                 {
                     Endpoint = body.Endpoint, P256dh = body.Keys.P256dh, Auth = body.Keys.Auth,
-                    TzOffsetMinutes = offset, CreatedAt = now, LastSeenAt = now,
+                    TzOffsetMinutes = offset, TimeZoneId = zone, CreatedAt = now, LastSeenAt = now,
                 });
-            else { sub.P256dh = body.Keys.P256dh; sub.Auth = body.Keys.Auth; sub.TzOffsetMinutes = offset; sub.LastSeenAt = now; }
+            else { sub.P256dh = body.Keys.P256dh; sub.Auth = body.Keys.Auth; sub.TzOffsetMinutes = offset; sub.TimeZoneId = zone ?? sub.TimeZoneId; sub.LastSeenAt = now; }
             await db.SaveChangesAsync();
             return Results.Ok(new { subscribed = true, devices = await db.PushSubscriptions.CountAsync() });
         });

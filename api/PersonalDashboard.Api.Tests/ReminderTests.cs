@@ -30,6 +30,17 @@ public class ReminderTests
     }
 
     [Fact]
+    public void Local_time_follows_daylight_saving_with_a_named_zone()
+    {
+        // New York: EDT (UTC-4) until 1 Nov 2026 02:00, then EST (UTC-5). The device last reported EDT (240).
+        var afterChange = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc); // 19:00 EST on 1 Nov
+        Assert.Equal(new DateTime(2026, 11, 1, 19, 0, 0), ReminderPolicy.LocalNow(afterChange, "America/New_York", 240));
+        // Without a zone the stale offset is all there is (an hour off), which is why the zone is stored.
+        Assert.Equal(new DateTime(2026, 11, 1, 20, 0, 0), ReminderPolicy.LocalNow(afterChange, null, 240));
+        Assert.Equal(new DateTime(2026, 11, 1, 20, 0, 0), ReminderPolicy.LocalNow(afterChange, "Not/AZone", 240));
+    }
+
+    [Fact]
     public void Generated_keys_are_a_valid_p256_pair()
     {
         var (pub, priv) = PushKeys.Generate();

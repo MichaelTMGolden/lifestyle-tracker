@@ -15,6 +15,21 @@ public static class ReminderPolicy
         return localNow.Hour * 60 + localNow.Minute >= at;
     }
 
+    /// <summary>
+    /// The device's local time now. Uses its named time zone when known, so the
+    /// offset is right for this instant (daylight saving may have changed since
+    /// the device last checked in); otherwise the offset it last reported.
+    /// </summary>
+    public static DateTime LocalNow(DateTime utcNow, string? timeZoneId, int fallbackOffsetMinutes)
+    {
+        if (!string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            try { return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), TimeZoneInfo.FindSystemTimeZoneById(timeZoneId)); }
+            catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException) { /* unknown here: use the offset */ }
+        }
+        return utcNow.AddMinutes(-fallbackOffsetMinutes);
+    }
+
     /// <summary>"7:30 PM"-style label for a reminder time, from minutes after midnight.</summary>
     public static string Label(int minutes) => DateTime.Today.AddMinutes(minutes).ToString("H:mm");
 }

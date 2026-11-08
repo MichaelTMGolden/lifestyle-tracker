@@ -23,7 +23,9 @@ function keyBytes(base64url: string): Uint8Array {
 
 async function save(sub: PushSubscription) {
   const json = sub.toJSON()
-  await send('POST', '/api/push/subscribe', { endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth } })
+  // The named zone lets the server follow daylight-saving changes while the app is closed.
+  const timeZone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return undefined } })()
+  await send('POST', '/api/push/subscribe', { endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth }, timeZone })
 }
 
 const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) => !!a && a.byteLength === b.length && new Uint8Array(a).every((x, i) => x === b[i])

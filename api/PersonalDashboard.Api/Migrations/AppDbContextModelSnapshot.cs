@@ -730,6 +730,9 @@ namespace PersonalDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TimeZoneId")
+                        .HasColumnType("text");
+
                     b.Property<int>("TzOffsetMinutes")
                         .HasColumnType("integer");
 

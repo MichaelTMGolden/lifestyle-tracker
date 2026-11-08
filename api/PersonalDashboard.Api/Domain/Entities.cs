@@ -164,8 +164,10 @@ public class PushSubscription
     public required string Endpoint { get; set; }
     public required string P256dh { get; set; }
     public required string Auth { get; set; }
-    /// <summary>The device's UTC offset (getTimezoneOffset minutes) when last seen; reminders use local time.</summary>
+    /// <summary>The device's UTC offset (getTimezoneOffset minutes) when last seen; the fallback for local time.</summary>
     public int TzOffsetMinutes { get; set; }
+    /// <summary>The device's IANA time zone (e.g. "Europe/Dublin"), so reminders follow daylight-saving changes while the app is closed.</summary>
+    public string? TimeZoneId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
 }
