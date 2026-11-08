@@ -7,7 +7,8 @@ import { useTimer } from '../timer/useTimer'
 import { Button, Sheet, Skeleton, Tabs } from '../ui'
 import { useToast } from '../ui/hooks'
 import { addMinutes, QUEUED, setDone } from '../offline/habitSync'
-import { GoalCelebration } from './habits/GoalForm'
+import { Celebration } from '../components/Celebration'
+import { daysBetween, fmtDaySpan, fmtHours } from '../lib'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { HabitSheet } from './habits/HabitSheet'
@@ -171,7 +172,10 @@ export default function HabitsPage() {
     <NewHabitSheet open={adding} onClose={() => setAdding(false)} onCreated={async () => { setAdding(false); await load() }} />
 
     {/* Wait for any sheet to close: a modal dialog would hide the celebration while its timer marks it seen. */}
-    {celebrating && openId == null && !adding && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
+    {celebrating && openId == null && !adding && <Celebration eyebrow="Goal complete" title={celebrating.name}
+      figure={fmtHours(celebrating.targetMinutes)}
+      note={celebrating.completedOn && celebrating.startDate ? `Done in ${fmtDaySpan(Math.max(1, daysBetween(celebrating.startDate, celebrating.completedOn)))}.` : 'Target reached.'}
+      onDone={dismissCelebration} />}
   </div>
 }
 
