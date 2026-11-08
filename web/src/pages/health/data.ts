@@ -3,7 +3,8 @@ import type { MetricPoint } from '../../api'
 
 /** Garmin day summaries carry their calendar date in UTC. */
 const day = (p: MetricPoint) => p.recordedAt.slice(0, 10)
-const observed = (p: MetricPoint) => !p.isDerived && !p.sourceName?.toLowerCase().includes('(sample)')
+/** A genuine reading: not derived, not sample data. */
+export const observed = (p: MetricPoint) => !p.isDerived && !p.sourceName?.toLowerCase().includes('(sample)')
 
 /** One point per day: a real reading beats a derived or sample one; otherwise the latest wins. */
 export function daily(points: MetricPoint[]): { date: string; value: number }[] {
