@@ -187,6 +187,8 @@ app.MapGroup("/api").MapTodayBundleEndpoints();
 app.MapSettingsEndpoints();
 app.MapSkillProgressEndpoints();
 app.MapExportEndpoints();
+// An unknown /api path is a 404, not the SPA page (a catch-all ranks below every real route).
+app.Map("/api/{**rest}", () => Results.NotFound(new { error = "No such API endpoint." }));
 // Anything not an API route or a static file → the SPA entrypoint (client-side routing).
 app.MapFallbackToFile("index.html");
 
