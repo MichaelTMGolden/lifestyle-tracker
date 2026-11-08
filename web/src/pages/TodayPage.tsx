@@ -17,6 +17,7 @@ import { useToast } from '../ui/hooks'
 import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
 import { useStreakMilestones } from './habits/milestones'
+import { eventOnDay, PLAN_DAYS } from './plan/days'
 import { Alerts, ComingUp, HabitTiles, LogTimeSheet, RunningTimers, TodayList } from './today/parts'
 import '../dailyPlanning.css'
 import './today/today.css'
@@ -37,6 +38,9 @@ export default function TodayPage() {
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.goals, enabled: timers.length > 0 })
   const qc = useQueryClient()
   const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
+  // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
+  const [quietDay, setQuietDay] = useState(false)
+  const upcoming = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS), enabled: quietDay })
 
   // A timer stopped here, in the action bar or on another device logged minutes:
   // re-sync once, goals included so other running timers' cards stay accurate.
@@ -64,7 +68,14 @@ export default function TodayPage() {
     if (bundle.error) return <div className="td-page"><p className="td-error" role="alert">Couldn't load your day. {message(bundle.error)} <Button size="sm" variant="quiet" onClick={() => void bundle.refetch()}>Retry</Button></p></div>
     return <div className="td-page" aria-busy="true">
       <p className="ui-sr-only" role="status">Loading your day…</p>
-      <Skeleton height={40} width="60%" /><Skeleton height={120} /><Skeleton height={180} />
+      <div className="td-head" aria-hidden="true">
+        <div className="td-head__text"><Skeleton height={12} width={72} /><Skeleton height={38} width={200} /><Skeleton height={14} width={170} /></div>
+        <Skeleton width={56} height={56} radius={28} />
+      </div>
+      <section aria-hidden="true"><Skeleton height={24} width={90} />
+        <div className="td-tiles">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} height={60} radius={14} />)}</div>
+      </section>
+      <section aria-hidden="true"><Skeleton height={24} width={70} /><Skeleton lines={3} height={44} /></section>
     </div>
   }
 
@@ -75,6 +86,13 @@ export default function TodayPage() {
   const agenda = agendaRows(schedule.blocks, schedule.events, now)
   const nextUp = agenda.find(r => !r.current) ?? null
   const planned = tasks.filter(t => t.plannedFor === day)
+  const quiet = !today.current && !nextUp
+  if (quiet !== quietDay) setQuietDay(quiet)
+  const tomorrow = nextDateKey()
+  const tomorrowEvent = quiet ? (upcoming.data ?? []).filter(e => eventOnDay(e, tomorrow))
+    .filter(e => e.allDay || Date.parse(e.startsAt) >= new Date(`${tomorrow}T00:00:00`).getTime())
+    .sort((a, b) => Number(a.allDay) - Number(b.allDay) || Date.parse(a.startsAt) - Date.parse(b.startsAt))[0] : undefined
+  const tomorrowTasks = quiet ? tasks.filter(t => !t.completedAt && t.plannedFor === tomorrow).length : 0
   const candidates = [
     ...tasks.filter(t => taskIsOverdue(t, day) && t.plannedFor !== day),
     ...tasks.filter(t => !t.completedAt && !taskIsOverdue(t, day) && t.plannedFor !== day)
@@ -112,6 +130,8 @@ export default function TodayPage() {
         <span className="td-head__next">
           {today.current ? <>Now · <b>{today.current.activity}</b></>
             : nextUp ? <>Next · <b>{fmtMinutes(nextUp.start)} {nextUp.title}</b></>
+            : tomorrowEvent ? <>Tomorrow · <b>{tomorrowEvent.allDay ? tomorrowEvent.title : `${new Date(tomorrowEvent.startsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} ${tomorrowEvent.title}`}</b></>
+            : tomorrowTasks ? <>Tomorrow · <b>{tomorrowTasks} {tomorrowTasks === 1 ? 'task' : 'tasks'} planned</b></>
             : 'Nothing else scheduled today'}
         </span>
       </div>

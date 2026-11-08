@@ -147,7 +147,7 @@ export default function TasksPage() {
 
     <section className="pl-day-view" aria-labelledby="pl-day-title">
       <SectionHead id="pl-day-title" title={selectedLabel.long} />
-      {loading ? <Skeleton lines={3} /> : <>
+      {loading ? <Skeleton lines={3} height={44} /> : <>
         {dayEvents.length > 0 && <ul className="pl-events" aria-label="Calendar">
           {dayEvents.map(e => <li key={e.id}><span className="pl-events__time">{eventTime(e)}</span><span className="pl-events__title">{e.title}{e.location && <small>{e.location}</small>}</span></li>)}
         </ul>}
@@ -193,7 +193,7 @@ export default function TasksPage() {
         <label className="ui-sr-only" htmlFor="pl-search">Search tasks</label>
         <input id="pl-search" type="search" value={query} placeholder="Search tasks" onChange={e => setParam('q', e.target.value || null)} />
       </div>
-      {loading ? <Skeleton lines={4} /> : query
+      {loading ? <Skeleton lines={4} height={44} /> : query
         ? <div className="pl-tasks">{inbox.filter(matches).map(t => <InboxRow key={t.id} t={t} {...inboxProps} />)}</div>
         : <div className="pl-tasks"><Reorderable items={inbox} getId={t => t.id} onReorder={ids => void reorderInbox(ids)}
             renderRow={(t, handle) => <InboxRow t={t} handle={handle} {...inboxProps} />} /></div>}

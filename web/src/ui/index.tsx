@@ -31,10 +31,11 @@ export function SectionHead({ title, aside, id }: { title: ReactNode; aside?: Re
 }
 
 /* ---------- Stat ---------- */
-export function Stat({ label, value, unit, sub, tone }: {
-  label: ReactNode; value: ReactNode; unit?: ReactNode; sub?: ReactNode; tone?: 'good' | 'warn' | 'accent'
+/** `stale`: an older reading shown in place of a missing one, dimmed. */
+export function Stat({ label, value, unit, sub, tone, stale }: {
+  label: ReactNode; value: ReactNode; unit?: ReactNode; sub?: ReactNode; tone?: 'good' | 'warn' | 'accent'; stale?: boolean
 }) {
-  return <div className={cx('ui-stat', tone && `ui-stat--${tone}`)}>
+  return <div className={cx('ui-stat', tone && `ui-stat--${tone}`, stale && 'ui-stat--stale')}>
     <span className="ui-stat__label">{label}</span>
     <span className="ui-stat__value">{value}{unit && <small>{unit}</small>}</span>
     {sub && <span className="ui-stat__sub">{sub}</span>}
