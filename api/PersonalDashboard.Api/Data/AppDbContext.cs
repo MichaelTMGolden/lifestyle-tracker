@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
     public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
     public DbSet<AppliedRequest> AppliedRequests => Set<AppliedRequest>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<AppSecret> AppSecrets => Set<AppSecret>();
     public DbSet<WeeklyReview> WeeklyReviews => Set<WeeklyReview>();
     public DbSet<Goal> Goals => Set<Goal>();
@@ -42,6 +43,8 @@ public class AppDbContext : DbContext
         b.Entity<DataSource>().HasIndex(x => new { x.Kind, x.Name }).IsUnique();
         // Client-chosen ids (see AppliedRequest); never generated here.
         b.Entity<AppliedRequest>().Property(x => x.Id).ValueGeneratedNever();
+        b.Entity<PushSubscription>().HasIndex(x => x.Endpoint).IsUnique();
+        b.Entity<PushSubscription>().Property(x => x.Endpoint).HasMaxLength(2048);
 
         // Query index (filter by key + time) plus a uniqueness guard so future
         // incremental syncs can upsert instead of double-counting.

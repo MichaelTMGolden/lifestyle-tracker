@@ -11,6 +11,7 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { Icon, ListRow, Sheet, ToastProvider } from './ui'
 import { useToast, type IconName } from './ui/hooks'
 import { pendingWrites, startHabitSync, subscribe } from './offline/habitSync'
+import { refreshPush } from './push'
 
 type Destination = { path: string; label: string; detail: string; keywords: string; icon: IconName }
 
@@ -129,6 +130,8 @@ function HabitSync() {
   const toast = useToast()
   const qc = useQueryClient()
   const waiting = useSyncExternalStore(subscribe, pendingWrites).length
+  // Keep this device's push subscription and time zone current for reminders.
+  useEffect(() => { void refreshPush() }, [])
   useEffect(() => {
     startHabitSync((w, reason) => toast.show({ message: `Couldn't sync ${w.habitName} (${w.date}): ${reason}`, tone: 'error', duration: 10000 }))
     const synced = () => {

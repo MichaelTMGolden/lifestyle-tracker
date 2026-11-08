@@ -557,6 +557,12 @@ namespace PersonalDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateOnly?>("ReminderLastSentOn")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("ReminderMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("ShowInQuickActions")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -695,6 +701,44 @@ namespace PersonalDashboard.Api.Migrations
                     b.HasIndex("PlayedAt");
 
                     b.ToTable("MusicPlays");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.PushSubscription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TzOffsetMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("PushSubscriptions");
                 });
 
             modelBuilder.Entity("PersonalDashboard.Api.Domain.QuickMeal", b =>

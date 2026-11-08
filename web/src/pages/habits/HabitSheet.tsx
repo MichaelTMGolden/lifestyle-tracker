@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, type Habit, type HabitLogEntry } from '../../api'
 import { fmtDate, fmtElapsed, fmtHours } from '../../lib'
 import { skillProgressApi } from '../../skillProgressApi'
+import { enablePush, pushState, sendTestPush, type PushState } from '../../push'
 import { Button, Heatmap, Sheet, Stat, Tabs } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
 import { consistency, isWeekly, streakUnit } from './stats'
@@ -82,6 +83,7 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
         </Button>}
 
     <Rhythm habit={h} onChanged={onChanged} />
+    <Reminder habit={h} onChanged={onChanged} />
     {h.tracksTime && <Entries habitId={h.id} version={`${h.minutesToday}:${h.totalMinutes}`} onChanged={onChanged} />}
 
     <section className="hb-sheet__section" aria-labelledby="hb-settings">
@@ -184,4 +186,57 @@ function Entries({ habitId, version, onChanged }: { habitId: number; version: st
       </li>)}
     </ul>}
   </details>
+}
+
+const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+const fromTime = (t: string) => { const [h, m] = t.split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null }
+
+/** A daily nudge if the habit isn't done by a chosen time. */
+function Reminder({ habit, onChanged }: { habit: Habit; onChanged: () => Promise<unknown> }) {
+  const [time, setTime] = useState(habit.reminderMinutes != null ? toTime(habit.reminderMinutes) : '19:00')
+  const [push, setPush] = useState<PushState | null>(null)
+  const [state, setState] = useState<'idle' | 'saving' | string>('idle')
+  const [note, setNote] = useState('')
+  useEffect(() => { let live = true; void pushState().then(s => { if (live) setPush(s) }); return () => { live = false } }, [])
+  const on = habit.reminderMinutes != null
+
+  async function save() {
+    const minutes = fromTime(time)
+    if (minutes == null) return
+    setState('saving'); setNote('')
+    try {
+      if (push !== 'on') { await enablePush(); setPush('on') }
+      await api.setHabitReminder(habit.id, minutes)
+      await onChanged(); setState('idle'); setNote(`Reminder set for ${time} if ${habit.name} isn't done.`)
+    } catch (e) { setState(e instanceof Error ? e.message : String(e)) }
+  }
+  async function clear() {
+    setState('saving'); setNote('')
+    try { await api.setHabitReminder(habit.id, null); await onChanged(); setState('idle'); setNote('Reminder off.') }
+    catch (e) { setState(e instanceof Error ? e.message : String(e)) }
+  }
+  async function test() {
+    setNote('')
+    try { const { sent } = await sendTestPush(); setNote(sent ? 'Test sent. It should arrive in a few seconds.' : 'No device is set up for notifications yet.') }
+    catch (e) { setState(e instanceof Error ? e.message : String(e)) }
+  }
+
+  return <section className="hb-sheet__section" aria-labelledby="hb-reminder">
+    <h3 id="hb-reminder" className="hb-sheet__label">Reminder {on && `· ${toTime(habit.reminderMinutes!)}`}</h3>
+    {push === 'needs-install'
+      ? <p className="hb-hint">On iPhone, reminders work once the dashboard is on your Home Screen: Share → Add to Home Screen, then open it from there.</p>
+      : push === 'unsupported' ? <p className="hb-hint">This browser can't show notifications.</p>
+      : <>
+        <div className="hb-sheet__row">
+          <label className="ui-sr-only" htmlFor="hb-reminder-time">Remind me at</label>
+          <input id="hb-reminder-time" className="hb-input" type="time" value={time} onChange={e => setTime(e.target.value)} />
+          <Button size="sm" variant={on ? 'ghost' : 'primary'} disabled={state === 'saving' || !time} onClick={() => void save()}>{on ? 'Update' : 'Remind me'}</Button>
+          {on && <Button size="sm" variant="quiet" disabled={state === 'saving'} onClick={() => void clear()}>Off</Button>}
+        </div>
+        <p className="hb-hint">Sent once that day if {habit.name} isn't done by then.{push === 'denied' && ' Notifications are blocked for this site; allow them in settings first.'}</p>
+        {push === 'on' && <Button size="sm" variant="quiet" onClick={() => void test()}>Send a test notification</Button>}
+      </>}
+    {note && <p role="status" className="hb-hint">{note}</p>}
+    {!['idle', 'saving'].includes(state) && <p role="alert" className="hb-error">{state}</p>}
+  </section>
 }

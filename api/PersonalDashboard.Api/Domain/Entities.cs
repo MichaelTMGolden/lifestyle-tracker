@@ -115,6 +115,10 @@ public class Habit
 {
     public int Id { get; set; }
     public required string Name { get; set; }
+    /// <summary>Local minutes after midnight to remind if the habit isn't done yet; null = no reminder.</summary>
+    public int? ReminderMinutes { get; set; }
+    /// <summary>The local day the reminder last went out, so it fires at most once a day.</summary>
+    public DateOnly? ReminderLastSentOn { get; set; }
     /// <summary>How often it's expected, e.g. "daily", "weekly".</summary>
     public string Cadence { get; set; } = "daily";
     public int TargetPerPeriod { get; set; } = 1;
@@ -153,6 +157,19 @@ public class HabitLog
 /// id. Offline taps can be replayed (a lost response, a retry after reconnect);
 /// recording the id in the same transaction as the write makes a replay a no-op.
 /// </summary>
+/// <summary>A browser/phone that accepted push notifications (Web Push).</summary>
+public class PushSubscription
+{
+    public int Id { get; set; }
+    public required string Endpoint { get; set; }
+    public required string P256dh { get; set; }
+    public required string Auth { get; set; }
+    /// <summary>The device's UTC offset (getTimezoneOffset minutes) when last seen; reminders use local time.</summary>
+    public int TzOffsetMinutes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
+}
+
 public class AppliedRequest
 {
     public Guid Id { get; set; }

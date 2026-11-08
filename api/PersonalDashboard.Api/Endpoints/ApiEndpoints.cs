@@ -60,5 +60,6 @@ public static partial class ApiEndpoints
         MapTodos(api);
         MapChallenges(api);
         MapNutrition(api);
+        MapPush(api);
     }
 }
