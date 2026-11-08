@@ -20,9 +20,16 @@ const SettingsPage = lazy(pages.settings)
 // Once the app is idle, load every page's code: switching tabs is instant and
 // the service worker caches them, so pages not yet visited still open offline.
 if (import.meta.env.PROD) {
-  const preload = () => { for (const load of Object.values(pages)) void load().catch(() => {}) }
-  if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 5000 })
-  else setTimeout(preload, 3000)
+  const preload = async () => {
+    await Promise.allSettled(Object.values(pages).map(load => load()))
+    // Hand the loaded files to the service worker: on a first visit they were
+    // fetched before it was installed, so it never saw them.
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready : null
+    const urls = performance.getEntriesByType('resource').map(e => e.name).filter(u => new URL(u).pathname.startsWith('/assets/'))
+    reg?.active?.postMessage({ type: 'cache-assets', urls })
+  }
+  if ('requestIdleCallback' in window) requestIdleCallback(() => void preload(), { timeout: 5000 })
+  else setTimeout(() => void preload(), 3000)
 }
 const KitPage = lazy(() => import('./pages/KitPage'))
 const loading = <p className="route-loading" role="status">Loading your dashboard…</p>

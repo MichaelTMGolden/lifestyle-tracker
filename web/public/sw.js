@@ -10,8 +10,32 @@ const STATIC = 'pd-static-v1'
 const KEEP = [SHELL, ASSETS, STATIC]
 const MAX_ASSETS = 80
 
+// The page's own build output: entry JS/CSS (and preloads) named in index.html.
+// On a first visit these load before this worker exists, so fetch them here.
+const assetUrls = html => [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(m => m[1])
+
+async function cacheAssets(urls) {
+  const cache = await caches.open(ASSETS)
+  await Promise.all(urls.filter(u => new URL(u, self.location.origin).pathname.startsWith('/assets/'))
+    .map(u => cache.match(u, { ignoreVary: true }).then(hit => hit ?? cache.add(u)).catch(() => { /* retried on the next visit */ })))
+}
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(SHELL).then(c => c.addAll(['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png'])).then(() => self.skipWaiting()))
+  event.waitUntil((async () => {
+    const shell = await caches.open(SHELL)
+    await shell.addAll(['/manifest.webmanifest', '/favicon.svg', '/icon-192.png'])
+    const page = await fetch('/', { cache: 'no-cache' })
+    if (!page.ok) throw new Error('shell fetch failed')
+    await shell.put('/', page.clone())
+    await cacheAssets(assetUrls(await page.text()))
+    await self.skipWaiting()
+  })())
+})
+
+// The page reports the asset files it has already loaded (lazy page chunks
+// included), since those were fetched before this worker could see them.
+self.addEventListener('message', event => {
+  if (event.data?.type === 'cache-assets' && Array.isArray(event.data.urls)) event.waitUntil(cacheAssets(event.data.urls))
 })
 
 self.addEventListener('activate', event => {
@@ -42,7 +66,8 @@ self.addEventListener('fetch', event => {
   }
 
   if (sameOrigin && url.pathname.startsWith('/assets/')) {
-    event.respondWith(caches.match(req, { cacheName: ASSETS }).then(hit => hit ?? fetch(req).then(res => {
+    // Hashed files never change, so a cached copy fetched without Origin still serves module (cors) requests.
+    event.respondWith(caches.match(req, { cacheName: ASSETS, ignoreVary: true }).then(hit => hit ?? fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(ASSETS).then(c => c.put(req, copy)).then(() => trim(ASSETS, MAX_ASSETS)) }
       return res
     })))
