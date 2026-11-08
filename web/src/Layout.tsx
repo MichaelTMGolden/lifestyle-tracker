@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import './App.css'
 import './ux.css'
@@ -7,7 +8,8 @@ import { TimerProvider } from './timer/TimerContext'
 import { MobileActionBar } from './components/MobileActionBar'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { Icon, ListRow, Sheet, ToastProvider } from './ui'
-import type { IconName } from './ui/hooks'
+import { useToast, type IconName } from './ui/hooks'
+import { pendingWrites, startHabitSync, subscribe } from './offline/habitSync'
 
 type Destination = { path: string; label: string; detail: string; keywords: string; icon: IconName }
 
@@ -112,6 +114,26 @@ export default function Layout() {
         </Sheet>
       </div>
       <MobileActionBar />
+      <HabitSync />
     </ToastProvider>
   </TimerProvider>
+}
+
+/** Sends habit taps saved while offline, and says how many are still waiting. */
+function HabitSync() {
+  const toast = useToast()
+  const qc = useQueryClient()
+  const waiting = useSyncExternalStore(subscribe, pendingWrites).length
+  useEffect(() => {
+    startHabitSync((w, reason) => toast.show({ message: `Couldn't sync ${w.habitName} (${w.date}): ${reason}`, tone: 'error', duration: 10000 }))
+    const synced = () => {
+      toast.show({ message: 'Offline taps synced.' })
+      void qc.invalidateQueries({ queryKey: ['today-bundle'] })
+      void qc.invalidateQueries({ queryKey: ['goals'] })
+    }
+    window.addEventListener('pd:habits-synced', synced)
+    return () => window.removeEventListener('pd:habits-synced', synced)
+  }, [toast, qc])
+  if (!waiting) return null
+  return <p className="sync-note" role="status">{waiting} {waiting === 1 ? 'tap' : 'taps'} saved offline · will sync when you're back online</p>
 }

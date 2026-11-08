@@ -575,6 +575,10 @@ export const api = {
   createHabit: (name: string, tracksTime: boolean) => post<Habit>('/api/habits', { name, tracksTime }),
   deleteHabit: (id: number) => send<void>('DELETE', `/api/habits/${id}`),
   logHabitTime: (id: number, minutes: number) => post<HabitLogChange>(`/api/habits/${id}/log-time`, { minutes }),
+  /** Replay-safe writes for taps that may be queued offline (see offline/habitSync.ts). */
+  logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
+    post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
+  setHabitDone: (id: number, date: string, done: boolean) => send<{ habit?: Habit | null }>('PUT', `/api/habits/${id}/done/${date}`, { done }),
 
   // Server-side running timers (sync across devices). startedAt is epoch ms (server clock).
   activeTimers: () => get<{ habitId: number; habitName: string; startedAt: number }[]>('/api/timers'),

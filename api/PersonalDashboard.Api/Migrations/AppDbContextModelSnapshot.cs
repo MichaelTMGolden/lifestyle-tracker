@@ -104,6 +104,19 @@ namespace PersonalDashboard.Api.Migrations
                     b.ToTable("AppSecrets");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.AppliedRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AppliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AppliedRequests");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.BingoBoard", b =>
                 {
                     b.Property<int>("Id")

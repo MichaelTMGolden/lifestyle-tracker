@@ -19,6 +19,9 @@ namespace PersonalDashboard.Api.Endpoints;
 public record HabitInput(string Name, bool TracksTime);
 
 public record MinutesInput(int Minutes);
+/// <summary>Minutes to add; Date and RequestId let an offline tap replay safely (see HabitWrites).</summary>
+public record LogTimeInput(int Minutes, DateOnly? Date = null, Guid? RequestId = null);
+public record DoneInput(bool Done);
 
 // Habits, their logs and heatmap, and running timers.
 public static partial class ApiEndpoints
@@ -167,29 +170,32 @@ public static partial class ApiEndpoints
             return Results.Ok(new { log.HabitId, log.Date, log.Completed, log.Minutes, habit = await HabitRowAsync(db, today, id) });
         });
 
-        // Add practice minutes to today (quick-add buttons + timer-on-stop).
-        // Upserts today's log (respecting the unique (HabitId, Date) index) and
-        // marks the day done.
-        api.MapPost("/habits/{id:int}/log-time", async (int id, MinutesInput body, AppDbContext db, HttpRequest req) =>
+        // Add practice minutes (quick-add buttons, past sessions, offline taps). Date
+        // defaults to today; a RequestId makes a replay a no-op instead of a second add.
+        api.MapPost("/habits/{id:int}/log-time", async (int id, LogTimeInput body, AppDbContext db, HttpRequest req) =>
         {
-            if (body.Minutes <= 0)
-                return Results.BadRequest(new { message = "minutes must be a positive value" });
-            if (!await db.Habits.AnyAsync(h => h.Id == id)) return Results.NotFound();
-
+            if (body.Minutes <= 0 || body.Minutes > 24 * 60)
+                return Results.BadRequest(new { message = "minutes must be between 1 and 1440" });
             var today = ClientClock.From(req).Today;
-            var log = await db.HabitLogs.FirstOrDefaultAsync(l => l.HabitId == id && l.Date == today);
-            if (log is null)
-            {
-                log = new HabitLog { HabitId = id, Date = today, Completed = true, Minutes = body.Minutes };
-                db.HabitLogs.Add(log);
-            }
-            else
-            {
-                log.Minutes += body.Minutes;
-                log.Completed = true;
-            }
-            await db.SaveChangesAsync();
-            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed, habit = await HabitRowAsync(db, today, id) });
+            var date = body.Date ?? today;
+            var outcome = await HabitWrites.AddMinutesAsync(db, id, date, body.Minutes, body.RequestId, today);
+            if (outcome == HabitWrites.Outcome.NotFound) return Results.NotFound();
+            if (outcome == HabitWrites.Outcome.OutOfRange)
+                return Results.BadRequest(new { message = $"date must be within the last {HabitWrites.MaxBackfillDays} days" });
+            var log = await db.HabitLogs.AsNoTracking().FirstAsync(l => l.HabitId == id && l.Date == date);
+            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed, duplicate = outcome == HabitWrites.Outcome.Duplicate, habit = await HabitRowAsync(db, today, id) });
+        });
+
+        // Set a day done or not done. Unlike toggle this names the end state and the
+        // day, so a tap queued offline lands correctly however late it is sent.
+        api.MapPut("/habits/{id:int}/done/{date}", async (int id, DateOnly date, DoneInput body, AppDbContext db, HttpRequest req) =>
+        {
+            var today = ClientClock.From(req).Today;
+            var outcome = await HabitWrites.SetDoneAsync(db, id, date, body.Done, today);
+            if (outcome == HabitWrites.Outcome.NotFound) return Results.NotFound();
+            if (outcome == HabitWrites.Outcome.OutOfRange)
+                return Results.BadRequest(new { message = $"date must be within the last {HabitWrites.MaxBackfillDays} days" });
+            return Results.Ok(new { habitId = id, date, done = body.Done, habit = await HabitRowAsync(db, today, id) });
         });
 
         // Set today's minutes to an absolute value (corrections). Completed = minutes > 0.

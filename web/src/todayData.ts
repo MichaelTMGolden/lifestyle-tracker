@@ -3,6 +3,7 @@
 // replaces the changed item. Nothing reloads the whole page after a tap.
 import { useMemo } from 'react'
 import { QueryClient, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { QUEUED, setDone } from './offline/habitSync'
 import { api, type DailyTodo, type Habit, type TodayBundle } from './api'
 import { dateKey } from './dailyPlanning'
 
@@ -137,8 +138,9 @@ function todayWrites(qc: QueryClient) {
       const done = !habit.doneToday
       return write(`habit:${habit.id}`,
         () => update(b => setHabitDone(b, habit.id, done, day)),
-        () => api.toggleHabit(habit.id),
-        reply => { if (reply.habit) update(b => applyHabitRow(b, reply.habit!, day)) },
+        // Names the end state and the day, so it is safe to queue offline and replay.
+        () => setDone(habit, day, done),
+        reply => { if (reply !== QUEUED && reply.habit) update(b => applyHabitRow(b, reply.habit!, day)) },
         () => update(b => setHabitDone(b, habit.id, !done, day)))
     },
 
