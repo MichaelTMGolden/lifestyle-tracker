@@ -1,0 +1,9 @@
+.ql { display: flex; flex-direction: column; gap: var(--rite-3); }
+.ql-box { display: flex; align-items: center; gap: var(--rite-2); min-height: 52px; padding: 0 var(--rite-4); border-radius: 14px; background: var(--rite-bg); border: 1px solid var(--rite-border-strong); color: var(--rite-accent-light); }
+.ql-box:focus-within { border-color: var(--rite-accent-light); }
+.ql-box input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--rite-text); font: 17px var(--font-body); min-height: 50px; }
+.ql-hint { margin: 0; font-size: 13px; color: var(--rite-muted); min-height: 1.3em; }
+.ql-error { margin: 0; font-size: 13px; color: var(--rite-bad); }
+.ql-choices { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
+.ql-timers { display: flex; flex-direction: column; gap: var(--rite-2); margin-top: var(--rite-5); }
+.ql-label { margin: 0; font: 600 12px var(--font-body); color: var(--rite-muted); letter-spacing: 0; text-transform: none; }

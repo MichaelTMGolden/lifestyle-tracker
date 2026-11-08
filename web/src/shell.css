@@ -55,3 +55,4 @@
 /* Offline taps waiting to sync: a quiet strip above the tab bar (top on desktop). */
 .sync-note { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--rite-tabbar) + 72px + env(safe-area-inset-bottom)); z-index: 60; margin: 0; padding: 6px 14px; border-radius: var(--rite-pill); background: var(--rite-surface-3); border: 1px solid var(--rite-border-strong); color: var(--rite-text); font-size: 12px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 @media (min-width: 1024px) { .sync-note { bottom: auto; top: 16px; } }
+.sidebar-quick { color: var(--rite-accent-light); margin-bottom: 6px; }
