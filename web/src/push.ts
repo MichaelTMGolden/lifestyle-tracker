@@ -26,6 +26,22 @@ async function save(sub: PushSubscription) {
   await send('POST', '/api/push/subscribe', { endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth } })
 }
 
+const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) => !!a && a.byteLength === b.length && new Uint8Array(a).every((x, i) => x === b[i])
+
+/**
+ * Make sure this device's subscription uses the server's current key, then save
+ * it. A subscription made with an older key (the server regenerated its pair)
+ * can never be delivered to, so it is replaced.
+ */
+async function reconcile(reg: ServiceWorkerRegistration): Promise<void> {
+  const { publicKey } = await get<{ publicKey: string }>('/api/push/key')
+  const key = keyBytes(publicKey)
+  let sub = await reg.pushManager.getSubscription()
+  if (sub && !sameKey(sub.options.applicationServerKey, key)) { await sub.unsubscribe(); sub = null }
+  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key as BufferSource })
+  await save(sub)
+}
+
 /** Ask for permission (must follow a tap) and subscribe this device. Throws with a readable reason. */
 export async function enablePush(): Promise<void> {
   const state = await pushState()
@@ -33,23 +49,16 @@ export async function enablePush(): Promise<void> {
   if (state === 'unsupported') throw new Error("This browser can't receive notifications.")
   if (state === 'denied') throw new Error('Notifications are blocked for this site. Allow them in your browser or phone settings.')
   if (await Notification.requestPermission() !== 'granted') throw new Error('Notifications were not allowed.')
-  const reg = await navigator.serviceWorker.ready
-  const { publicKey } = await get<{ publicKey: string }>('/api/push/key')
-  let sub = await reg.pushManager.getSubscription()
-  // A subscription made with a different server key can't be used; replace it.
-  const current = sub?.options.applicationServerKey
-  if (sub && current && btoa(String.fromCharCode(...new Uint8Array(current))) !== btoa(String.fromCharCode(...keyBytes(publicKey)))) { await sub.unsubscribe(); sub = null }
-  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) as BufferSource })
-  await save(sub)
+  await reconcile(await navigator.serviceWorker.ready)
 }
 
-/** On app start: if this device is subscribed, refresh the server's copy and time zone. */
+/** On app start: if notifications are allowed here, check the subscription against the server's key and save it with this device's time zone. */
 export async function refreshPush(): Promise<void> {
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') return
-    const sub = await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription()
-    if (sub) await save(sub)
-  } catch { /* best effort */ }
+    const reg = await navigator.serviceWorker.getRegistration()
+    if (reg && await reg.pushManager.getSubscription()) await reconcile(reg)
+  } catch { /* best effort; turning a reminder on runs it again after a tap */ }
 }
 
 export const sendTestPush = () => send<{ sent: number }>('POST', '/api/push/test')

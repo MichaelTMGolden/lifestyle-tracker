@@ -205,7 +205,8 @@ function Reminder({ habit, onChanged }: { habit: Habit; onChanged: () => Promise
     if (minutes == null) return
     setState('saving'); setNote('')
     try {
-      if (push !== 'on') { await enablePush(); setPush('on') }
+      // Always, even when already on: it also replaces a subscription made with an old server key.
+      await enablePush(); setPush('on')
       await api.setHabitReminder(habit.id, minutes)
       await onChanged(); setState('idle'); setNote(`Reminder set for ${time} if ${habit.name} isn't done.`)
     } catch (e) { setState(e instanceof Error ? e.message : String(e)) }
@@ -223,9 +224,14 @@ function Reminder({ habit, onChanged }: { habit: Habit; onChanged: () => Promise
 
   return <section className="hb-sheet__section" aria-labelledby="hb-reminder">
     <h3 id="hb-reminder" className="hb-sheet__label">Reminder {on && `· ${toTime(habit.reminderMinutes!)}`}</h3>
-    {push === 'needs-install'
-      ? <p className="hb-hint">On iPhone, reminders work once the dashboard is on your Home Screen: Share → Add to Home Screen, then open it from there.</p>
-      : push === 'unsupported' ? <p className="hb-hint">This browser can't show notifications.</p>
+    {push === 'needs-install' || push === 'unsupported'
+      ? <>
+        <p className="hb-hint">{push === 'needs-install'
+          ? 'On iPhone, reminders work once the dashboard is on your Home Screen: Share → Add to Home Screen, then open it from there.'
+          : "This browser can't show notifications."}</p>
+        {/* Reminders are per habit, not per device: turning one off needs no notification support here. */}
+        {on && <Button size="sm" variant="quiet" disabled={state === 'saving'} onClick={() => void clear()}>Turn reminder off</Button>}
+      </>
       : <>
         <div className="hb-sheet__row">
           <label className="ui-sr-only" htmlFor="hb-reminder-time">Remind me at</label>
