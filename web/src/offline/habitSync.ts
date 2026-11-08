@@ -62,7 +62,15 @@ if (typeof window !== 'undefined') window.addEventListener('storage', e => { if 
 export const pendingWrites = () => snapshot
 export function subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn) } }
 
-const newId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+/** A v4 UUID (the server binds request ids as Guid). randomUUID needs a secure context; getRandomValues doesn't. */
+function newId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40 // version 4
+  b[8] = (b[8] & 0x3f) | 0x80 // RFC 4122 variant
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
 
 /** fetch() rejects with a TypeError only when the request never reached a server. */
 const unreachable = (e: unknown) => e instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false)
@@ -93,10 +101,13 @@ async function submit(w: QueuedWrite): Promise<WriteResult> {
     })
   }
   catch {
-    // This device can't store the tap (storage full or blocked): send it now
-    // without a safety net, and say so plainly if that fails too.
+    // This device can't store the tap (storage full or blocked).
     waiting.delete(w.id)
-    try { return await send(w) }
+    // Never let it overtake older taps still waiting: a newer state sent first
+    // would be overwritten when those replay.
+    if (load().length > 0) throw new Error("This device can't save more taps right now, and earlier ones are still waiting to sync. Try again once they have.")
+    // Nothing waiting: send it now, in turn with any delivery, and say so plainly if that fails too.
+    try { return await withLock(SEND_LOCK, () => send(w)) }
     catch (e) { throw unreachable(e) ? new Error("No connection, and this device can't save taps offline. Try again when you're back online.") : e }
   }
   void flush()

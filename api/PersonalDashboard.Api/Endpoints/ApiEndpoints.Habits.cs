@@ -182,8 +182,14 @@ public static partial class ApiEndpoints
             if (outcome == HabitWrites.Outcome.NotFound) return Results.NotFound();
             if (outcome == HabitWrites.Outcome.OutOfRange)
                 return Results.BadRequest(new { message = $"date must be within the last {HabitWrites.MaxBackfillDays} days" });
-            var log = await db.HabitLogs.AsNoTracking().FirstAsync(l => l.HabitId == id && l.Date == date);
-            return Results.Ok(new { log.HabitId, log.Date, log.Minutes, log.Completed, duplicate = outcome == HabitWrites.Outcome.Duplicate, habit = await HabitRowAsync(db, today, id) });
+            // A duplicate is acknowledged even if its log (or habit) was deleted since:
+            // the write was applied once, which is all a replay needs to hear.
+            var log = await db.HabitLogs.AsNoTracking().FirstOrDefaultAsync(l => l.HabitId == id && l.Date == date);
+            return Results.Ok(new
+            {
+                habitId = id, date, minutes = log?.Minutes ?? 0, completed = log?.Completed ?? false,
+                duplicate = outcome == HabitWrites.Outcome.Duplicate, habit = await HabitRowAsync(db, today, id),
+            });
         });
 
         // Set a day done or not done. Unlike toggle this names the end state and the

@@ -92,4 +92,16 @@ public class HabitWritesTests
         Assert.Equal(HabitWrites.Outcome.NotFound, await HabitWrites.SetDoneAsync(db, id + 99, Today, true, Today));
         Assert.Equal(HabitWrites.Outcome.NotFound, await HabitWrites.AddMinutesAsync(db, id + 99, Today, 5, Guid.NewGuid(), Today));
     }
+
+    [Fact]
+    public async Task A_replay_after_its_entry_was_deleted_is_still_a_duplicate_and_recreates_nothing()
+    {
+        var (db, id) = await Database();
+        var request = Guid.NewGuid();
+        await HabitWrites.AddMinutesAsync(db, id, Today, 25, request, Today);
+        db.HabitLogs.RemoveRange(db.HabitLogs.Where(l => l.HabitId == id));
+        await db.SaveChangesAsync();
+        Assert.Equal(HabitWrites.Outcome.Duplicate, await HabitWrites.AddMinutesAsync(db, id, Today, 25, request, Today));
+        Assert.Null(await Log(db, id, Today));
+    }
 }
