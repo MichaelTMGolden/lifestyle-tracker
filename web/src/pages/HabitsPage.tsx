@@ -158,7 +158,8 @@ export default function HabitsPage() {
 
     <NewHabitSheet open={adding} onClose={() => setAdding(false)} onCreated={async () => { setAdding(false); await load() }} />
 
-    {celebrating && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
+    {/* Wait for any sheet to close: a modal dialog would hide the celebration while its timer marks it seen. */}
+    {celebrating && openId == null && !adding && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
   </div>
 }
 
