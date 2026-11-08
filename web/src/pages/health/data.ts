@@ -17,6 +17,21 @@ export function daily(points: MetricPoint[]): { date: string; value: number }[] 
   return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, p]) => ({ date, value: p.value }))
 }
 
+/**
+ * A reading fit to stand in for a missing one. Mirrors the server's
+ * DailyMetricAggregation.IsValidObserved, so the page never shows a value the
+ * Today summary rejected (sample or derived data, or an out-of-range number).
+ */
+export function validReading(key: string, p: MetricPoint): boolean {
+  if (!observed(p) || !Number.isFinite(p.value) || p.value < 0) return false
+  const source = p.sourceName?.toLowerCase() ?? ''
+  if (key === 'sleep_score' || key === 'resting_hr' || key === 'stress_avg') {
+    if (source.includes('(imported)')) return false
+    return key === 'resting_hr' ? p.value >= 20 && p.value <= 250 : p.value <= 100
+  }
+  return key !== 'body_battery' || p.value <= 100
+}
+
 const mean = (xs: number[]) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null
 
 /** Latest value, the average over the last `days`, and the change against the `days` before that. */

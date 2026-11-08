@@ -8,7 +8,7 @@ import { dateKey } from '../dailyPlanning'
 import { useTodayBundle } from '../todayData'
 import { Button, Card, Pill, Ring, SectionHead, Skeleton, Spark, Stat, Tabs } from '../ui'
 import { useToast } from '../ui/hooks'
-import { ageDays, ago, daily, observed, trend } from './health/data'
+import { ageDays, ago, daily, trend, validReading } from './health/data'
 import './health/health.css'
 
 const METRICS = [
@@ -31,8 +31,8 @@ export default function HealthPage() {
   // When today has no reading yet, the latest one stands in, dimmed and dated.
   const latest = (key: (typeof METRICS)[number]['key']) => {
     const q = series[METRICS.findIndex(m => m.key === key)]
-    // Only genuine readings stand in: sample and derived values are not measurements.
-    const last = q?.data ? daily(q.data.filter(observed)).at(-1) : undefined
+    // Only valid, genuine readings stand in (see validReading).
+    const last = q?.data ? daily(q.data.filter(p => validReading(key, p))).at(-1) : undefined
     return last ? { value: last.value, when: ago(last.date, today) } : null
   }
   const reading = (now: number | null, key: (typeof METRICS)[number]['key'], show: (v: number) => string) => {
@@ -79,7 +79,7 @@ export default function HealthPage() {
           if (q.isPending) return <div key={m.key} className="hl-trend"><Skeleton height={36} /></div>
           const s = trend(daily(q.data ?? []), days, today)
           // Nothing in range: show the last genuine reading, dimmed, rather than a dash.
-          const old = s.avg == null ? daily((q.data ?? []).filter(observed)).at(-1) ?? null : null
+          const old = s.avg == null ? daily((q.data ?? []).filter(p => validReading(m.key, p))).at(-1) ?? null : null
           const good = s.change == null || Math.abs(s.change) < 0.5 ? null : (s.change > 0) === (m.better === 'up')
           return <div key={m.key} className="hl-trend">
             <div className="hl-trend__text">

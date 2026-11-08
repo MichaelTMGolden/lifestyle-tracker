@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ageDays, ago, daily, trend } from '../src/pages/health/data.ts'
+import { ageDays, ago, daily, trend, validReading } from '../src/pages/health/data.ts'
 
 const p = (recordedAt, value, extra = {}) => ({ recordedAt, value, unit: null, ...extra })
 
@@ -41,4 +41,13 @@ test('ago reads naturally, then falls back to a date', () => {
   assert.equal(ago('2026-11-07', '2026-11-08'), 'yesterday')
   assert.equal(ago('2026-11-05', '2026-11-08'), '3 days ago')
   assert.match(ago('2026-06-12', '2026-11-08'), /12/)
+})
+
+test('validReading matches the server: genuine, in range, not imported for scored metrics', () => {
+  assert.equal(validReading('body_battery', p('2026-11-01T06:00:00Z', 101)), false)
+  assert.equal(validReading('body_battery', p('2026-11-01T06:00:00Z', 80)), true)
+  assert.equal(validReading('resting_hr', p('2026-11-01T06:00:00Z', 19)), false)
+  assert.equal(validReading('sleep_score', p('2026-11-01T06:00:00Z', 80, { sourceName: 'Garmin (imported)' })), false)
+  assert.equal(validReading('steps', p('2026-11-01T06:00:00Z', -5)), false)
+  assert.equal(validReading('steps', p('2026-11-01T06:00:00Z', 900, { isDerived: true })), false)
 })
