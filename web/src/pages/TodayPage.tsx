@@ -16,11 +16,13 @@ import { Button, Ring, SectionHead, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
+import { useStreakMilestones } from './habits/milestones'
 import { eventOnDay, PLAN_DAYS } from './plan/days'
 import { Alerts, ComingUp, HabitTiles, LogTimeSheet, RunningTimers, TodayList } from './today/parts'
 import '../dailyPlanning.css'
 import './today/today.css'
 
+const NO_HABITS: Habit[] = []
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 
 export default function TodayPage() {
@@ -35,6 +37,7 @@ export default function TodayPage() {
   // Goals only matter for the running-timer card; fetch them while a timer runs.
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.goals, enabled: timers.length > 0 })
   const qc = useQueryClient()
+  const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
   // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
   const [quietDay, setQuietDay] = useState(false)
   const upcoming = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS), enabled: quietDay })
@@ -143,7 +146,7 @@ export default function TodayPage() {
 
     <section aria-labelledby="td-habits">
       <SectionHead id="td-habits" title="Habits" aside={<span className="td-hint">Tap to log</span>} />
-      <HabitTiles habits={habits} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} onLogPast={() => setLogging(true)} />
+      <HabitTiles habits={habits} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} onLogPast={() => setLogging(true)} />
     </section>
 
     <section aria-labelledby="td-today">

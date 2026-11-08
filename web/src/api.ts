@@ -47,6 +47,8 @@ export interface Habit {
   bestStreak: number
   /** Local minutes after midnight for a reminder if not done yet; null = none. */
   reminderMinutes: number | null
+  /** #rrggbb, or null for the default from the habit's id. */
+  colorHex: string | null
 }
 
 export interface Todo {
@@ -587,6 +589,7 @@ export const api = {
   /** Replay-safe writes for taps that may be queued offline (see offline/habitSync.ts). */
   logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
     post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
+  setHabitColor: (id: number, colorHex: string | null) => send<{ habit: Habit }>('PUT', `/api/habits/${id}/color`, { colorHex }),
   setHabitReminder: (id: number, minutes: number | null) => send<{ habit: Habit }>('PUT', `/api/habits/${id}/reminder`, { minutes }),
   setHabitDone: (id: number, date: string, done: boolean) => send<{ habit?: Habit | null }>('PUT', `/api/habits/${id}/done/${date}`, { done }),
 

@@ -7,6 +7,8 @@ import { DragGrip, Reorderable } from '../../components/Reorderable'
 import { TaskPlanActions, type PlanningAction } from '../../components/DailyPlanning'
 import { fmtElapsed, fmtHours, fmtMinutes } from '../../lib'
 import { Button, CheckRow, Icon, Pill, Progress, Sheet } from '../../ui'
+import { haptic } from '../../ui/feedback'
+import { habitStyle } from '../../habitColor'
 
 /* ---------- Running timers (hero) ---------- */
 export function RunningTimers({ timers, goals, elapsedMs, onStop }: {
@@ -40,13 +42,22 @@ export function RunningTimers({ timers, goals, elapsedMs, onStop }: {
 }
 
 /* ---------- Habit tiles ---------- */
-export function HabitTiles({ habits, isRunning, elapsedMs, onTap, onLogPast }: {
+export function HabitTiles({ habits, isRunning, elapsedMs, milestone, onTap, onLogPast }: {
   habits: Habit[]
+  /** The habit whose streak just reached a milestone, briefly. */
+  milestone?: number | null
   isRunning: (id: number) => boolean
   elapsedMs: (id: number) => number
   onTap: (h: Habit) => void
   onLogPast: () => void
 }) {
+  // The tile just ticked pops once; the class clears when the burst ends so a later tick replays it.
+  const [ticked, setTicked] = useState<number | null>(null)
+  const tap = (h: Habit) => {
+    haptic()
+    if (!h.tracksTime && !h.doneToday) setTicked(h.id)
+    onTap(h)
+  }
   return <div className="td-tiles">
     {habits.map(h => {
       const running = isRunning(h.id)
@@ -56,7 +67,10 @@ export function HabitTiles({ habits, isRunning, elapsedMs, onTap, onLogPast }: {
         : h.currentStreak > 0 ? `${h.currentStreak}-${h.cadence === 'weekly' ? 'week' : 'day'} streak`
         : 'Not yet'
       const label = running ? `Stop ${h.name} timer and log it` : h.tracksTime ? `Start ${h.name} timer` : h.doneToday ? `${h.name} done today. Undo` : `Mark ${h.name} done`
-      return <button key={h.id} type="button" className={`td-tile td-tile--${state}`} onClick={() => onTap(h)} aria-label={label}
+      const pop = ticked === h.id && state === 'done'
+      return <button key={h.id} type="button" style={habitStyle(h)}
+        onAnimationEnd={e => { if (e.animationName === 'ui-burst') setTicked(null) }}
+        className={`td-tile td-tile--${state}${pop ? ' is-ticked' : ''}${milestone === h.id ? ' td-tile--milestone' : ''}`} onClick={() => tap(h)} aria-label={label}
         aria-pressed={h.tracksTime ? undefined : h.doneToday}>
         <span className="td-tile__text"><span className="td-tile__name">{h.name}</span><span className="td-tile__meta">{meta}</span></span>
         <span className="td-tile__mark" aria-hidden="true">{state === 'done' ? <Icon name="check" size={14} /> : state === 'running' ? <span className="td-tile__pulse" /> : null}</span>
