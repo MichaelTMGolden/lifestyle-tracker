@@ -6,6 +6,7 @@ import './ux.css'
 import './shell.css'
 import { TimerProvider } from './timer/TimerContext'
 import { MobileActionBar } from './components/MobileActionBar'
+import { QuickLogSheet } from './components/QuickLog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { Icon, ListRow, Sheet, ToastProvider } from './ui'
 import { useToast, type IconName } from './ui/hooks'
@@ -36,6 +37,7 @@ export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
   const [query, setQuery] = useState('')
   const current = all.find(d => matches(d, location.pathname))
   const inMore = !primary.some(d => matches(d, location.pathname))
@@ -73,6 +75,7 @@ export default function Layout() {
 
         <aside className="desktop-sidebar" aria-label="Dashboard navigation">
           <NavLink to="/" className="sidebar-brand" aria-label="Personal Dashboard home"><span className="brand">Personal<br />Dashboard</span></NavLink>
+          <button className="sidebar-search sidebar-quick" onClick={() => setQuickOpen(true)} aria-haspopup="dialog" aria-expanded={quickOpen}><Icon name="plus" /><span>Quick log</span></button>
           <button className="sidebar-search" onClick={openMore} aria-haspopup="dialog" aria-expanded={moreOpen}><Icon name="search" /><span>Find a page</span><kbd>Ctrl K</kbd></button>
           <nav className="sidebar-groups" aria-label="Main navigation">
             <div className="sidebar-group">
@@ -114,6 +117,8 @@ export default function Layout() {
         </Sheet>
       </div>
       <MobileActionBar />
+      {/* Desktop entry point; on phones the action bar opens its own. */}
+      <QuickLogSheet open={quickOpen} onClose={() => setQuickOpen(false)} />
       <HabitSync />
     </ToastProvider>
   </TimerProvider>
