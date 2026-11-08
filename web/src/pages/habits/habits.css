@@ -10,16 +10,20 @@
 @media (min-width: 760px) { .hb-list--4w { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .hb-card { background: var(--rite-surface); border: 1px solid var(--rite-border); border-radius: var(--rite-radius-lg); padding: var(--rite-3) var(--rite-4); display: flex; flex-direction: column; gap: var(--rite-3); min-width: 0; }
-.hb-card--running { border-color: var(--rite-border-accent); }
+.hb-card--running { border-color: var(--habit-border, var(--rite-border-accent)); }
+.hb-card--milestone { animation: ui-glow 2.4s ease-out; }
 .hb-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); min-height: var(--rite-tap); }
 .hb-card__open { all: unset; cursor: pointer; display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; min-width: 0; flex: 1; border-radius: 6px; }
 .hb-card__open:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 3px; }
 .hb-card__name { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 21px; line-height: 1.1; letter-spacing: 0; color: var(--rite-text); overflow-wrap: anywhere; }
-.hb-card__streak { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; color: var(--rite-accent-light); }
+.hb-card__streak { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; color: var(--habit-light, var(--rite-accent-light)); }
 .hb-card__cadence { font-size: 12px; color: var(--rite-muted); }
-.hb-card__action.ui-btn { width: 52px; padding: 0; flex-shrink: 0; }
+.hb-card__action.ui-btn { width: 52px; padding: 0; flex-shrink: 0; position: relative; }
+.hb-card__action.ui-btn--primary { background: var(--habit, var(--rite-accent)); }
+.hb-card__action.is-ticked svg { animation: ui-tick-pop .42s ease-out; }
+.hb-card__action.is-ticked::after { content: ''; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--habit-light, var(--rite-accent-light)); animation: ui-burst .55s ease-out forwards; pointer-events: none; }
 .hb-card__timer { display: inline-flex; align-items: center; gap: var(--rite-2); flex-shrink: 0; }
-.hb-card__elapsed { font-size: 15px; font-weight: 600; color: var(--rite-accent-light); }
+.hb-card__elapsed { font-size: 15px; font-weight: 600; color: var(--habit-light, var(--rite-accent-light)); }
 .hb-card__heat { all: unset; cursor: pointer; display: block; min-width: 0; }
 .hb-card__heat .ui-heatmap--calendar { overflow-x: auto; }
 .hb-card__note { margin: 0; font-size: 12px; color: var(--rite-muted); }
@@ -77,3 +81,10 @@
 .gl-chips { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
 .gl-chip { min-height: 40px; padding: 0 var(--rite-4); border-radius: var(--rite-pill); border: 1px solid var(--rite-border-strong); background: transparent; color: var(--rite-text); font: 500 14px var(--font-body); cursor: pointer; }
 .gl-chip--on { background: var(--rite-tint-strong); border-color: var(--rite-accent); }
+
+/* Colour picker in the habit sheet */
+.hb-swatches { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
+.hb-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid transparent; background: var(--swatch); cursor: pointer; padding: 0; display: grid; place-items: center; color: #fff; }
+.hb-swatch[aria-checked="true"] { border-color: var(--rite-text); box-shadow: inset 0 0 0 2px var(--rite-surface); }
+.hb-swatch:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .hb-card--milestone, .hb-card__action.is-ticked svg, .hb-card__action.is-ticked::after { animation: none; } }

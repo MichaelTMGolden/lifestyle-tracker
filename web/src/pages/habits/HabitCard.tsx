@@ -1,5 +1,8 @@
 // One habit on the Habits page: streak, cadence, a one-tap action and its heatmap.
+import { useState } from 'react'
 import type { Goal, Habit } from '../../api'
+import { habitStyle } from '../../habitColor'
+import { haptic } from '../../ui/feedback'
 import { fmtElapsed, fmtHours } from '../../lib'
 import { Button, Heatmap, Icon, Progress } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
@@ -7,7 +10,7 @@ import { cadenceLabel, goalPace, streakUnit } from './stats'
 
 export type Range = '4w' | '6m' | 'y'
 
-export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, onOpen, onToggle, onStart, onStop }: {
+export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, milestone, onOpen, onToggle, onStart, onStop }: {
   habit: Habit
   cells: HeatCell[]
   range: Range
@@ -15,6 +18,8 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
   goal?: Goal
   running: boolean
   elapsedMs: number
+  /** True briefly after this habit's streak reaches a milestone. */
+  milestone?: boolean
   onOpen: () => void
   onToggle: () => void
   onStart: () => void
@@ -23,8 +28,12 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
   const h = habit
   const pace = goal ? goalPace(goal) : null
   const streakText = `${h.currentStreak} ${streakUnit(h, h.currentStreak)} streak`
+  // A short pop on the check when it is ticked (not when it is unticked).
+  const [ticked, setTicked] = useState(false)
+  const tick = () => { haptic(); if (!h.doneToday) setTicked(true); onToggle() }
+  const press = (fn: () => void) => () => { haptic(); fn() }
 
-  return <article className={`hb-card${running ? ' hb-card--running' : ''}`} aria-label={h.name}>
+  return <article className={`hb-card${running ? ' hb-card--running' : ''}${milestone ? ' hb-card--milestone' : ''}`} aria-label={h.name} style={habitStyle(h)}>
     <div className="hb-card__head">
       <button type="button" className="hb-card__open" onClick={onOpen} aria-label={`${h.name}: ${streakText}. Open details`}>
         <h2 className="hb-card__name">{h.name}</h2>
@@ -35,10 +44,11 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
         ? running
           ? <span className="hb-card__timer">
               <span className="hb-card__elapsed" aria-live="off">{fmtElapsed(elapsedMs)}</span>
-              <Button variant="primary" size="sm" icon="stop" onClick={onStop} aria-label={`Stop ${h.name} timer and log the time`}>Stop</Button>
+              <Button variant="primary" size="sm" icon="stop" onClick={press(onStop)} aria-label={`Stop ${h.name} timer and log the time`}>Stop</Button>
             </span>
-          : <Button className="hb-card__action" icon="play" onClick={onStart} aria-label={`Start ${h.name} timer`} />
-        : <Button className="hb-card__action" variant={h.doneToday ? 'primary' : 'ghost'} icon="check" onClick={onToggle}
+          : <Button className="hb-card__action" icon="play" onClick={press(onStart)} aria-label={`Start ${h.name} timer`} />
+        : <Button className={`hb-card__action${ticked && h.doneToday ? ' is-ticked' : ''}`}
+            onAnimationEnd={e => { if (e.animationName === 'ui-burst') setTicked(false) }} variant={h.doneToday ? 'primary' : 'ghost'} icon="check" onClick={tick}
             aria-pressed={h.doneToday} aria-label={h.doneToday ? `${h.name} done today. Undo` : `Mark ${h.name} done today`} />}
     </div>
 

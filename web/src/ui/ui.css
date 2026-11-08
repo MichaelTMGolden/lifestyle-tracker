@@ -150,3 +150,8 @@ a.ui-list-row:hover, button.ui-list-row:hover { background: var(--rite-surface);
 .ui-spark path { stroke: var(--rite-accent-light); }
 .ui-spark circle { fill: var(--rite-accent-light); }
 .ui-spark--empty { display: inline-block; border-bottom: 1px dashed var(--rite-border-strong); }
+
+/* ---------- Feedback: a tick's pop and burst, a milestone's glow ---------- */
+@keyframes ui-tick-pop { 0% { transform: scale(.7); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
+@keyframes ui-burst { from { transform: scale(.6); opacity: .7; } to { transform: scale(2.1); opacity: 0; } }
+@keyframes ui-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 3px var(--habit-border, var(--rite-border-accent)), 0 0 22px 2px var(--habit-tint, var(--rite-tint)); } }

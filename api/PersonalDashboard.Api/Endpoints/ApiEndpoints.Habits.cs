@@ -22,6 +22,7 @@ public record MinutesInput(int Minutes);
 /// <summary>Minutes to add; Date and RequestId let an offline tap replay safely (see HabitWrites).</summary>
 public record LogTimeInput(int Minutes, DateOnly? Date = null, Guid? RequestId = null);
 public record DoneInput(bool Done);
+public record ColorInput(string? ColorHex);
 
 // Habits, their logs and heatmap, and running timers.
 public static partial class ApiEndpoints
@@ -50,7 +51,7 @@ public static partial class ApiEndpoints
     public record HabitRow(
         int Id, string Name, string Cadence, int TargetPerPeriod, bool TracksTime, bool ShowInQuickActions,
         int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak,
-        int BestStreak, int? ReminderMinutes);
+        int BestStreak, int? ReminderMinutes, string? ColorHex);
 
     /// <summary>
     /// The active habits as the Habits and Today pages show them. Pass
@@ -66,7 +67,7 @@ public static partial class ApiEndpoints
             .OrderBy(h => h.Id)
             .Select(h => new
             {
-                h.Id, h.Name, h.Cadence, h.TargetPerPeriod, h.TracksTime, h.ShowInQuickActions, h.ReminderMinutes,
+                h.Id, h.Name, h.Cadence, h.TargetPerPeriod, h.TracksTime, h.ShowInQuickActions, h.ReminderMinutes, h.ColorHex,
                 last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
                 doneToday = h.Logs.Any(l => l.Date == today && l.Completed),
                 minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
@@ -99,7 +100,7 @@ public static partial class ApiEndpoints
             r.Id, r.Name, r.Cadence, r.TargetPerPeriod, r.TracksTime, r.ShowInQuickActions,
             r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id],
             Math.Max(streaks[r.Id], HabitCadencePolicy.BestStreak(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart)),
-            r.ReminderMinutes)).ToList();
+            r.ReminderMinutes, r.ColorHex)).ToList();
     }
 
     private static async Task<Dictionary<int, HashSet<DateOnly>>> CompletedDatesAsync(AppDbContext db, List<int> habitIds, DateOnly? from, DateOnly to)
@@ -299,6 +300,19 @@ public static partial class ApiEndpoints
             }
             await db.SaveChangesAsync();
             return Results.Ok(new { habitId, minutes = mins, habit = await HabitRowAsync(db, clock.Today, habitId) });
+        });
+
+        // Set or clear a habit's display colour (#rrggbb, or null for the default).
+        api.MapPut("/habits/{id:int}/color", async (int id, ColorInput body, AppDbContext db, HttpRequest req) =>
+        {
+            var color = string.IsNullOrWhiteSpace(body.ColorHex) ? null : body.ColorHex.Trim().ToLowerInvariant();
+            if (color is not null && !System.Text.RegularExpressions.Regex.IsMatch(color, "^#[0-9a-f]{6}$"))
+                return Results.BadRequest(new { message = "colorHex must look like #a1b2c3" });
+            var habit = await db.Habits.FindAsync(id);
+            if (habit is null) return Results.NotFound();
+            habit.ColorHex = color;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { habit = await HabitRowAsync(db, ClientClock.From(req).Today, id) });
         });
 
         // Flip whether a skill tracks time.

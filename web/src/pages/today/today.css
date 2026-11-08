@@ -29,7 +29,7 @@
 .td-timer { background: var(--rite-surface); border: 1px solid var(--rite-border-accent); border-radius: var(--rite-radius-lg); padding: var(--rite-4); display: flex; flex-direction: column; gap: var(--rite-3); }
 .td-timer__top { display: flex; justify-content: space-between; align-items: center; gap: var(--rite-2); flex-wrap: wrap; }
 .td-timer__label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--rite-accent-light); }
-.td-timer__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rite-accent-light); animation: td-pulse 1.6s ease-in-out infinite; }
+.td-timer__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--habit-light, var(--rite-accent-light)); animation: td-pulse 1.6s ease-in-out infinite; }
 .td-timer__goal { font-size: 12px; color: var(--rite-muted); }
 .td-timer__main { display: flex; justify-content: space-between; align-items: center; gap: var(--rite-3); }
 .td-timer__time { font-size: 44px; font-weight: 500; line-height: 1; letter-spacing: -0.02em; }
@@ -40,18 +40,21 @@
 @media (min-width: 760px) { .td-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .td-tile { min-height: 60px; box-sizing: border-box; padding: 8px 12px 8px 14px; border-radius: 14px; border: 1px solid var(--rite-border); background: var(--rite-surface); color: var(--rite-text); display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); text-align: left; font: inherit; cursor: pointer; min-width: 0; }
 .td-tile:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; }
-.td-tile--done { background: var(--rite-tint); border-color: var(--rite-border-accent); }
-.td-tile--running { border-color: var(--rite-accent); }
+.td-tile--done { background: var(--habit-tint, var(--rite-tint)); border-color: var(--habit-border, var(--rite-border-accent)); }
+.td-tile--running { border-color: var(--habit, var(--rite-accent)); }
+.td-tile--milestone { animation: ui-glow 2.4s ease-out; }
 .td-tile__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .td-tile__name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .td-tile__meta { font-size: 12px; color: var(--rite-muted); }
-.td-tile--running .td-tile__meta { color: var(--rite-accent-light); }
-.td-tile__mark { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--rite-border-strong); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
-.td-tile--done .td-tile__mark { background: var(--rite-accent); border-color: var(--rite-accent); color: #fff; }
-.td-tile--running .td-tile__mark { border-color: var(--rite-accent); }
+.td-tile--running .td-tile__meta { color: var(--habit-light, var(--rite-accent-light)); }
+.td-tile__mark { position: relative; flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--rite-border-strong); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.td-tile--done .td-tile__mark { background: var(--habit, var(--rite-accent)); border-color: var(--habit, var(--rite-accent)); color: #fff; }
+.td-tile.is-ticked .td-tile__mark { animation: ui-tick-pop .42s ease-out; }
+.td-tile.is-ticked .td-tile__mark::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--habit-light, var(--rite-accent-light)); animation: ui-burst .55s ease-out forwards; }
+.td-tile--running .td-tile__mark { border-color: var(--habit, var(--rite-accent)); }
 .td-tile__mark--plus { color: var(--rite-accent-light); }
-.td-tile__pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--rite-accent-light); animation: td-pulse 1.6s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .td-tile__pulse, .td-timer__dot { animation: none; } }
+.td-tile__pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--habit-light, var(--rite-accent-light)); animation: td-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .td-tile__pulse, .td-timer__dot, .td-tile--milestone, .td-tile.is-ticked .td-tile__mark, .td-tile.is-ticked .td-tile__mark::after { animation: none; } }
 
 /* Today list */
 .td-list { display: flex; flex-direction: column; }

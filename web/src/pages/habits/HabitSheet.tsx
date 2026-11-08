@@ -1,11 +1,12 @@
 // Everything for one habit: stats, the year view, logging, rhythm, entries and settings.
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { api, type Habit, type HabitLogEntry } from '../../api'
 import { fmtDate, fmtElapsed, fmtHours } from '../../lib'
 import { skillProgressApi } from '../../skillProgressApi'
 import { enablePush, pushState, sendTestPush, type PushState } from '../../push'
 import { Button, Heatmap, Sheet, Stat, Tabs } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
+import { habitColor, habitStyle, PALETTE } from '../../habitColor'
 import { consistency, isWeekly, streakUnit } from './stats'
 
 const cadences = [{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }] as const
@@ -51,7 +52,7 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
     void log(mins)
   }
 
-  return <div className="hb-sheet">
+  return <div className="hb-sheet" style={habitStyle(h)}>
     <div className="hb-sheet__stats">
       <Stat label="Streak" value={h.currentStreak} unit={streakUnit(h, h.currentStreak)} tone="accent" />
       <Stat label="Best" value={h.bestStreak} unit={streakUnit(h, h.bestStreak)} sub="past year" />
@@ -83,6 +84,7 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
         </Button>}
 
     <Rhythm habit={h} onChanged={onChanged} />
+    <Colour habit={h} onChanged={onChanged} />
     <Reminder habit={h} onChanged={onChanged} />
     {h.tracksTime && <Entries habitId={h.id} version={`${h.minutesToday}:${h.totalMinutes}`} onChanged={onChanged} />}
 
@@ -99,6 +101,26 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
       </div>
     </section>
   </div>
+}
+
+/** Pick the habit's colour from the palette; saves on tap. */
+function Colour({ habit, onChanged }: { habit: Habit; onChanged: () => Promise<unknown> }) {
+  const [error, setError] = useState('')
+  const current = habitColor(habit)
+  async function pick(hex: string) {
+    if (hex === current) return
+    setError('')
+    try { await api.setHabitColor(habit.id, hex); await onChanged() }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+  }
+  return <section className="hb-sheet__section" aria-labelledby="hb-colour">
+    <h3 id="hb-colour" className="hb-sheet__label">Colour</h3>
+    <div className="hb-swatches" role="radiogroup" aria-labelledby="hb-colour">
+      {PALETTE.map(c => <button key={c.hex} type="button" role="radio" aria-checked={c.hex === current} aria-label={c.name}
+        className="hb-swatch" style={{ '--swatch': c.hex } as CSSProperties} onClick={() => void pick(c.hex)} />)}
+    </div>
+    {error && <p role="alert" className="hb-error">{error}</p>}
+  </section>
 }
 
 function Rhythm({ habit, onChanged }: { habit: Habit; onChanged: () => Promise<unknown> }) {

@@ -553,6 +553,10 @@ namespace PersonalDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ColorHex")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");

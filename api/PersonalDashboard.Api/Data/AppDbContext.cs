@@ -62,6 +62,7 @@ public class AppDbContext : DbContext
         b.Entity<WeeklyReview>().HasIndex(x => x.WeekStart).IsUnique();
         // New column backfills to true for existing habits (so they stay in quick actions).
         b.Entity<Habit>().Property(h => h.ShowInQuickActions).HasDefaultValue(true);
+        b.Entity<Habit>().Property(h => h.ColorHex).HasMaxLength(7);
 
         // At most one running timer per habit; deleting the habit clears it.
         b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();

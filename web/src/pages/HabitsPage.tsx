@@ -12,6 +12,7 @@ import { daysBetween, fmtDaySpan, fmtHours } from '../lib'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { HabitSheet } from './habits/HabitSheet'
+import { useStreakMilestones } from './habits/milestones'
 import { cellsFor, daysThisWeek, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
@@ -37,6 +38,7 @@ export default function HabitsPage() {
   const [celebrated, setCelebrated] = useState(loadCelebrated)
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   const toast = useToast()
+  const milestone = useStreakMilestones(habits)
 
   const setRange = (r: Range) => { setRangeState(r); try { localStorage.setItem(RANGE_KEY, r) } catch { /* private mode */ } }
 
@@ -150,7 +152,7 @@ export default function HabitsPage() {
       {week.map(({ h, done }) => {
         const byDate = heatById.get(h.id) ?? new Map<string, number>()
         return <HabitCard key={h.id} habit={h} range={range} cells={cellsFor(h, byDate, RANGE_DAYS[range])} doneThisWeek={done}
-          goal={goalFor(h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)}
+          goal={goalFor(h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
           onOpen={() => setOpenId(h.id)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
       })}
       {!loading && !error && habits.length === 0 && <p className="hb-hint">No habits yet. Add one to start a streak.</p>}

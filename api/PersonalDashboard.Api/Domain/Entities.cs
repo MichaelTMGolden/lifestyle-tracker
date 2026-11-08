@@ -133,6 +133,9 @@ public class Habit
     /// <summary>Whether this skill appears in the dashboard quick-actions / quick-log. Default on.</summary>
     public bool ShowInQuickActions { get; set; } = true;
 
+    /// <summary>Display colour as #rrggbb; null means the app picks one from the habit's id.</summary>
+    public string? ColorHex { get; set; }
+
     public List<HabitLog> Logs { get; set; } = new();
 }
 
