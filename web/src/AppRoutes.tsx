@@ -2,12 +2,28 @@ import { Suspense, lazy } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './Layout'
 
-const TodayPage = lazy(() => import('./pages/TodayPage'))
-const SchedulePage = lazy(() => import('./pages/SchedulePage'))
-const TasksPage = lazy(() => import('./pages/TasksPage'))
-const HabitsPage = lazy(() => import('./pages/HabitsPage'))
-const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const pages = {
+  today: () => import('./pages/TodayPage'),
+  habits: () => import('./pages/HabitsPage'),
+  plan: () => import('./pages/TasksPage'),
+  schedule: () => import('./pages/SchedulePage'),
+  connect: () => import('./pages/ConnectionsPage'),
+  settings: () => import('./pages/SettingsPage'),
+}
+const TodayPage = lazy(pages.today)
+const SchedulePage = lazy(pages.schedule)
+const TasksPage = lazy(pages.plan)
+const HabitsPage = lazy(pages.habits)
+const ConnectionsPage = lazy(pages.connect)
+const SettingsPage = lazy(pages.settings)
+
+// Once the app is idle, load every page's code: switching tabs is instant and
+// the service worker caches them, so pages not yet visited still open offline.
+if (import.meta.env.PROD) {
+  const preload = () => { for (const load of Object.values(pages)) void load().catch(() => {}) }
+  if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 5000 })
+  else setTimeout(preload, 3000)
+}
 const KitPage = lazy(() => import('./pages/KitPage'))
 const loading = <p className="route-loading" role="status">Loading your dashboard…</p>
 
