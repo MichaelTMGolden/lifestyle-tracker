@@ -27,6 +27,7 @@
 .ui-stat--good .ui-stat__sub { color: var(--rite-good); }
 .ui-stat--warn .ui-stat__sub { color: var(--rite-warn); }
 .ui-stat--accent .ui-stat__sub { color: var(--rite-accent-light); }
+.ui-stat--stale .ui-stat__value { color: var(--rite-muted); }
 
 /* ---------- Button ---------- */
 .ui-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--rite-2); min-height: var(--rite-tap); padding: 0 var(--rite-5); border-radius: var(--rite-pill); border: 1px solid transparent; font: 600 15px/1 var(--font-body); letter-spacing: 0; text-transform: none; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background-color .15s, border-color .15s, color .15s; }
