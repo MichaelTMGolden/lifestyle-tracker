@@ -607,6 +607,7 @@ export const api = {
   archiveGoal: (id: number) => send<{ id: number; archived: boolean }>('PUT', `/api/goals/${id}/archive`),
   unarchiveGoal: (id: number) => send<{ id: number; archived: boolean }>('PUT', `/api/goals/${id}/unarchive`),
   todos: () => get<Todo[]>('/api/todos'),
+  calendarUpcoming: (days = 14) => get<CalendarEvent[]>(`/api/calendar/upcoming?days=${days}`),
   toggleTodo: (id: number) => post<Todo>(`/api/todos/${id}/toggle`),
   createTodo: (input: TodoInput) => post<Todo>('/api/todos', input),
   updateTodo: (id: number, input: TodoInput) => send<Todo>('PUT', `/api/todos/${id}`, input),
