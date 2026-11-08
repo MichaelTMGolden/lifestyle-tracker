@@ -21,16 +21,19 @@ export function RunningTimers({ timers, goals, elapsedMs, onStop }: {
       const goal = goals?.filter(g => !g.archived && g.state !== 'complete' && g.sources.some(s => s.habitId === t.habitId))
         .sort((a, b) => a.sources.length - b.sources.length)[0]
       const ms = elapsedMs(t.habitId)
+      // Saved minutes plus every running timer that feeds this goal, so cards sharing a goal agree.
+      const liveMinutes = goal ? timers.filter(x => goal.sources.some(s => s.habitId === x.habitId)).reduce((sum, x) => sum + elapsedMs(x.habitId) / 60000, 0) : 0
+      const total = goal ? goal.accumulatedMinutes + liveMinutes : 0
       return <section key={t.habitId} className="td-timer" aria-label={`${t.habitName} timer running`}>
         <div className="td-timer__top">
           <span className="td-timer__label"><span className="td-timer__dot" aria-hidden="true" />Running · {t.habitName}</span>
-          {goal && <span className="td-timer__goal">{goal.name} · {fmtHours(goal.accumulatedMinutes + Math.floor(ms / 60000))} / {fmtHours(goal.targetMinutes)}</span>}
+          {goal && <span className="td-timer__goal">{goal.name} · {fmtHours(Math.floor(total))} / {fmtHours(goal.targetMinutes)}</span>}
         </div>
         <div className="td-timer__main">
           <span className="td-timer__time" role="timer" aria-label={`${t.habitName} elapsed`}>{fmtElapsed(ms)}</span>
           <Button variant="primary" onClick={() => onStop(t.habitId)} aria-label={`Stop ${t.habitName} timer and log the time`}>Stop &amp; log</Button>
         </div>
-        {goal && <Progress value={Math.min(100, Math.round(((goal.accumulatedMinutes + ms / 60000) / Math.max(1, goal.targetMinutes)) * 100))} max={100} label={`${goal.name} progress`} />}
+        {goal && <Progress value={Math.min(100, Math.round((total / Math.max(1, goal.targetMinutes)) * 100))} max={100} label={`${goal.name} progress`} />}
       </section>
     })}
   </div>
