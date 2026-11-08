@@ -46,7 +46,8 @@ public static partial class ApiEndpoints
 
     public record HabitRow(
         int Id, string Name, string Cadence, int TargetPerPeriod, bool TracksTime, bool ShowInQuickActions,
-        int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak);
+        int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak,
+        int BestStreak);
 
     /// <summary>
     /// The active habits as the Habits and Today pages show them. Pass
@@ -90,9 +91,11 @@ public static partial class ApiEndpoints
                 streaks[r.Id] = HabitCadencePolicy.Streak(full.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod);
         }
 
+        // Best run within the window already read; a current streak older than the window is longer still.
         return rows.Select(r => new HabitRow(
             r.Id, r.Name, r.Cadence, r.TargetPerPeriod, r.TracksTime, r.ShowInQuickActions,
-            r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id])).ToList();
+            r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id],
+            Math.Max(streaks[r.Id], HabitCadencePolicy.BestStreak(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart)))).ToList();
     }
 
     private static async Task<Dictionary<int, HashSet<DateOnly>>> CompletedDatesAsync(AppDbContext db, List<int> habitIds, DateOnly? from, DateOnly to)

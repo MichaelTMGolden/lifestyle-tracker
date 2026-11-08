@@ -141,4 +141,30 @@ public static class HabitCadencePolicy
         // `cursor` is now the period that broke the streak (or was never checked).
         return (streak, cursor < windowStart);
     }
+
+    /// <summary>
+    /// The longest run of met periods (days, or weeks for weekly habits) that
+    /// start on or after <paramref name="from"/>. A period still in progress
+    /// counts only once it is met, so an unfinished week never breaks a run.
+    /// </summary>
+    public static int BestStreak(IEnumerable<DateOnly> dates, DateOnly today, string cadence, int target, DateOnly from)
+    {
+        var complete = dates as ISet<DateOnly> ?? dates.ToHashSet();
+        var weekly = cadence == "weekly";
+        var length = weekly ? 7 : 1;
+        var needed = weekly ? Math.Clamp(target, 1, 7) : 1;
+        var current = weekly ? WeekStart(today) : today;
+        var cursor = weekly ? WeekStart(from) : from;
+        if (cursor < from) cursor = cursor.AddDays(7); // skip a week only partly inside the range
+        int best = 0, run = 0;
+        for (; cursor <= current; cursor = cursor.AddDays(length))
+        {
+            var hits = 0;
+            for (var d = cursor; d < cursor.AddDays(length) && d <= today; d = d.AddDays(1))
+                if (complete.Contains(d)) hits++;
+            if (hits >= needed) best = Math.Max(best, ++run);
+            else if (cursor != current) run = 0;
+        }
+        return best;
+    }
 }

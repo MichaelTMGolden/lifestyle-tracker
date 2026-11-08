@@ -19,6 +19,7 @@ export const iconPaths = {
   check: 'm5 12 5 5 9-10',
   plus: 'M12 5v14M5 12h14',
   chevron: 'm9 6 6 6-6 6',
+  stop: 'M6 6h12v12H6Z',
   flame: 'M12 2c2 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-7 1 2 2 3 3 3 0-3-1-5 0-7Z',
 } as const
 

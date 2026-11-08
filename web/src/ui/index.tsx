@@ -1,8 +1,9 @@
 // Rite component kit. Small, unopinionated building blocks; pages compose them.
-import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from './icons'
 import type { IconName } from './iconPaths'
+import { ToastHostContext } from './toastContext'
 import './ui.css'
 
 export { Icon } from './icons'
@@ -80,7 +81,19 @@ export function Heatmap({ cells, variant = 'strip', label, today, cellSize }: {
   // Monday-first weekday of the first cell, so calendar rows line up.
   const pad = variant === 'calendar' && cells.length > 0 ? (new Date(`${cells[0].date}T00:00:00Z`).getUTCDay() + 6) % 7 : 0
   const style = cellSize ? { '--ui-cell': `${cellSize}px` } as CSSProperties : undefined
-  return <div className={cx('ui-heatmap', `ui-heatmap--${variant}`)} role="img" aria-label={label} style={style}>
+  // A calendar wider than its box opens on the most recent weeks. Inside a
+  // dialog that is not shown yet it has no width, so wait until it is laid out.
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (variant !== 'calendar' || !el) return
+    const toEnd = () => { el.scrollLeft = el.scrollWidth }
+    if (el.clientWidth > 0) { toEnd(); return }
+    const observer = new ResizeObserver(() => { if (el.clientWidth > 0) { toEnd(); observer.disconnect() } })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [variant, cells.length])
+  return <div ref={ref} className={cx('ui-heatmap', `ui-heatmap--${variant}`)} role="img" aria-label={label} style={style}>
     {Array.from({ length: pad }, (_, i) => <span key={`pad${i}`} className="ui-heatmap__cell" data-pad="" />)}
     {cells.map(c => <span key={c.date} className="ui-heatmap__cell" data-level={c.level || undefined} data-today={c.date === today ? '' : undefined} title={c.title} />)}
   </div>
@@ -121,6 +134,13 @@ export function Sheet({ open, onClose, title, children, labelledBy }: {
     if (open && !d.open) d.showModal()
     else if (!open && d.open) d.close()
   }, [open])
+  // While open, this sheet hosts toasts so they show above the modal and stay clickable.
+  const toastHost = useContext(ToastHostContext)
+  useEffect(() => {
+    const d = ref.current
+    if (!open || !d || !toastHost) return
+    return toastHost.register(d)
+  }, [open, toastHost])
   return <dialog ref={ref} className="ui-sheet" aria-labelledby={titleId} onClose={onClose}
     onClick={e => { if (e.target === e.currentTarget) onClose() }}>
     <div className="ui-sheet__grip" aria-hidden="true" />

@@ -55,6 +55,8 @@ export interface Habit {
   totalMinutes: number
   totalCompletions: number
   currentStreak: number
+  /** Longest run in the past ~13 months (days, or weeks for weekly habits). */
+  bestStreak: number
 }
 
 export interface Todo {
