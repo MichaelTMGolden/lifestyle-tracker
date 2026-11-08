@@ -4,7 +4,7 @@
   padding: 0 2rem 5rem;
 }
 
-.timer-save-error { position: fixed; bottom: 8.5rem; left: 1rem; right: 1rem; z-index: 90; max-width: 720px; margin: auto; display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid var(--watch); background: var(--bg-2); border-radius: 8px; box-shadow: 0 4px 24px #0008; }
+.timer-save-error { position: fixed; bottom: calc(var(--rite-tabbar) + 80px + env(safe-area-inset-bottom)); left: 1rem; right: 1rem; z-index: 90; max-width: 720px; margin: auto; display: flex; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid var(--watch); background: var(--bg-2); border-radius: 8px; box-shadow: 0 4px 24px #0008; }
 
 /* ---------- top nav ---------- */
 .topbar {
@@ -20,9 +20,10 @@
   margin-bottom: 1.6rem;
 }
 .brand {
-  font-family: var(--font-black);
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 1.85rem;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   color: var(--text);
 }
 .nav { display: flex; gap: 0.4rem; }
@@ -619,23 +620,24 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 @media (prefers-reduced-motion: reduce) { .ql-timer-dot { animation: none; } }
 
 /* ---------- sticky mobile action bar ---------- */
-.action-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+/* Sits directly above the bottom tab bar (shell.css). */
+.action-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--rite-tabbar) + env(safe-area-inset-bottom)); z-index: 50;
   display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.5rem 0.8rem calc(0.5rem + env(safe-area-inset-bottom));
-  background: var(--bg-1); border-top: 1px solid var(--line-strong); }
+  padding: 0.5rem 12px;
+  background: var(--rite-bg); border-top: 1px solid var(--rite-hair); }
 .ab-add { flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  background: var(--bg-3); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text);
-  font-family: var(--font-head); font-size: 0.85rem; letter-spacing: 0.04em; cursor: pointer; }
+  background: var(--rite-surface); border: 1px solid var(--rite-border); border-radius: 12px; color: var(--text);
+  font: 500 15px var(--font-body); letter-spacing: 0; cursor: pointer; }
 .ab-add:hover { border-color: var(--crimson); }
 .ab-plus { font-size: 1.1rem; color: var(--crimson); line-height: 1; }
 .ab-pills { display: flex; gap: 0.4rem; overflow-x: auto; flex: 0 1 auto; scrollbar-width: thin; }
 .ab-pill { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.35rem 0 0.7rem; flex-shrink: 0;
   border: 1px solid var(--crimson-deep); border-radius: 8px; background: var(--crimson-soft); }
-.ab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); flex-shrink: 0; }
+.ab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); flex-shrink: 0; }
 .ab-pill-name { font-size: 0.8rem; max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ab-pill-time { font-family: var(--font-head); font-variant-numeric: tabular-nums; font-size: 0.9rem; color: var(--crimson); }
-.ab-stop { min-height: 36px; padding: 0 0.7rem; border: none; border-radius: 6px; background: var(--crimson-deep);
-  color: #f3ece0; cursor: pointer; font-size: 0.8rem; }
+.ab-stop { min-height: 36px; padding: 0 0.85rem; border: none; border-radius: 999px; background: var(--crimson-deep);
+  color: #fff; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
 
 /* ---------- quick-add bottom sheet ---------- */
 .sheet-scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 60; }

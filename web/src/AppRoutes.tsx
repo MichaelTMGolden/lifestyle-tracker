@@ -14,6 +14,7 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const ArtistPage = lazy(() => import('./pages/ArtistPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const KitPage = lazy(() => import('./pages/KitPage'))
 const loading = <p className="route-loading" role="status">Loading your dashboard…</p>
 
 export default function AppRoutes() {
@@ -31,6 +32,7 @@ export default function AppRoutes() {
       <Route path="/artist" element={<Suspense fallback={loading}><ArtistPage /></Suspense>} />
       <Route path="/health/:key" element={<Suspense fallback={loading}><MetricDetailPage /></Suspense>} />
       <Route path="/settings" element={<Suspense fallback={loading}><SettingsPage /></Suspense>} />
+      <Route path="/kit" element={<Suspense fallback={loading}><KitPage /></Suspense>} />
       <Route path="*" element={<section className="card"><h1>Page not found</h1><p>This dashboard page does not exist.</p><Link className="btn" to="/">Back to Today</Link></section>} />
     </Route>
   </Routes>
