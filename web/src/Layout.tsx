@@ -92,7 +92,7 @@ export default function Layout() {
 
         <div className="shell-content">
           <main id="main-content" ref={main} tabIndex={-1}>
-            <RouteErrorBoundary key={location.pathname}><Outlet /></RouteErrorBoundary>
+            <RouteErrorBoundary key={location.pathname}><div className="route-view"><Outlet /></div></RouteErrorBoundary>
           </main>
         </div>
 
