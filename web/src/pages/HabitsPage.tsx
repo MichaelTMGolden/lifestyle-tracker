@@ -88,9 +88,13 @@ export default function HabitsPage() {
     } catch (e) { failed(e) }
   }
 
-  // TimerProvider reports start/stop failures itself.
-  const startTimer = (h: Habit) => { void start(h.id, h.name).catch(() => {}) }
-  const stopTimer = (h: Habit) => { void stop(h.id).catch(() => {}) }
+  // TimerProvider shows a lasting error banner, but it sits behind an open sheet,
+  // so while one is open the failure also shows as a toast inside it.
+  const timerFailed = (e: unknown) => {
+    if (openId != null) toast.show({ message: e instanceof Error ? e.message : String(e), tone: 'error' })
+  }
+  const startTimer = (h: Habit) => { void start(h.id, h.name).catch(timerFailed) }
+  const stopTimer = (h: Habit) => { void stop(h.id).catch(timerFailed) }
 
   async function removeHabit(h: Habit) {
     if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
