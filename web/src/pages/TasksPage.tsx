@@ -49,6 +49,7 @@ export default function TasksPage() {
 
   const resync = () => Promise.all([
     qc.invalidateQueries({ queryKey: ['todos'] }),
+    qc.invalidateQueries({ queryKey: ['calendar'] }),
     qc.invalidateQueries({ queryKey: ['daily'] }),
     qc.invalidateQueries({ queryKey: ['daily-pending'] }),
     qc.invalidateQueries({ queryKey: ['today-bundle'] }),
@@ -113,8 +114,8 @@ export default function TasksPage() {
     e.preventDefault()
     const title = quickText.trim()
     if (!title) return
-    setQuickText('')
-    await onAction(() => api.createDailyTodo(title, selected), `Added to ${selectedLabel.short.toLowerCase() === 'today' ? 'today' : selectedLabel.long}.`)
+    // Clear the draft only once it is saved, so a failure keeps what was typed.
+    await onAction(async () => { await api.createDailyTodo(title, selected); setQuickText(t => t.trim() === title ? '' : t) }, `Added to ${selectedLabel.short.toLowerCase() === 'today' ? 'today' : selectedLabel.long}.`)
   }
   const reorderQuick = (ids: number[]) => onAction(() => api.reorderDailyTodos(ids), 'Order saved.')
 
