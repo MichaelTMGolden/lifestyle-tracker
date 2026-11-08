@@ -23,8 +23,12 @@ export function dayLabel(key: string, today = dateKey()): { short: string; long:
 
 export const dayNumber = (key: string) => Number(key.slice(8, 10))
 
-/** Local day key an event starts on. */
-export const eventDay = (e: CalendarEvent) => dateKey(new Date(e.startsAt))
+/**
+ * Day key an event belongs to. All-day events are stored as UTC midnight of
+ * their calendar date, so use that date as-is; converting it to local time
+ * would move it to the previous day west of UTC.
+ */
+export const eventDay = (e: CalendarEvent) => e.allDay ? e.startsAt.slice(0, 10) : dateKey(new Date(e.startsAt))
 
 export const eventTime = (e: CalendarEvent) => e.allDay ? 'All day'
   : `${new Date(e.startsAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}–${new Date(e.endsAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`

@@ -118,7 +118,8 @@ function TaskForm({ task, selectedDay, busy, onCreate, onSave, onDelete, onActio
   }
   const dayName = dayLabel(selectedDay).long
 
-  return <form className="pl-form" onSubmit={submit}>
+  return <div className="pl-sheet-body">
+  <form className="pl-form" onSubmit={submit}>
     <label className="pl-field"><span>What needs doing?</span>
       <input className="pl-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="A clear next action…" required maxLength={300} />
     </label>
@@ -145,12 +146,14 @@ function TaskForm({ task, selectedDay, busy, onCreate, onSave, onDelete, onActio
       <textarea className="pl-input pl-textarea" rows={3} value={form.notes ?? ''} onChange={e => setForm({ ...form, notes: e.target.value })} />
     </label>
     <Button type="submit" variant="primary" block disabled={busy || !form.title.trim()}>{task ? 'Save changes' : 'Add task'}</Button>
-    {task && !task.completedAt && <div className="pl-sheet-plan">
-      <span className="pl-sub">{task.plannedFor ? `Planned for ${dayLabel(task.plannedFor).long}` : 'In your inbox'}</span>
-      <TaskPlanActions task={task} busy={busy} onAction={onAction} showComplete />
-    </div>}
-    {task && <Button variant="quiet" className="pl-danger" icon="close" disabled={busy} onClick={() => onDelete(task)}>Delete task</Button>}
   </form>
+  {/* Outside the edit form: the plan actions have their own buttons and date form. */}
+  {task && !task.completedAt && <div className="pl-sheet-plan">
+    <span className="pl-sub">{task.plannedFor ? `Planned for ${dayLabel(task.plannedFor).long}` : 'In your inbox'}</span>
+    <TaskPlanActions task={task} busy={busy} onAction={onAction} showComplete />
+  </div>}
+  {task && <Button variant="quiet" className="pl-danger" icon="close" disabled={busy} onClick={() => onDelete(task)}>Delete task</Button>}
+  </div>
 }
 
 /* ---------- Empty and section helpers ---------- */

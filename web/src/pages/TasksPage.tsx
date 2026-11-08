@@ -35,7 +35,7 @@ export default function TasksPage() {
   const inFlight = useRef(false)
 
   const todos = useQuery({ queryKey: ['todos'], queryFn: api.todos })
-  const events = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarUpcoming(PLAN_DAYS) })
+  const events = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS) })
   const pending = useQuery({ queryKey: ['daily-pending'], queryFn: dailyPlanning.pending })
   const dayTodos = useQuery({ queryKey: ['daily', selected], queryFn: () => api.dailyTodos(selected) })
 
