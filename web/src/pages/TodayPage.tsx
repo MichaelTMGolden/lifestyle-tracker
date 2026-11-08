@@ -14,6 +14,7 @@ import { useTimer } from '../timer/useTimer'
 import { useTodayBundle, useTodayWrites } from '../todayData'
 import { Button, Ring, SectionHead, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
+import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
 import { Alerts, ComingUp, HabitTiles, LogTimeSheet, RunningTimers, TodayList } from './today/parts'
 import '../dailyPlanning.css'
@@ -90,7 +91,11 @@ export default function TodayPage() {
     }, failed)
   }
   async function logPast(h: Habit, mins: number) {
-    try { await api.logHabitTime(h.id, mins); toast.show({ message: `${h.name} · ${mins} min logged` }); await Promise.all([writes.refresh(), qc.invalidateQueries({ queryKey: ['goals'] })]) }
+    try {
+      if (await addMinutes(h, dateKey(), mins) === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: saved on this device · syncs when you are back online` }); return }
+      toast.show({ message: `${h.name} · ${mins} min logged` })
+      await Promise.all([writes.refresh(), qc.invalidateQueries({ queryKey: ['goals'] })])
+    }
     catch (e) { failed(e) }
   }
   const completeTask = (t: Todo) => void onAction(() => api.toggleTodo(t.id), t.completedAt ? 'Task reopened.' : 'Task done.')

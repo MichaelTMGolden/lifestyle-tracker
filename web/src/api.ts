@@ -482,7 +482,14 @@ export interface FoodEntryInput {
 // user's local timezone — correct even while travelling.
 const tzHeaders = () => ({ 'X-Tz-Offset': String(new Date().getTimezoneOffset()) })
 
+/** An error the API answered with; `status` is the HTTP status code. */
+export type ApiError = Error & { status: number }
+const withStatus = (message: string, status: number): ApiError => Object.assign(new Error(message), { status })
+
 async function errorFrom(res: Response): Promise<Error> {
+  return withStatus((await errorMessage(res)).message, res.status)
+}
+async function errorMessage(res: Response): Promise<Error> {
   try { const j = await res.json(); if (j?.error || j?.message) return new Error(j.error || j.message) } catch { /* not json */ }
   if (res.status === 401) return new Error('Your session has expired. Sign in again to continue.')
   if (res.status === 404) return new Error('This item is no longer available. Refresh and try again.')
@@ -575,6 +582,10 @@ export const api = {
   createHabit: (name: string, tracksTime: boolean) => post<Habit>('/api/habits', { name, tracksTime }),
   deleteHabit: (id: number) => send<void>('DELETE', `/api/habits/${id}`),
   logHabitTime: (id: number, minutes: number) => post<HabitLogChange>(`/api/habits/${id}/log-time`, { minutes }),
+  /** Replay-safe writes for taps that may be queued offline (see offline/habitSync.ts). */
+  logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
+    post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
+  setHabitDone: (id: number, date: string, done: boolean) => send<{ habit?: Habit | null }>('PUT', `/api/habits/${id}/done/${date}`, { done }),
 
   // Server-side running timers (sync across devices). startedAt is epoch ms (server clock).
   activeTimers: () => get<{ habitId: number; habitName: string; startedAt: number }[]>('/api/timers'),

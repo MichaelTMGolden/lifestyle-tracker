@@ -6,6 +6,7 @@ import { ChallengesSection } from '../components/Challenges'
 import { useTimer } from '../timer/useTimer'
 import { Button, Sheet, Skeleton, Tabs } from '../ui'
 import { useToast } from '../ui/hooks'
+import { addMinutes, QUEUED, setDone } from '../offline/habitSync'
 import { GoalCelebration } from './habits/GoalForm'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
@@ -46,6 +47,8 @@ export default function HabitsPage() {
   useEffect(() => { void load() }, [load])
   // A timer stopped here, in the action bar or on another device logs minutes: refetch.
   useEffect(() => { if (dataTick) void load() }, [dataTick, load])
+  // Taps saved offline were just sent: show the server's totals.
+  useEffect(() => { const on = () => void load(); window.addEventListener('pd:habits-synced', on); return () => window.removeEventListener('pd:habits-synced', on) }, [load])
 
   // Show a change at once: the habit row and today's heatmap cell.
   function showHabit(row: Habit) {
@@ -66,14 +69,18 @@ export default function HabitsPage() {
     void load()
   }
 
+  const OFFLINE_NOTE = 'Saved on this device · syncs when you are back online'
+
   async function toggle(h: Habit, undo = false) {
-    showHabit({ ...h, doneToday: !h.doneToday })
+    const next = { ...h, doneToday: !h.doneToday }
+    showHabit(next)
     try {
-      const reply = await api.toggleHabit(h.id)
-      if (reply.habit) showHabit(reply.habit)
+      const reply = await setDone(h, todayKey(), next.doneToday)
+      if (reply !== QUEUED && reply.habit) showHabit(reply.habit)
+      const now = reply !== QUEUED && reply.habit ? reply.habit : next
       if (!undo) toast.show({
-        message: h.doneToday ? `${h.name} unmarked for today` : `${h.name} done`,
-        action: { label: 'Undo', onClick: () => { const now = reply.habit ?? { ...h, doneToday: !h.doneToday }; void toggle(now, true) } },
+        message: reply === QUEUED ? `${h.name}: ${OFFLINE_NOTE}` : h.doneToday ? `${h.name} unmarked for today` : `${h.name} done`,
+        action: { label: 'Undo', onClick: () => { void toggle(now, true) } },
       })
     } catch (e) { failed(e) }
   }
@@ -81,7 +88,8 @@ export default function HabitsPage() {
   async function logTime(h: Habit, mins: number) {
     showHabit({ ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins })
     try {
-      const reply = await api.logHabitTime(h.id, mins)
+      const reply = await addMinutes(h, todayKey(), mins)
+      if (reply === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: ${OFFLINE_NOTE}` }); return }
       if (reply.habit) showHabit(reply.habit)
       toast.show({ message: `${h.name} · ${mins} min logged` })
       setGoals(await api.goals()) // minutes feed goal progress

@@ -148,6 +148,17 @@ public class HabitLog
 /// A timer that's running right now for a habit. Stored server-side (one per habit)
 /// so a timer started on one device can be seen and stopped from another.
 /// </summary>
+/// <summary>
+/// A client write that has already been applied, keyed by the client's request
+/// id. Offline taps can be replayed (a lost response, a retry after reconnect);
+/// recording the id in the same transaction as the write makes a replay a no-op.
+/// </summary>
+public class AppliedRequest
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset AppliedAt { get; set; }
+}
+
 public class HabitTimer
 {
     public int Id { get; set; }
