@@ -10,18 +10,6 @@ export interface CalendarEvent {
   location: string | null
 }
 
-export interface Summary {
-  latestWeightKg: number | null
-  latestRestingHr: number | null
-  avgSleepHoursThisWeek: number | null
-  stepsThisWeek: number
-  workoutsThisWeek: number
-  habitsCompletedToday: number
-  habitsTotal: number
-  openTodos: number
-  upcomingEvents: CalendarEvent[]
-}
-
 export interface SleepNight {
   date: string
   deep: number
@@ -561,7 +549,6 @@ export const api = {
   login,
   logout: () => post('/api/auth/logout'),
 
-  summary: () => get<Summary>('/api/summary'),
   metric: (key: string, days = 90) => get<MetricPoint[]>(`/api/metrics/${key}?days=${days}`),
   metricKeys: () => get<MetricKey[]>('/api/metrics'),
   sleep: (days = 30) => get<SleepNight[]>(`/api/sleep?days=${days}`),

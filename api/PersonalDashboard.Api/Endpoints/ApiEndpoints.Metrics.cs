@@ -47,62 +47,6 @@ public static partial class ApiEndpoints
 
     private static void MapMetrics(RouteGroupBuilder api)
     {
-        // --- Dashboard summary: one call the frontend can render a homepage from ---
-        api.MapGet("/summary", async (AppDbContext db) =>
-        {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-            var weekAgo = DateTimeOffset.UtcNow.AddDays(-7);
-            var now = DateTimeOffset.UtcNow;
-
-            var latestWeight = await db.MetricSamples
-                .Where(m => m.MetricKey == "weight_kg")
-                .OrderByDescending(m => m.RecordedAt)
-                .Select(m => (double?)m.Value)
-                .FirstOrDefaultAsync();
-
-            var latestRestingHr = await db.MetricSamples
-                .Where(m => m.MetricKey == "resting_hr")
-                .OrderByDescending(m => m.RecordedAt)
-                .Select(m => (double?)m.Value)
-                .FirstOrDefaultAsync();
-
-            var avgSleepHoursThisWeek = await db.MetricSamples
-                .Where(m => m.MetricKey == "sleep_total_min" && m.RecordedAt >= weekAgo)
-                .AverageAsync(m => (double?)m.Value);
-
-            var stepsThisWeek = await db.MetricSamples
-                .Where(m => m.MetricKey == "steps" && m.RecordedAt >= weekAgo)
-                .SumAsync(m => (double?)m.Value) ?? 0;
-
-            var workoutsThisWeek = await db.Workouts.CountAsync(w => w.StartedAt >= weekAgo);
-
-            var habitsToday = await db.HabitLogs.CountAsync(l => l.Date == today && l.Completed);
-            var habitsTotal = await db.Habits.CountAsync(h => !h.Archived);
-
-            var openTodos = await db.TodoItems.CountAsync(t => t.CompletedAt == null);
-
-            var upcomingEvents = await db.CalendarEvents
-                .Where(e => e.StartsAt >= now)
-                .OrderBy(e => e.StartsAt)
-                .Take(5)
-                .ToListAsync();
-
-            return Results.Ok(new
-            {
-                latestWeightKg = latestWeight,
-                latestRestingHr,
-                avgSleepHoursThisWeek = avgSleepHoursThisWeek.HasValue
-                    ? Math.Round(avgSleepHoursThisWeek.Value / 60.0, 1)
-                    : (double?)null,
-                stepsThisWeek = (long)stepsThisWeek,
-                workoutsThisWeek,
-                habitsCompletedToday = habitsToday,
-                habitsTotal,
-                openTodos,
-                upcomingEvents,
-            });
-        });
-
         // --- List available metric keys (handy for building charts dynamically) ---
         api.MapGet("/metrics", async (AppDbContext db) =>
             await db.MetricSamples
