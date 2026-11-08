@@ -1,11 +1,15 @@
-.settings-page { max-width: 1050px; }
-.settings-page fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.settings-page .card { margin: 20px 0; }
-.settings-page h2 { margin: 0 0 8px; font-size: 20px; }
-.settings-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 20px; margin-top: 22px; }
-.settings-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-.settings-fields input { width: 100%; min-height: 44px; box-sizing: border-box; }
-.settings-fields small { color: var(--text-dim); font-size: 13px; }
-.settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0 28px; }
-.settings-actions [role="status"] { font-size: 14px; color: var(--text-dim); }
-@media (max-width: 520px) { .settings-fields { grid-template-columns: 1fr; } }
+/* Settings page (Rite). */
+.st-page { display: flex; flex-direction: column; gap: var(--rite-4); max-width: 760px; }
+.st-head h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 38px; line-height: 1; letter-spacing: 0; }
+.st-head__sub { margin: var(--rite-2) 0 0; font-size: 13px; color: var(--rite-muted); }
+.st-muted { margin: 0; font-size: 13px; color: var(--rite-muted); }
+.st-error { margin: 0; font-size: 14px; color: var(--rite-bad); }
+.st-form { display: flex; flex-direction: column; gap: var(--rite-4); }
+.st-form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--rite-4); min-width: 0; }
+.st-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--rite-3); }
+.st-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.st-field small { color: var(--rite-muted); font-size: 11px; }
+.st-input { box-sizing: border-box; width: 100%; min-height: var(--rite-tap); padding: 0 var(--rite-3); border-radius: var(--rite-radius-sm); border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 16px var(--font-body); }
+.st-input:focus { outline: 2px solid var(--rite-accent-light); outline-offset: 1px; }
+.st-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rite-2); }
+.st-download { align-self: flex-start; }

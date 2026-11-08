@@ -1,0 +1,21 @@
+/* Connect page (Rite). */
+.cn-page { display: flex; flex-direction: column; gap: var(--rite-4); max-width: 760px; }
+.cn-head h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 38px; line-height: 1; letter-spacing: 0; }
+.cn-head__sub { margin: var(--rite-2) 0 0; font-size: 13px; color: var(--rite-muted); }
+.cn-muted { margin: 0; font-size: 13px; color: var(--rite-muted); }
+.cn-sub { margin-top: calc(-1 * var(--rite-2)); }
+.cn-p { margin: 0; font-size: 14px; }
+.cn-error { margin: 0; font-size: 14px; color: var(--rite-bad); }
+.cn-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rite-2); }
+.cn-foot { border-top: 1px solid var(--rite-hair); padding-top: var(--rite-2); margin-inline: calc(-1 * var(--rite-3)); }
+.cn-form { display: flex; flex-direction: column; gap: var(--rite-2); }
+.cn-input { box-sizing: border-box; width: 100%; min-height: var(--rite-tap); padding: 0 var(--rite-3); border-radius: var(--rite-radius-sm); border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 16px var(--font-body); }
+.cn-input:focus { outline: 2px solid var(--rite-accent-light); outline-offset: 1px; }
+.cn-input--sm { width: 72px; min-height: 36px; }
+.cn-days { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--rite-muted); }
+.cn-cals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cn-cals li { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); border-bottom: 1px solid var(--rite-hair); font-size: 14px; }
+.cn-others { list-style: none; margin: 0; padding: 0; }
+.cn-others li { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-3); padding: var(--rite-3) var(--rite-4); border-top: 1px solid var(--rite-hair); }
+.cn-others__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cn-others__name { font-size: 14px; font-weight: 600; }
