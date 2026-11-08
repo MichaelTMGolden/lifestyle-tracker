@@ -1083,8 +1083,8 @@ code{ font-family:ui-monospace, Consolas, monospace; font-size:.85em; background
 
 /* ===================== challenges ===================== */
 .challenges-section { margin-top: 2.2rem; }
-.challenge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.1rem; align-items: start; }
-.challenge-card { border-left: 3px solid var(--ch, var(--crimson)); display: flex; flex-direction: column; gap: 0.55rem; }
+.challenge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.1rem; align-items: start; }
+.challenge-card { border-left: 3px solid var(--ch, var(--crimson)); display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
 .challenge-card.challenge-done { box-shadow: 0 0 0 1px var(--ch, var(--crimson)) inset; }
 .ch-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
 .ch-titlewrap { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }

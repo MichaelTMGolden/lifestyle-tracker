@@ -1,84 +1,55 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { api, type Habit, type HabitHeatmap, type Goal, type GoalInput, type HabitLogEntry } from '../api'
-import { habitColor, fmtHours, fmtElapsed, fmtMonthYear, fmtDate, fmtDaySpan, daysBetween, intensityLevel } from '../lib'
-import { useTimer } from '../timer/useTimer'
-import { Collapsible } from '../components/Collapsible'
+// Habits: one card per habit (streak, cadence, one-tap action, heatmap), a detail
+// sheet for logging and settings, then goals and challenges.
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { api, type Goal, type Habit, type HabitHeatmap } from '../api'
 import { ChallengesSection } from '../components/Challenges'
-import { Link } from 'react-router-dom'
-import { skillProgressApi } from '../skillProgressApi'
+import { useTimer } from '../timer/useTimer'
+import { Button, Sheet, Skeleton, Tabs } from '../ui'
+import { useToast } from '../ui/hooks'
+import { GoalCelebration } from './habits/GoalForm'
+import { GoalsSection } from './habits/Goals'
+import { HabitCard, type Range } from './habits/HabitCard'
+import { HabitSheet } from './habits/HabitSheet'
+import { cellsFor, daysThisWeek, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
+import './habits/habits.css'
 
-// Goal ids whose completion has already been celebrated, so a 100% goal only
-// triggers the confetti once (not on every page load).
+const YEAR_DAYS = 371 // 53 weeks, so the calendar view always fills its first column
+const RANGE_DAYS: Record<Range, number> = { '4w': 28, '6m': 182, y: YEAR_DAYS }
+const ranges = [{ value: '4w', label: '4 weeks' }, { value: '6m', label: '6 months' }, { value: 'y', label: 'Year' }] as const
+
+// Goal ids whose completion was already celebrated, so the confetti shows once.
 const CELEB_KEY = 'pd:goals-celebrated'
 const loadCelebrated = (): number[] => { try { return JSON.parse(localStorage.getItem(CELEB_KEY) || '[]') } catch { return [] } }
-const markCelebrated = (id: number) => {
-  const s = new Set(loadCelebrated()); s.add(id)
-  localStorage.setItem(CELEB_KEY, JSON.stringify([...s]))
-}
-
-const WEEKS = 26
-const DAYS = WEEKS * 7
-const ALPHA = [0, 0.3, 0.52, 0.76, 1] // intensity level → cell opacity
-
-const keyOf = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-/** GitHub-style cell grid: columns = weeks, each column 7 weekdays. */
-function buildWeeks(): Date[][] {
-  const end = new Date(); end.setHours(0, 0, 0, 0)
-  const start = new Date(end); start.setDate(end.getDate() - (DAYS - 1))
-  start.setDate(start.getDate() - start.getDay()) // back up to Sunday
-  const weeks: Date[][] = []
-  const cur = new Date(start)
-  while (cur <= end) {
-    const week: Date[] = []
-    for (let i = 0; i < 7; i++) { week.push(new Date(cur)); cur.setDate(cur.getDate() + 1) }
-    weeks.push(week)
-  }
-  return weeks
-}
+const RANGE_KEY = 'pd:habits-range'
+const loadRange = (): Range => { try { const v = localStorage.getItem(RANGE_KEY); return v === '6m' || v === 'y' ? v : '4w' } catch { return '4w' } }
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([])
   const [heat, setHeat] = useState<HabitHeatmap[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [custom, setCustom] = useState<Record<number, string>>({})
-  const [showNew, setShowNew] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [showNewSkill, setShowNewSkill] = useState(false)
-  const [skillName, setSkillName] = useState('')
-  const [skillTimed, setSkillTimed] = useState(true)
-  const [celebrated, setCelebrated] = useState(loadCelebrated)
   const [loading, setLoading] = useState(true)
-
-  // Running-timer state lives in shared context (also driven by the sticky bar).
-  // Multiple habits can be timed at once, so query per-habit.
+  const [error, setError] = useState<string | null>(null)
+  const [range, setRangeState] = useState<Range>(loadRange)
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [celebrated, setCelebrated] = useState(loadCelebrated)
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
+  const toast = useToast()
 
-  const weeks = buildWeeks()
-  const today = keyOf(new Date(new Date().setHours(0, 0, 0, 0)))
+  const setRange = (r: Range) => { setRangeState(r); try { localStorage.setItem(RANGE_KEY, r) } catch { /* private mode */ } }
 
-  const load = () =>
-    Promise.all([api.habits(), api.habitsHeatmap(DAYS), api.goals()])
+  const load = useCallback(() =>
+    Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
       .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false))
-  useEffect(() => { load() }, [])
-  // Refetch when a timer is logged (here or from the sticky bar).
-  useEffect(() => { if (dataTick) load() }, [dataTick])
-  // Fire the celebration once when a goal first shows up complete (and not yet retired).
-  const celebrating = goals.find(g => g.state === 'complete' && !g.archived && !celebrated.includes(g.id)) ?? null
+      .catch(e => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false)), [])
+  useEffect(() => { void load() }, [load])
+  // A timer stopped here, in the action bar or on another device logs minutes: refetch.
+  useEffect(() => { if (dataTick) void load() }, [dataTick, load])
 
-  const dismissCelebration = () => {
-    if (celebrating) markCelebrated(celebrating.id)
-    if (celebrating) setCelebrated(ids => [...ids, celebrating.id])
-  }
-  async function retireGoal(id: number) { await api.archiveGoal(id); await load() }
-  async function restoreGoal(id: number) { await api.unarchiveGoal(id); await load() }
-
-  // Show a habit change at once: the habit row and today's heatmap cell.
+  // Show a change at once: the habit row and today's heatmap cell.
   function showHabit(row: Habit) {
+    const today = todayKey()
     setHabits(list => list.map(h => h.id === row.id ? row : h))
     setHeat(list => list.map(r => {
       if (r.id !== row.id) return r
@@ -90,605 +61,125 @@ export default function HabitsPage() {
     }))
   }
   // A failed write reloads so the page shows what was actually saved.
-  const failed = (e: unknown) => { setError(e instanceof Error ? e.message : String(e)); void load() }
+  const failed = (e: unknown) => {
+    toast.show({ message: `Couldn't save: ${e instanceof Error ? e.message : String(e)}`, tone: 'error' })
+    void load()
+  }
 
-  async function quickAdd(id: number, mins: number) {
-    const habit = habits.find(h => h.id === id)
-    if (habit) showHabit({ ...habit, doneToday: true, minutesToday: habit.minutesToday + mins, totalMinutes: habit.totalMinutes + mins })
+  async function toggle(h: Habit, undo = false) {
+    showHabit({ ...h, doneToday: !h.doneToday })
     try {
-      const reply = await api.logHabitTime(id, mins)
+      const reply = await api.toggleHabit(h.id)
       if (reply.habit) showHabit(reply.habit)
-      // Minutes feed goal progress, so only goals need fetching again.
-      setGoals(await api.goals())
+      if (!undo) toast.show({
+        message: h.doneToday ? `${h.name} unmarked for today` : `${h.name} done`,
+        action: { label: 'Undo', onClick: () => { const now = reply.habit ?? { ...h, doneToday: !h.doneToday }; void toggle(now, true) } },
+      })
     } catch (e) { failed(e) }
   }
-  async function addCustom(id: number) {
-    const mins = parseInt(custom[id] ?? '', 10)
-    if (!mins || mins <= 0) return
-    setCustom((c) => ({ ...c, [id]: '' }))
-    await quickAdd(id, mins)
-  }
-  async function toggle(id: number) {
-    const habit = habits.find(h => h.id === id)
-    if (habit) showHabit({ ...habit, doneToday: !habit.doneToday })
+
+  async function logTime(h: Habit, mins: number) {
+    showHabit({ ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins })
     try {
-      const reply = await api.toggleHabit(id)
+      const reply = await api.logHabitTime(h.id, mins)
       if (reply.habit) showHabit(reply.habit)
+      toast.show({ message: `${h.name} · ${mins} min logged` })
+      setGoals(await api.goals()) // minutes feed goal progress
     } catch (e) { failed(e) }
   }
-  async function flipTracksTime(id: number) { await api.toggleHabitTracksTime(id); await load() }
-  async function flipQuickActions(id: number) { await api.toggleHabitQuickActions(id); await load() }
-  async function createSkill(e: FormEvent) {
-    e.preventDefault()
-    if (!skillName.trim()) return
-    await api.createHabit(skillName.trim(), skillTimed)
-    setSkillName(''); setSkillTimed(true); setShowNewSkill(false); await load()
-  }
-  async function removeHabit(id: number, name: string) {
-    if (!confirm(`Delete "${name}" and all its logs? This can't be undone.`)) return
-    await api.deleteHabit(id); await load()
+
+  // TimerProvider reports start/stop failures itself.
+  const startTimer = (h: Habit) => { void start(h.id, h.name).catch(() => {}) }
+  const stopTimer = (h: Habit) => { void stop(h.id).catch(() => {}) }
+
+  async function removeHabit(h: Habit) {
+    if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
+    try { await api.deleteHabit(h.id); setOpenId(null); await load() } catch (e) { failed(e) }
   }
 
-  async function createGoal(input: GoalInput) { await api.createGoal(input); setShowNew(false); await load() }
-  async function saveGoal(id: number, input: GoalInput) { await api.updateGoal(id, input); setEditingId(null); await load() }
-  async function removeGoal(id: number) {
-    if (!confirm('Delete this goal? The skills and their logs are untouched.')) return
-    await api.deleteGoal(id); setEditingId(null); await load()
-  }
+  const celebrating = goals.find(g => g.state === 'complete' && !g.archived && !celebrated.includes(g.id)) ?? null
+  const dismissCelebration = useCallback(() => {
+    if (!celebrating) return
+    const ids = [...new Set([...loadCelebrated(), celebrating.id])]
+    try { localStorage.setItem(CELEB_KEY, JSON.stringify(ids)) } catch { /* private mode */ }
+    setCelebrated(ids)
+  }, [celebrating])
 
-  const habitIndex = new Map(habits.map((h, i) => [h.name, i] as const))
-  const colorOf = (name: string) => habitColor(name, habitIndex.get(name) ?? 0)
-  const activeGoals = goals.filter((g) => !g.archived)
-  const completedGoals = goals.filter((g) => g.archived)
-  // habitId → (dateKey → minutes) for the active (completed) days
-  const minsById = new Map(heat.map((h) => [h.id, new Map(h.days.map((d) => [d.date, d.minutes] as const))] as const))
+  const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
+  const week = habits.map(h => ({ h, done: daysThisWeek(heatById.get(h.id) ?? new Map()) }))
+  const weekDone = week.reduce((s, { h, done }) => s + Math.min(done, weeklyTarget(h)), 0)
+  const weekTarget = week.reduce((s, { h }) => s + weeklyTarget(h), 0)
+  const longest = habits.filter(h => !isWeekly(h)).reduce((m, h) => Math.max(m, h.currentStreak), 0)
+  // The goal most specific to a habit: fewest feeder habits wins (100h Guitar over a shared goal).
+  const goalFor = (id: number) => goals
+    .filter(g => !g.archived && g.state !== 'complete' && g.sources.some(s => s.habitId === id))
+    .sort((a, b) => a.sources.length - b.sources.length)[0]
+  const open = habits.find(h => h.id === openId) ?? null
 
-  const monthLabels = weeks.map((w, i) => {
-    const first = w[0]
-    const prev = i > 0 ? weeks[i - 1][0] : null
-    return !prev || prev.getMonth() !== first.getMonth()
-      ? first.toLocaleDateString(undefined, { month: 'short' })
-      : ''
-  })
-
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <h1>Habits</h1>
-          <p className="subtitle">Goals & your practice rhythm · last {WEEKS} weeks</p>
-        </div>
+  return <div className="hb-page">
+    <header className="hb-head">
+      <div>
+        <h1>Habits</h1>
+        {habits.length > 0 && <p className="hb-head__summary">
+          This week <b>{weekDone} of {weekTarget}</b>{longest > 0 && <> · longest run <b>{longest} {longest === 1 ? 'day' : 'days'}</b></>}
+        </p>}
       </div>
-      {loading && <p role="status">Loading your practice…</p>}
-      {error && <p className="error" role="alert">Couldn't refresh habits ({error}). <button className="btn btn-ghost" onClick={load}>Retry</button></p>}
+      <Button size="sm" variant="quiet" icon="plus" onClick={() => setAdding(true)}>New habit</Button>
+    </header>
 
-      {/* ---- Goals umbrella: hour-goals (accrued from skills) + challenges (tracked directly) ---- */}
-      <h2 className="umbrella-title">Goals</h2>
-      <p className="umbrella-sub">Targets you're working toward — hour goals accrue from your skills; challenges you track directly.</p>
+    <Tabs options={ranges} value={range} onChange={setRange} label="Heatmap range" />
 
-      <section className="goals-section">
-        <div className="section-head">
-          <h3 className="section-title">Hour goals</h3>
-          {!showNew && !editingId && (
-            <button className="btn btn-ghost" onClick={() => setShowNew(true)}>+ New goal</button>
-          )}
-        </div>
+    {error && <p className="hb-error" role="alert">Couldn't load habits ({error}). <Button size="sm" variant="quiet" onClick={() => void load()}>Retry</Button></p>}
 
-        {showNew && (
-          <GoalForm habits={habits} onSubmit={createGoal} onCancel={() => setShowNew(false)} />
-        )}
+    <div className={`hb-list hb-list--${range}`}>
+      {loading && habits.length === 0 && Array.from({ length: 4 }, (_, i) => <div key={i} className="hb-card" aria-hidden="true"><Skeleton height={22} width="40%" /><Skeleton height={14} /></div>)}
+      {loading && <p className="ui-sr-only" role="status">Loading habits…</p>}
+      {week.map(({ h, done }) => {
+        const byDate = heatById.get(h.id) ?? new Map<string, number>()
+        return <HabitCard key={h.id} habit={h} range={range} cells={cellsFor(h, byDate, RANGE_DAYS[range])} doneThisWeek={done}
+          goal={goalFor(h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)}
+          onOpen={() => setOpenId(h.id)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
+      })}
+      {!loading && !error && habits.length === 0 && <p className="hb-hint">No habits yet. Add one to start a streak.</p>}
+    </div>
 
-        <div className="goal-grid">
-          {activeGoals.map((g, i) =>
-            editingId === g.id ? (
-              <GoalForm
-                key={g.id}
-                habits={habits}
-                goal={g}
-                onSubmit={(input) => saveGoal(g.id, input)}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <GoalCard
-                key={g.id}
-                goal={g}
-                hero={i === 0 && g.state !== 'complete' && g.targetMinutes >= 30000}
-                colorOf={colorOf}
-                onEdit={() => { setShowNew(false); setEditingId(g.id) }}
-                onDelete={() => removeGoal(g.id)}
-                onRetire={() => retireGoal(g.id)}
-              />
-            ),
-          )}
-          {activeGoals.length === 0 && !showNew && (
-            <p className="subtitle">No goals yet — create one to roll practice minutes into an hour target.</p>
-          )}
-        </div>
+    <GoalsSection goals={goals} habits={habits} onChanged={load} />
+    <ChallengesSection />
 
-        {completedGoals.length > 0 && (
-          <Collapsible title={`Completed (${completedGoals.length})`} storageKey="pd:goals-completed">
-            <ul className="done-list">
-              {completedGoals.map((g) => (
-                <li key={g.id} className="done-row" style={{ ['--goal' as string]: g.colorHex || 'var(--crimson)' }}>
-                  <span className="done-trophy" aria-hidden>🏆</span>
-                  <span className="done-name">{g.name}</span>
-                  <span className="done-hours">{fmtHours(g.targetMinutes)}</span>
-                  <span className="done-date">{g.completedOn ? fmtDate(g.completedOn) : ''}</span>
-                  <button className="link-btn" title="Move back to active goals" onClick={() => restoreGoal(g.id)}>restore</button>
-                  <button className="icon-btn danger" title="Delete" onClick={() => removeGoal(g.id)}>✕</button>
-                </li>
-              ))}
-            </ul>
-          </Collapsible>
-        )}
-      </section>
+    <HabitSheet habit={open} yearCells={open ? cellsFor(open, heatById.get(open.id) ?? new Map(), YEAR_DAYS) : []}
+      running={open ? isRunning(open.id) : false} elapsedMs={open ? elapsedMs(open.id) : 0}
+      onClose={() => setOpenId(null)}
+      onLog={async m => { if (open) await logTime(open, m) }}
+      onToggle={() => { if (open) void toggle(open) }}
+      onStart={() => { if (open) startTimer(open) }}
+      onStop={() => { if (open) stopTimer(open) }}
+      onChanged={load}
+      onDelete={() => { if (open) void removeHabit(open) }} />
 
-      {celebrating && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
+    <NewHabitSheet open={adding} onClose={() => setAdding(false)} onCreated={async () => { setAdding(false); await load() }} />
 
-      {/* Challenges sit under the same Goals umbrella (own data model + card types). */}
-      <ChallengesSection />
-
-      {/* ---- Skills: heatmap + per-skill controls ---- */}
-      <div className="section-head">
-        <h2 className="section-title">Skills</h2>
-        {!showNewSkill && <button className="btn btn-ghost" onClick={() => setShowNewSkill(true)}>+ New skill</button>}
-      </div>
-      <p className="muted">Set daily or weekly practice targets below. <Link to="/artist">Track skill quality and evidence in Artist →</Link></p>
-      {showNewSkill && (
-        <form className="goal-form card skill-form" onSubmit={createSkill}>
-          <div className="gf-row">
-            <label className="gf-field gf-grow">
-              <span>Skill name</span>
-              <input value={skillName} onChange={(e) => setSkillName(e.target.value)} placeholder="e.g. Exercise" autoFocus />
-            </label>
-            <label className="gf-check skill-timed">
-              <input type="checkbox" checked={skillTimed} onChange={(e) => setSkillTimed(e.target.checked)} />
-              Track time (log minutes)
-            </label>
-          </div>
-          <div className="gf-actions">
-            <button type="submit" className="btn">Add skill</button>
-            <button type="button" className="btn btn-ghost" onClick={() => setShowNewSkill(false)}>Cancel</button>
-          </div>
-        </form>
-      )}
-      <div className="habit-stack">
-        {habits.map((h) => {
-          const color = colorOf(h.name)
-          const byDate = minsById.get(h.id) ?? new Map<string, number>()
-          const running = isRunning(h.id)
-          const daysThisWeek = ((new Date().getDay() + 6) % 7) + 1
-          const weekMins = Array.from({ length: daysThisWeek }).reduce<number>((sum, _, i) => {
-            const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
-            return sum + (byDate.get(keyOf(d)) ?? 0)
-          }, 0)
-
-          return (
-            <section className="card habit-card" key={h.id} style={{ ['--habit' as string]: color }}>
-              <div className="habit-head">
-                <h2 style={{ margin: 0, color }}>
-                  {h.name}
-                  {h.tracksTime && <span className="badge" style={{ color, borderColor: `${color}66` }}>timed</span>}
-                </h2>
-                <div className="habit-stats">
-                  <span><b className="hl" style={{ color }}>{h.currentStreak}</b> {h.cadence === 'weekly' ? 'week' : 'day'} streak</span>
-                  <span>
-                    <b className="hl" style={{ color }}>{h.tracksTime ? fmtHours(h.totalMinutes) : h.totalCompletions}</b>
-                    {h.tracksTime ? ' total' : ' days'}
-                  </span>
-                  {h.tracksTime && <span><b className="hl" style={{ color }}>{fmtHours(weekMins)}</b> this week</span>}
-                </div>
-              </div>
-
-              <HabitCadence key={`${h.id}:${h.cadence}:${h.targetPerPeriod}`} habit={h} dates={[...byDate.keys()]} onChange={load} />
-
-              <div className="habit-body">
-                <div className="heat-wrap">
-                  <div className="heat-months">
-                    {monthLabels.map((m, i) => <span key={i} className="heat-month">{m}</span>)}
-                  </div>
-                  <div className="heat">
-                    {weeks.map((week, wi) => (
-                      <div className="heat-week" key={wi}>
-                        {week.map((d) => {
-                          const k = keyOf(d)
-                          const future = k > today
-                          const present = byDate.has(k)
-                          const mins = byDate.get(k) ?? 0
-                          const level = h.tracksTime ? intensityLevel(mins) : (present ? 4 : 0)
-                          const label = h.tracksTime
-                            ? (present ? `${mins} min` : future ? '' : 'none')
-                            : (present ? 'done' : future ? '' : h.cadence === 'weekly' ? 'no practice logged' : 'not logged')
-                          return (
-                            <span
-                              key={k}
-                              className={`heat-cell${level > 0 ? ' on' : ''}${future ? ' future' : ''}`}
-                              style={level > 0 ? { background: color, opacity: ALPHA[level] } : undefined}
-                              title={`${d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' })} — ${label}`}
-                            />
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="habit-side">
-                  {h.tracksTime ? (
-                    <div className="time-controls">
-                      <div className="today-mins">
-                        <span className="tm-val" style={{ color }}>{h.minutesToday}</span> min today
-                      </div>
-                      <div className="quick-adds">
-                        {[15, 30, 45].map((m) => (
-                          <button key={m} className="btn btn-ghost btn-sm" onClick={() => quickAdd(h.id, m)}>+{m}</button>
-                        ))}
-                      </div>
-                      <div className="custom-add">
-                        <input
-                          type="number" min={1} placeholder="min"
-                          value={custom[h.id] ?? ''}
-                          onChange={(e) => setCustom((c) => ({ ...c, [h.id]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === 'Enter') addCustom(h.id) }}
-                        />
-                        <button className="btn btn-sm" onClick={() => addCustom(h.id)}>Add</button>
-                      </div>
-                      <div className="timer">
-                        {running ? (
-                          <>
-                            <span className="timer-elapsed" style={{ color }}>{fmtElapsed(elapsedMs(h.id))}</span>
-                            <button className="btn btn-sm" onClick={() => { void stop(h.id).catch(() => { /* TimerProvider shows the save error. */ }) }}
-                              style={{ color, borderColor: color, background: `${color}1f` }}>Stop & log</button>
-                          </>
-                        ) : (
-                          <button className="btn btn-ghost btn-sm" onClick={() => { void start(h.id, h.name).catch(() => { /* TimerProvider shows the save error. */ }) }}>
-                            ▶ Start timer
-                          </button>
-                        )}
-                      </div>
-                      <EntryEditor habitId={h.id} color={color} onChange={load} />
-                    </div>
-                  ) : (
-                    <button
-                      className={h.doneToday ? 'btn' : 'btn btn-ghost'}
-                      onClick={() => toggle(h.id)}
-                      style={h.doneToday ? { color, borderColor: color, background: `${color}1f`, boxShadow: `0 0 14px ${color}55` } : undefined}
-                    >
-                      {h.doneToday ? '✓ Logged today' : 'Log today'}
-                    </button>
-                  )}
-                  <div className="skill-foot">
-                    <button className="track-toggle" onClick={() => flipTracksTime(h.id)}>
-                      {h.tracksTime ? 'Switch to simple' : 'Track time'}
-                    </button>
-                    <button className={`track-toggle${h.showInQuickActions ? ' on' : ''}`} onClick={() => flipQuickActions(h.id)}
-                      title="Show this skill in the dashboard quick actions">
-                      {h.showInQuickActions ? '★ Quick action' : '☆ Quick action'}
-                    </button>
-                    <button className="track-toggle danger" onClick={() => removeHabit(h.id, h.name)}>Delete</button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )
-        })}
-      </div>
-    </>
-  )
-}
-
-function HabitCadence({ habit, dates, onChange }: { habit: Habit; dates: string[]; onChange: () => Promise<unknown> }) {
-  const [cadence, setCadence] = useState(habit.cadence)
-  const [target, setTarget] = useState(String(habit.targetPerPeriod || 1))
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-  const start = keyOf(monday), end = keyOf(now)
-  const completed = new Set(dates.filter(d => d >= start && d <= end)).size
-  const remaining = Math.max(0, habit.targetPerPeriod - completed)
-  const weekly = habit.cadence === 'weekly'
-  async function save(e: FormEvent) {
-    e.preventDefault(); setSaving(true); setError(''); setSaved(false)
-    try {
-      await skillProgressApi.cadence(habit.id, cadence, cadence === 'daily' ? 1 : Number(target))
-      setSaved(true); await onChange()
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-    finally { setSaving(false) }
-  }
-  return <div className="habit-cadence">
-    <p className="cadence-progress">{weekly ? <><strong>{completed}/{habit.targetPerPeriod} practice days</strong> this week (Mon–Sun) · {remaining ? `${remaining} more to meet your target` : 'Target met · rest days welcome'}</> : <><strong>{habit.doneToday ? 'Today’s practice complete' : 'Daily practice'}</strong> · one active day meets your target</>}</p>
-    {weekly && <progress value={Math.min(completed, habit.targetPerPeriod)} max={habit.targetPerPeriod} aria-label={`${completed} of ${habit.targetPerPeriod} practice days this week`} />}
-    <details><summary>Adjust practice rhythm</summary><form className="cadence-form" onSubmit={save}>
-      <label>Frequency<select value={cadence} onChange={e => setCadence(e.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
-      {cadence === 'weekly' && <label>Practice days per week<input type="number" min={1} max={7} value={target} onChange={e => setTarget(e.target.value)} required /></label>}
-      <button className="btn btn-ghost" disabled={saving}>{saving ? 'Saving…' : 'Save rhythm'}</button>
-      <p className="muted">Weekly targets allow rest days. Multiple sessions on one day count as one practice day. Streaks use your current target.</p>
-      {error && <p className="error" role="alert">{error}</p>}{saved && <p role="status">Practice rhythm saved.</p>}
-    </form></details>
+    {celebrating && <GoalCelebration goal={celebrating} onDone={dismissCelebration} />}
   </div>
 }
 
-/* ---------- Goal card ---------- */
-function GoalCard({ goal, hero, colorOf, onEdit, onDelete, onRetire }: {
-  goal: Goal
-  hero: boolean
-  colorOf: (name: string) => string
-  onEdit: () => void
-  onDelete: () => void
-  onRetire: () => void
-}) {
-  const pct = Math.round(goal.progress * 100)
-  const accent = goal.colorHex || 'var(--crimson)'
-
-  // Completed: a frozen "trophy" card — figures locked at the target, no live
-  // accumulation/projection, with a Retire action to tuck it into the Completed list.
-  if (goal.state === 'complete') {
-    return (
-      <div className="goal-card goal-done" style={{ ['--goal' as string]: accent }}>
-        <div className="goal-top">
-          <div className="goal-titlewrap">
-            <h3 className="goal-name">{goal.name}</h3>
-            <span className="pace-pill done">✓ Complete</span>
-          </div>
-          <div className="goal-actions">
-            <button className="icon-btn" title="Edit" onClick={onEdit}>✎</button>
-            <button className="icon-btn danger" title="Delete" onClick={onDelete}>✕</button>
-          </div>
-        </div>
-        <div className="goal-figures">
-          <span className="goal-acc">{fmtHours(goal.targetMinutes)}</span>
-          <span className="goal-pct">100%</span>
-        </div>
-        <div className="goal-bar goal-bar-done" title="Complete">
-          <span className="goal-seg" style={{ width: '100%', background: accent }} />
-        </div>
-        <div className="goal-meta">
-          {goal.completedOn && <span>Completed {fmtDate(goal.completedOn)}</span>}
-          {goal.completedOn && goal.startDate && (
-            <span className="goal-eta">in {fmtDaySpan(Math.max(1, daysBetween(goal.startDate, goal.completedOn)))}</span>
-          )}
-        </div>
-        <div className="goal-feeders">
-          <button className="btn btn-ghost btn-sm" onClick={onRetire}>Retire to Completed</button>
-        </div>
-      </div>
-    )
-  }
-
-  // ETA line from the projection + state. (Completed goals return early above.)
-  const etaLine =
-    goal.state === 'stalled' ? 'Stalled — no recent practice'
-    : goal.projectedDate ? `~${fmtMonthYear(goal.projectedDate)} at your 4-week pace`
-    : 'No recent pace to project from'
-
-  // Ahead/behind pill (only when a target date is set).
-  // Uses the schedule-relative gap (actual vs straight-line expected progress),
-  // which stays bounded — a freshly created goal reads "on pace", not wildly behind.
-  const gap = goal.paceGapDays
-  const pace = goal.targetDate
-    ? gap != null
-      ? Math.abs(gap) <= 3
-        ? { ahead: true, text: 'on pace' }
-        : { ahead: gap < 0, text: `${fmtDaySpan(gap)} ${gap < 0 ? 'ahead' : 'behind'}` }
-      : { ahead: goal.paceStatus === 'ahead', text: goal.paceStatus === 'ahead' ? 'on pace' : 'behind' }
-    : null
-
-  return (
-    <div className={`goal-card${hero ? ' goal-hero' : ''}`} style={{ ['--goal' as string]: accent }}>
-      <div className="goal-top">
-        <div className="goal-titlewrap">
-          <h3 className="goal-name">{goal.name}</h3>
-          {pace && <span className={`pace-pill ${pace.ahead ? 'ahead' : 'behind'}`}>{pace.text}</span>}
-        </div>
-        <div className="goal-actions">
-          <button className="icon-btn" title="Edit" onClick={onEdit}>✎</button>
-          <button className="icon-btn" title="Delete" onClick={onDelete}>✕</button>
-        </div>
-      </div>
-      <div className="goal-figures">
-        <span className="goal-acc">{fmtHours(goal.accumulatedMinutes)}</span>
-        <span className="goal-target">/ {fmtHours(goal.targetMinutes)}</span>
-        <span className="goal-pct">{pct}%</span>
-      </div>
-      <div className="goal-bar" title={`${pct}% complete`}>
-        {goal.sources.map((s) => (
-          <span
-            key={s.habitId}
-            className="goal-seg"
-            style={{ width: `${Math.min(100, (s.minutes / Math.max(1, goal.targetMinutes)) * 100)}%`, background: colorOf(s.name) }}
-            title={`${s.name}: ${fmtHours(s.minutes)}`}
-          />
-        ))}
-        {goal.expectedFraction != null && (
-          <span className="goal-marker" style={{ left: `${goal.expectedFraction * 100}%` }}
-            title={`Where you'd need to be today to hit ${goal.targetDate ? fmtDate(goal.targetDate) : 'target'}`} />
-        )}
-      </div>
-      <div className="goal-meta">
-        <span>{fmtHours(goal.remainingMinutes)} to go</span>
-        <span className="goal-eta">{etaLine}</span>
-        {goal.targetDate && <span className="goal-target-date">target {fmtDate(goal.targetDate)}</span>}
-        {goal.countAllTime && <span className="goal-target-date">all-time</span>}
-      </div>
-      <div className="goal-feeders">
-        {goal.sources.map((s) => {
-          const c = colorOf(s.name)
-          return (
-            <span key={s.habitId} className="feeder-chip" style={{ color: c, borderColor: `${c}73`, background: `${c}1f` }}>
-              {s.name} · {fmtHours(s.minutes)}
-            </span>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ---------- Goal create/edit form ---------- */
-function GoalForm({ habits, goal, onSubmit, onCancel }: {
-  habits: Habit[]
-  goal?: Goal
-  onSubmit: (input: GoalInput) => void
-  onCancel: () => void
-}) {
-  const [name, setName] = useState(goal?.name ?? '')
-  const [hours, setHours] = useState(goal ? String(Math.round(goal.targetMinutes / 60)) : '100')
-  const [color, setColor] = useState(goal?.colorHex ?? '#b23a5b')
-  const [targetDate, setTargetDate] = useState(goal?.targetDate ?? '')
-  const [feeders, setFeeders] = useState<number[]>(goal ? goal.sources.map((s) => s.habitId) : [])
-  const [countAllTime, setCountAllTime] = useState(goal?.countAllTime ?? false)
-
-  const toggleFeeder = (id: number) =>
-    setFeeders((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]))
-
-  const submit = (e: FormEvent) => {
+function NewHabitSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => Promise<void> }) {
+  const [name, setName] = useState('')
+  const [timed, setTimed] = useState(true)
+  const [error, setError] = useState('')
+  async function submit(e: FormEvent) {
     e.preventDefault()
-    const targetHours = parseInt(hours, 10) || 0
-    if (!name.trim() || feeders.length === 0 || targetHours <= 0) return
-    onSubmit({
-      name: name.trim(), targetHours, colorHex: color, sourceHabitIds: feeders,
-      targetDate: targetDate || null,
-      startDate: goal?.startDate ?? null, // preserve existing start on edit
-      countAllTime,
-    })
+    if (!name.trim()) return
+    try { await api.createHabit(name.trim(), timed); setName(''); setTimed(true); setError(''); await onCreated() }
+    catch (err) { setError(err instanceof Error ? err.message : String(err)) }
   }
-
-  return (
-    <form className="goal-form card" onSubmit={submit}>
-      <div className="gf-row">
-        <label className="gf-field gf-grow">
-          <span>Goal name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 100h Guitar" autoFocus />
-        </label>
-        <label className="gf-field gf-narrow">
-          <span>Target hours</span>
-          <input type="number" min={1} value={hours} onChange={(e) => setHours(e.target.value)} />
-        </label>
-        <label className="gf-field gf-color">
-          <span>Color</span>
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-        </label>
-      </div>
-      <div className="gf-row">
-        <label className="gf-field gf-grow">
-          <span>Target date (optional)</span>
-          <input type="date" value={targetDate ?? ''} onChange={(e) => setTargetDate(e.target.value)} />
-        </label>
-        {targetDate && <button type="button" className="btn btn-ghost btn-sm gf-clear" onClick={() => setTargetDate('')}>Clear date</button>}
-      </div>
-      <div className="gf-feeders">
-        <span className="gf-label">Count</span>
-        <div className="seg sm gf-count">
-          <button type="button" className={countAllTime ? '' : 'on'} onClick={() => setCountAllTime(false)}>Additional</button>
-          <button type="button" className={countAllTime ? 'on' : ''} onClick={() => setCountAllTime(true)}>Total</button>
-        </div>
-        <span className="gf-hint muted">{countAllTime
-          ? 'Counts all time you’ve ever logged for the feeder skills.'
-          : 'Counts only time logged from the goal’s start date onward.'}</span>
-      </div>
-      <div className="gf-feeders">
-        <span className="gf-label">Feeder skills</span>
-        <div className="gf-checks">
-          {habits.map((h) => (
-            <label key={h.id} className={`gf-check${feeders.includes(h.id) ? ' on' : ''}`}>
-              <input type="checkbox" checked={feeders.includes(h.id)} onChange={() => toggleFeeder(h.id)} />
-              {h.name}
-            </label>
-          ))}
-        </div>
-      </div>
-      <div className="gf-actions">
-        <button type="submit" className="btn">{goal ? 'Save' : 'Create goal'}</button>
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-      </div>
+  return <Sheet open={open} onClose={onClose} title="New habit" labelledBy="new-habit-title">
+    <form className="hb-sheet" onSubmit={submit}>
+      <label className="hb-field"><span>Name</span>
+        <input className="hb-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Guitar" maxLength={80} required />
+      </label>
+      <label className="hb-check"><input type="checkbox" checked={timed} onChange={e => setTimed(e.target.checked)} /> Track time (log minutes)</label>
+      {error && <p role="alert" className="hb-error">{error}</p>}
+      <Button type="submit" variant="primary" block>Add habit</Button>
     </form>
-  )
-}
-
-/* ---------- Goal completion celebration ---------- */
-const SHARD_COLORS = ['var(--crimson)', 'var(--watch)', '#e8dcc8']
-function GoalCelebration({ goal, onDone }: { goal: Goal; onDone: () => void }) {
-  // Auto-dismiss after a beat; click anywhere also dismisses.
-  useEffect(() => {
-    const t = setTimeout(onDone, 4500)
-    return () => clearTimeout(t)
-  }, [onDone])
-
-  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-  const took = goal.completedOn && goal.startDate
-    ? `Achieved in ${fmtDaySpan(Math.max(1, daysBetween(goal.startDate, goal.completedOn)))}`
-    : 'Target reached'
-
-  return (
-    <div className="celebrate-overlay" onClick={onDone} role="dialog" aria-label={`${goal.name} complete`}>
-      {!reduced && (
-        <div className="celebrate-confetti" aria-hidden>
-          {Array.from({ length: 48 }).map((_, i) => (
-            <span
-              key={i}
-              className="shard"
-              style={{
-                left: `${(i * 97 % 100)}%`,
-                background: SHARD_COLORS[i % SHARD_COLORS.length],
-                animationDelay: `${(i % 12) * 0.13}s`,
-                animationDuration: `${2.4 + (i % 5) * 0.35}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-      <div className="celebrate-card" style={{ ['--goal' as string]: goal.colorHex || 'var(--crimson)' }} onClick={(e) => e.stopPropagation()}>
-        <div className="celebrate-eyebrow">Goal complete</div>
-        <h2 className="celebrate-name">{goal.name}</h2>
-        <div className="celebrate-hours">{fmtHours(goal.targetMinutes)}</div>
-        <p className="celebrate-sub">{took}</p>
-        <button className="btn" onClick={onDone}>Mark it done</button>
-      </div>
-    </div>
-  )
-}
-
-/* ---------- edit / delete logged time entries (fix bad timer data) ---------- */
-function EntryEditor({ habitId, color, onChange }: { habitId: number; color: string; onChange: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [logs, setLogs] = useState<HabitLogEntry[]>([])
-  const [edits, setEdits] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-
-  const reload = async () => { setLoading(true); try { setLogs(await api.habitLogs(habitId, 30)) } finally { setLoading(false) } }
-  const toggle = async () => { const n = !open; setOpen(n); if (n) await reload() }
-
-  const save = async (date: string) => {
-    const v = parseInt(edits[date] ?? '', 10)
-    if (isNaN(v) || v < 0) return
-    await api.setHabitLog(habitId, date, v)
-    setEdits((e) => { const c = { ...e }; delete c[date]; return c })
-    await reload(); onChange()
-  }
-  const remove = async (date: string) => { await api.deleteHabitLog(habitId, date); await reload(); onChange() }
-
-  return (
-    <div className="entry-editor">
-      <button className="track-toggle" onClick={toggle}>{open ? 'Hide entries' : 'Edit entries'}</button>
-      {open && (
-        <ul className="entry-list">
-          {loading && <li className="muted">Loading…</li>}
-          {!loading && logs.length === 0 && <li className="muted">No entries in the last 30 days.</li>}
-          {logs.map((l) => (
-            <li key={l.id} className="entry-row">
-              <span className="entry-date">{fmtDate(l.date)}</span>
-              <input className="entry-min" type="number" min={0}
-                value={edits[l.date] ?? String(l.minutes)}
-                onChange={(e) => setEdits((s) => ({ ...s, [l.date]: e.target.value }))} />
-              <span className="muted">min</span>
-              <button className="icon-btn" title="Save" onClick={() => save(l.date)} style={{ color }}>✓</button>
-              <button className="icon-btn danger" title="Delete" onClick={() => remove(l.date)}>✕</button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+  </Sheet>
 }
