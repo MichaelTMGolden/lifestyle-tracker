@@ -89,9 +89,12 @@
 
 * { box-sizing: border-box; }
 
+html { background: var(--rite-bg); }
+
 body {
   margin: 0;
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.55;
@@ -100,7 +103,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-#root { width: 100%; }
+#root { width: 100%; position: relative; z-index: 1; }
+
+/*
+ * Texture: a faint crimson glow at the top and a fixed film grain over the
+ * ground, behind everything. Plain images only: no backdrop-filter or blending.
+ */
+body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(120% 60% at 50% -10%, rgba(178, 58, 91, .10), transparent 60%),
+              radial-gradient(140% 100% at 50% 50%, transparent 55%, rgba(0, 0, 0, .35) 100%); }
+body::after { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .045;
+  background: url('./assets/grain.png') repeat; background-size: 128px 128px; }
 
 a { color: inherit; }
 

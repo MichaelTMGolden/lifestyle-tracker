@@ -50,8 +50,10 @@
 .pl-task--done .ui-check-row { color: var(--rite-muted); text-decoration: line-through; }
 .pl-task--overdue .ui-check-row__meta { color: var(--rite-warn); }
 .pl-task__hint { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 var(--rite-4); font-size: 13px; font-weight: 600; color: var(--rite-muted); background: var(--rite-surface); }
-.pl-task[data-swipe="today"] .pl-task__hint { justify-content: flex-start; color: #fff; background: var(--rite-accent); }
-.pl-task[data-swipe="tomorrow"] .pl-task__hint { justify-content: flex-end; color: var(--rite-text); background: var(--rite-surface-3); }
+.pl-task[data-swipe="right"] .pl-task__hint { justify-content: flex-start; color: var(--rite-text); background: var(--rite-tint-strong); }
+.pl-task[data-swipe="left"] .pl-task__hint { justify-content: flex-end; color: var(--rite-text); background: var(--rite-surface-3); }
+.pl-task[data-swipe="right"][data-armed] .pl-task__hint { color: #fff; background: var(--rite-accent); }
+.pl-task[data-swipe="left"][data-armed] .pl-task__hint { background: var(--rite-border-strong); }
 .pl-inbox-row { display: flex; flex-direction: column; }
 .pl-inbox-row__plan { display: flex; gap: var(--rite-1); padding: 0 0 var(--rite-2) 30px; margin-top: -6px; }
 .pl-inbox-row__plan .ui-btn { min-height: 32px; }

@@ -22,12 +22,22 @@
 .shell-content { margin-left: var(--sidebar-width); min-width: 0; }
 .shell-content > main { width: 100%; max-width: 1480px; min-width: 0; margin: 0 auto; padding: 36px clamp(20px, 2.5vw, 44px) 64px; }
 .shell-content > main:focus { outline: none; }
+
+/* Page changes: the new page fades and rises in instead of cutting. */
+.route-view { animation: route-in .22s ease-out; }
+@keyframes route-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .route-view { animation: none; } }
+
+/* Tab bar: the active tab's icon sits on a small pill that slides in. */
+.tab-link svg { padding: 2px 14px; box-sizing: content-box; border-radius: var(--rite-pill); transition: background-color .2s ease, color .2s ease; }
+.tab-link.active svg { background: var(--rite-tint-strong); }
 .dashboard-shell .skip-link { left: calc(var(--sidebar-width) + 20px); }
 
 /* ---------- bottom tab bar ---------- */
 .tab-bar { display: none; }
 .tab-link { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: var(--rite-tab, 52px); padding: 4px 0; border: 0; background: transparent; color: var(--rite-muted); text-decoration: none; font: 500 11px/1 var(--font-body); letter-spacing: .03em; cursor: pointer; border-radius: 12px; }
 .tab-link svg { width: 23px; height: 23px; }
+.tab-link:active svg { transform: scale(.92); }
 .tab-link.active { color: var(--rite-accent-light); }
 .tab-link:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: -2px; }
 
@@ -41,14 +51,15 @@
 @media (max-width: 1023px) {
   .desktop-sidebar { display: none; }
   .shell-content { margin-left: 0; }
-  .shell-content > main { padding: 24px 20px calc(var(--rite-tabbar) + 32px + env(safe-area-inset-bottom)); }
+  /* Installed on iOS the status bar is translucent, so pages start below it. */
+  .shell-content > main { padding: calc(24px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(var(--rite-tabbar) + 32px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   .dashboard-shell .skip-link { left: 12px; }
-  .tab-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; height: calc(var(--rite-tabbar) + env(safe-area-inset-bottom)); padding: 6px 12px env(safe-area-inset-bottom); background: var(--rite-bg); border-top: 1px solid var(--rite-hair); }
+  .tab-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; height: calc(var(--rite-tabbar) + env(safe-area-inset-bottom)); padding: 6px max(12px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(12px, env(safe-area-inset-left)); background: var(--rite-bg); border-top: 1px solid var(--rite-hair); }
   .ui-toasts { --ui-toast-offset: calc(var(--rite-tabbar) + 16px); }
 }
 @media (max-width: 768px) {
   /* Room for the quick-add bar that sits on top of the tab bar. */
-  .shell-content > main { padding: 20px 16px calc(var(--rite-tabbar) + 96px + env(safe-area-inset-bottom)); }
+  .shell-content > main { padding: calc(20px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(var(--rite-tabbar) + 96px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   .ui-toasts { --ui-toast-offset: calc(var(--rite-tabbar) + 76px); }
 }
 

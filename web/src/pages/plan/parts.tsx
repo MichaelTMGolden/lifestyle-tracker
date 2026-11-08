@@ -6,6 +6,7 @@ import { TaskPlanActions, type PlanningAction } from '../../components/DailyPlan
 import { dateKey } from '../../dailyPlanning'
 import { taskNotes } from '../../taskViews'
 import { Button, CheckRow, Icon, Sheet } from '../../ui'
+import { haptic } from '../../ui/feedback'
 import { dayLabel, dayNumber, PRIORITIES, readableDate, TASK_DRAG_TYPE } from './days'
 
 
@@ -32,10 +33,13 @@ export function DayStrip({ days, selected, counts, onSelect, onDropTask }: {
 }
 
 /* ---------- Task row ---------- */
-export function TaskRow({ task, busy, onToggle, onOpen, onSwipe, handle, draggable }: {
+/** What a swipe does each way: a short label shown under the row, and the action. */
+export type Swipe = { right: { label: string; run: () => void }; left: { label: string; run: () => void } }
+
+export function TaskRow({ task, busy, onToggle, onOpen, swipe, handle, draggable }: {
   task: Todo; busy: boolean; onToggle: () => void; onOpen: () => void
-  /** Inbox triage: swipe right plans for today, left for tomorrow. */
-  onSwipe?: (direction: 'today' | 'tomorrow') => void
+  /** Touch only: drag the row past the threshold to act (e.g. right = done, left = tomorrow). */
+  swipe?: Swipe
   handle?: DragHandleProps
   draggable?: boolean
 }) {
@@ -52,22 +56,24 @@ export function TaskRow({ task, busy, onToggle, onOpen, onSwipe, handle, draggab
   ].filter(Boolean).join(' · ')
 
   // Horizontal swipe only; vertical movement scrolls the page as usual.
-  const down = (e: ReactPointerEvent) => { if (onSwipe && e.pointerType !== 'mouse') start.current = { x: e.clientX, y: e.clientY, id: e.pointerId } }
+  const down = (e: ReactPointerEvent) => { if (swipe && !busy && e.pointerType !== 'mouse') start.current = { x: e.clientX, y: e.clientY, id: e.pointerId } }
   const move = (e: ReactPointerEvent) => {
     const s = start.current
     if (!s || s.id !== e.pointerId) return
     const x = e.clientX - s.x, y = e.clientY - s.y
     if (Math.abs(y) > Math.abs(x) && Math.abs(x) < 12) { start.current = null; setDx(0); return }
-    setDx(Math.max(-120, Math.min(120, x)))
+    const next = Math.max(-120, Math.min(120, x))
+    if ((Math.abs(next) >= 80) !== (Math.abs(dx) >= 80)) haptic(8) // crossing the threshold, either way
+    setDx(next)
   }
   const up = () => {
-    if (start.current && Math.abs(dx) >= 80) onSwipe?.(dx > 0 ? 'today' : 'tomorrow')
+    if (start.current && Math.abs(dx) >= 80) (dx > 0 ? swipe?.right : swipe?.left)?.run()
     start.current = null; setDx(0)
   }
 
   return <div className={`pl-task${task.completedAt ? ' pl-task--done' : ''}${overdue ? ' pl-task--overdue' : ''}`}
-    data-swipe={dx > 40 ? 'today' : dx < -40 ? 'tomorrow' : undefined}>
-    {onSwipe && <span className="pl-task__hint" aria-hidden="true">{dx > 0 ? 'Today' : 'Tomorrow'}</span>}
+    data-swipe={dx > 40 ? 'right' : dx < -40 ? 'left' : undefined} data-armed={Math.abs(dx) >= 80 ? '' : undefined}>
+    {swipe && <span className="pl-task__hint" aria-hidden="true">{dx > 0 ? swipe.right.label : swipe.left.label}</span>}
     <div className="pl-task__body" style={dx ? { transform: `translateX(${dx}px)` } : undefined}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
       draggable={draggable && !busy} onDragStart={e => { e.dataTransfer.setData(TASK_DRAG_TYPE, String(task.id)); e.dataTransfer.effectAllowed = 'move' }}>

@@ -13,7 +13,7 @@ import { isCompleteOpenOrder, taskMatchesSearch } from '../taskViews'
 import { Button, CheckRow, Icon, SectionHead, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { dayKeys, dayLabel, eventOnDay, eventTime, isSlipped, mergeOrder, PLAN_DAYS } from './plan/days'
-import { DayStrip, Empty, TaskRow, TaskSheet, type Destination } from './plan/parts'
+import { DayStrip, Empty, TaskRow, TaskSheet, type Destination, type Swipe } from './plan/parts'
 import '../dailyPlanning.css'
 import './plan/plan.css'
 
@@ -76,6 +76,12 @@ export default function TasksPage() {
   const plan = (t: Todo, day: string) => onAction(() => dailyPlanning.plan(t.id, day, t.isPriority && t.plannedFor === day),
     `Planned for ${dayLabel(day).short.toLowerCase() === 'today' ? 'today' : dayLabel(day).long}.`)
   const toggle = (t: Todo) => onAction(() => api.toggleTodo(t.id), t.completedAt ? 'Task reopened.' : 'Task done.')
+  // Day view: swipe right to finish, left to move to the next day.
+  const nextDay = (() => { const d = new Date(`${selected}T12:00:00`); d.setDate(d.getDate() + 1); return dateKey(d) })()
+  const daySwipe = (t: Todo): Swipe => ({
+    right: { label: 'Done', run: () => void toggle(t) },
+    left: { label: selected === today ? 'Tomorrow' : dayLabel(nextDay).short, run: () => void plan(t, nextDay) },
+  })
 
   async function create(input: TodoInput, destination: Destination) {
     const day = destination === 'today' ? today : destination === 'tomorrow' ? nextDateKey() : destination === 'day' ? selected : null
@@ -153,7 +159,7 @@ export default function TasksPage() {
         </ul>}
         <div className="pl-tasks">
           {plannedOn(selected).filter(matches).sort((a, b) => Number(b.isPriority) - Number(a.isPriority)).map(t =>
-            <TaskRow key={t.id} task={t} busy={busy} onToggle={() => void toggle(t)} onOpen={() => setSheet({ task: t })} />)}
+            <TaskRow key={t.id} task={t} busy={busy} swipe={daySwipe(t)} onToggle={() => void toggle(t)} onOpen={() => setSheet({ task: t })} />)}
         </div>
         {quickItems.length > 0 && <div className="pl-quick">
           <h3 className="pl-sub">Quick to-dos</h3>
@@ -232,7 +238,7 @@ function InboxRow({ t, handle, busy, onToggle, onOpen, onPlan }: {
   onToggle: (t: Todo) => void; onOpen: (t: Todo) => void; onPlan: (t: Todo, day: 'today' | 'tomorrow') => void
 }) {
   return <div className="pl-inbox-row">
-    <TaskRow task={t} busy={busy} handle={handle} draggable onToggle={() => onToggle(t)} onOpen={() => onOpen(t)} onSwipe={d => onPlan(t, d)} />
+    <TaskRow task={t} busy={busy} handle={handle} draggable onToggle={() => onToggle(t)} onOpen={() => onOpen(t)} swipe={{ right: { label: 'Today', run: () => onPlan(t, 'today') }, left: { label: 'Tomorrow', run: () => onPlan(t, 'tomorrow') } }} />
     <div className="pl-inbox-row__plan">
       <Button size="sm" variant="quiet" disabled={busy} onClick={() => onPlan(t, 'today')} aria-label={`Plan ${t.title} for today`}>Today</Button>
       <Button size="sm" variant="quiet" disabled={busy} onClick={() => onPlan(t, 'tomorrow')} aria-label={`Plan ${t.title} for tomorrow`}>Tomorrow</Button>
