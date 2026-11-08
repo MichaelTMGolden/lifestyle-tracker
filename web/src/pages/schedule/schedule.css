@@ -1,0 +1,43 @@
+/* Routine page (Rite). */
+.sc-page { display: flex; flex-direction: column; gap: var(--rite-4); max-width: 1100px; }
+.sc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--rite-3); }
+.sc-head h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 38px; line-height: 1; letter-spacing: 0; }
+.sc-head__sub { margin: var(--rite-2) 0 0; font-size: 13px; color: var(--rite-muted); }
+.sc-error { margin: 0; font-size: 14px; color: var(--rite-bad); }
+.sc-muted { margin: 0; font-size: 13px; color: var(--rite-muted); }
+.sc-p { margin: 0; font-size: 14px; line-height: 1.5; }
+.sc-temp { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); padding: var(--rite-2) var(--rite-2) var(--rite-2) var(--rite-4); border-radius: var(--rite-radius); background: var(--rite-surface); border: 1px solid var(--rite-border); border-left: 3px solid var(--rite-warn); font-size: 13px; }
+
+.sc-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.sc-day { min-height: 40px; border-radius: 12px; border: 1px solid var(--rite-border); background: var(--rite-surface); color: var(--rite-text); font: 600 13px var(--font-body); cursor: pointer; }
+.sc-day--on { background: var(--rite-tint-strong); border-color: var(--rite-accent); color: var(--rite-accent-light); }
+
+.sc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sc-block { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: flex; gap: var(--rite-3); padding: 10px var(--rite-3); border-radius: 12px; background: var(--rite-surface); border: 1px solid var(--rite-border); border-left: 3px solid var(--cat); }
+.sc-block:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; }
+.sc-block--now { border-color: var(--rite-accent); border-left-color: var(--cat); background: var(--rite-tint); }
+.sc-block__time { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; font-size: 13px; font-weight: 600; }
+.sc-block__time small { font-weight: 400; font-size: 11px; color: var(--rite-muted); }
+.sc-block__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
+.sc-block__text small { font-size: 12px; color: var(--rite-muted); overflow-wrap: anywhere; }
+.sc-star { color: var(--rite-warn); }
+.sc-now { display: flex; align-items: center; gap: var(--rite-2); font-size: 11px; font-weight: 600; color: var(--rite-accent-light); }
+.sc-now::after { content: ''; flex: 1; height: 1px; background: var(--rite-accent); }
+.sc-empty { font-size: 13px; color: var(--rite-muted); padding: var(--rite-3) 0; }
+
+.sc-week { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: var(--rite-2); overflow-x: auto; padding-bottom: var(--rite-2); }
+.sc-col { display: flex; flex-direction: column; gap: var(--rite-2); min-width: 0; }
+.sc-col h2 { margin: 0; font: 600 13px var(--font-body); color: var(--rite-muted); letter-spacing: 0; text-transform: none; }
+.sc-col--today h2 { color: var(--rite-accent-light); }
+.sc-week .sc-block { flex-direction: column; gap: 2px; padding: 8px 10px; }
+.sc-week .sc-block__time { width: auto; flex-direction: row; gap: 6px; font-size: 12px; }
+.sc-week .sc-block__text { font-size: 13px; }
+
+.sc-detail { display: flex; flex-direction: column; gap: var(--rite-3); }
+.sc-detail__when { margin: 0; display: flex; align-items: center; gap: var(--rite-2); font-size: 13px; color: var(--rite-muted); }
+.sc-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cat); flex-shrink: 0; }
+.sc-edit { display: flex; flex-direction: column; gap: var(--rite-2); }
+.sc-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--rite-muted); }
+.sc-input { box-sizing: border-box; width: 100%; min-height: var(--rite-tap); padding: var(--rite-2) var(--rite-3); border-radius: var(--rite-radius-sm); border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 16px var(--font-body); }
+.sc-input:focus { outline: 2px solid var(--rite-accent-light); outline-offset: 1px; }
+.sc-row { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
