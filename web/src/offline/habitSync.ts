@@ -26,7 +26,8 @@ let snapshot: QueuedWrite[] = load()
 let onDropped: Dropped | undefined
 let sending: Promise<void> | null = null
 /** Callers in this tab waiting to hear what happened to their write. */
-const waiting = new Map<string, { resolve: (r: WriteResult) => void; reject: (e: unknown) => void }>()
+type Waiter = { resolve: (r: WriteResult) => void; reject: (e: unknown) => void; /** stored in the queue at least once */ entered: boolean }
+const waiting = new Map<string, Waiter>()
 /** Writes this tab is sending right now. */
 const inFlight = new Set<string>()
 
@@ -36,8 +37,9 @@ function load(): QueuedWrite[] {
 function publish(list: QueuedWrite[]) {
   snapshot = list
   listeners.forEach(fn => fn())
-  // A waiter whose write left the queue without this tab sending it (another tab did) is done.
-  for (const [id, w] of waiting) if (!list.some(x => x.id === id) && !inFlight.has(id)) { waiting.delete(id); w.resolve({}) }
+  // A waiter whose write entered the queue and has since left it without this
+  // tab sending it was delivered by another tab. One not yet stored is still pending.
+  for (const [id, w] of waiting) if (w.entered && !list.some(x => x.id === id) && !inFlight.has(id)) { waiting.delete(id); w.resolve({}) }
 }
 /** Run `fn` holding a cross-tab lock where supported (all current browsers); otherwise just run it. */
 function withLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -82,8 +84,14 @@ function send(w: QueuedWrite) {
 }
 
 async function submit(w: QueuedWrite): Promise<WriteResult> {
-  const result = new Promise<WriteResult>((resolve, reject) => waiting.set(w.id, { resolve, reject }))
-  try { await edit(list => [...list, w]) }
+  const result = new Promise<WriteResult>((resolve, reject) => waiting.set(w.id, { resolve, reject, entered: false }))
+  try {
+    await edit(list => {
+      const mine = waiting.get(w.id)
+      if (mine) mine.entered = true // set before the stored list (with this write in it) is published
+      return [...list, w]
+    })
+  }
   catch {
     // This device can't store the tap (storage full or blocked): send it now
     // without a safety net, and say so plainly if that fails too.
