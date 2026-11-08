@@ -12,7 +12,7 @@ import { dailyPlanning, dateKey, nextDateKey } from '../dailyPlanning'
 import { isCompleteOpenOrder, taskMatchesSearch } from '../taskViews'
 import { Button, CheckRow, Icon, SectionHead, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
-import { dayKeys, dayLabel, eventDay, eventTime, isSlipped, mergeOrder, PLAN_DAYS } from './plan/days'
+import { dayKeys, dayLabel, eventOnDay, eventTime, isSlipped, mergeOrder, PLAN_DAYS } from './plan/days'
 import { DayStrip, Empty, TaskRow, TaskSheet, type Destination } from './plan/parts'
 import '../dailyPlanning.css'
 import './plan/plan.css'
@@ -34,10 +34,11 @@ export default function TasksPage() {
   const [quickText, setQuickText] = useState('')
   const inFlight = useRef(false)
 
-  const todos = useQuery({ queryKey: ['todos'], queryFn: api.todos })
+  // Today changes the same tasks and to-dos through its own cache, so always refetch on arrival.
+  const todos = useQuery({ queryKey: ['todos'], queryFn: api.todos, refetchOnMount: 'always' })
   const events = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS) })
-  const pending = useQuery({ queryKey: ['daily-pending'], queryFn: dailyPlanning.pending })
-  const dayTodos = useQuery({ queryKey: ['daily', selected], queryFn: () => api.dailyTodos(selected) })
+  const pending = useQuery({ queryKey: ['daily-pending'], queryFn: dailyPlanning.pending, refetchOnMount: 'always' })
+  const dayTodos = useQuery({ queryKey: ['daily', selected], queryFn: () => api.dailyTodos(selected), refetchOnMount: 'always' })
 
   const setParam = (key: string, value: string | null) => setParams(prev => {
     const next = new URLSearchParams(prev)
@@ -65,10 +66,10 @@ export default function TasksPage() {
   const done = all.filter(t => t.completedAt)
   const matches = (t: Todo) => taskMatchesSearch(t, query)
   const plannedOn = (d: string) => open.filter(t => t.plannedFor === d)
-  const dayEvents = (events.data ?? []).filter(e => eventDay(e) === selected)
+  const dayEvents = (events.data ?? []).filter(e => eventOnDay(e, selected))
   const slipped = open.filter(t => isSlipped(t, today) && t.plannedFor !== today)
   const inbox = open.filter(t => !t.plannedFor && !isSlipped(t, today))
-  const counts = Object.fromEntries(days.map(d => [d, plannedOn(d).length + (events.data ?? []).filter(e => eventDay(e) === d).length]))
+  const counts = Object.fromEntries(days.map(d => [d, plannedOn(d).length + (events.data ?? []).filter(e => eventOnDay(e, d)).length]))
   const selectedLabel = dayLabel(selected)
 
   const plan = (t: Todo, day: string) => onAction(() => dailyPlanning.plan(t.id, day, t.isPriority && t.plannedFor === day),

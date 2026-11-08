@@ -24,11 +24,22 @@ export function dayLabel(key: string, today = dateKey()): { short: string; long:
 export const dayNumber = (key: string) => Number(key.slice(8, 10))
 
 /**
- * Day key an event belongs to. All-day events are stored as UTC midnight of
- * their calendar date, so use that date as-is; converting it to local time
- * would move it to the previous day west of UTC.
+ * Whether an event touches a local day. All-day events are stored as UTC
+ * midnight of their calendar dates (end exclusive), so compare those dates
+ * as-is; converting them to local time would shift them a day west of UTC.
+ * Timed events count on every day they overlap, so overnight events show on both.
  */
-export const eventDay = (e: CalendarEvent) => e.allDay ? e.startsAt.slice(0, 10) : dateKey(new Date(e.startsAt))
+export function eventOnDay(e: CalendarEvent, day: string): boolean {
+  if (e.allDay) {
+    const start = e.startsAt.slice(0, 10)
+    const end = e.endsAt.slice(0, 10)
+    return day >= start && (day < end || (end <= start && day === start))
+  }
+  const dayStart = new Date(`${day}T00:00:00`).getTime()
+  const dayEnd = new Date(`${day}T00:00:00`); dayEnd.setDate(dayEnd.getDate() + 1)
+  const start = new Date(e.startsAt).getTime(), end = new Date(e.endsAt).getTime()
+  return start < dayEnd.getTime() && (end > dayStart || (end <= start && start >= dayStart))
+}
 
 export const eventTime = (e: CalendarEvent) => e.allDay ? 'All day'
   : `${new Date(e.startsAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}–${new Date(e.endsAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
