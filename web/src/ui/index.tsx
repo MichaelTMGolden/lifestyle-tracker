@@ -174,6 +174,21 @@ export function ListRow({ title, meta, icon, trailing, current, to, onClick }: L
   return <div className="ui-list-row">{inner}</div>
 }
 
+/* ---------- Sparkline ---------- */
+/** A small trend line; the last point is marked. Values are plotted oldest to newest. */
+export function Spark({ values, label, width = 120, height = 32 }: { values: number[]; label: string; width?: number; height?: number }) {
+  if (values.length < 2) return <span className="ui-spark ui-spark--empty" role="img" aria-label={label} style={{ width, height }} />
+  const min = Math.min(...values), max = Math.max(...values)
+  const span = max - min || 1, pad = 3
+  const x = (i: number) => pad + (i / (values.length - 1)) * (width - pad * 2)
+  const y = (v: number) => height - pad - ((v - min) / span) * (height - pad * 2)
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')
+  return <svg className="ui-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
+    <path d={d} fill="none" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+    <circle cx={x(values.length - 1)} cy={y(values.at(-1)!)} r="2.6" />
+  </svg>
+}
+
 /* ---------- Skeleton ---------- */
 export function Skeleton({ width = '100%', height = 16, radius, lines }: { width?: number | string; height?: number; radius?: number; lines?: number }) {
   const one = (w: number | string, key?: number) => <span key={key} className="ui-skeleton" style={{ width: w, height, borderRadius: radius }} aria-hidden="true" />

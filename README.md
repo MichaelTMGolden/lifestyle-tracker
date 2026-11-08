@@ -192,7 +192,7 @@ cd web
 npm ci
 npm run lint
 npm run build
-node --experimental-strip-types --test --test-isolation=none tests/timer-operation-gate.test.mjs tests/task-views.test.mjs tests/quick-log.test.mjs
+node --experimental-strip-types --test --test-isolation=none tests/timer-operation-gate.test.mjs tests/task-views.test.mjs tests/quick-log.test.mjs tests/health-data.test.mjs
 ```
 
 The `DashboardPlanningAndProgress` migration adds task planning columns, settings,
