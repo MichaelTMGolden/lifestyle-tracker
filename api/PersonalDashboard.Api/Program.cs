@@ -80,6 +80,10 @@ builder.Services.AddSingleton<ReviewSynthesisService>();
 // Data-source providers. Garmin import is live today; the rest are labelled
 // seams that go live by implementing IDataProvider + flipping Configured.
 builder.Services.AddHttpClient(); // for calling the Garmin sidecar
+builder.Services.AddHttpClient("push", c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<PersonalDashboard.Api.Push.PushSender>();
+builder.Services.AddSingleton<PersonalDashboard.Api.Push.ReminderService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PersonalDashboard.Api.Push.ReminderService>()); // habit reminders, once a minute
 builder.Services.AddHostedService<ConnectionsAutoSync>(); // periodic Garmin + Google sync (default 1h)
 builder.Services.AddSingleton<IDataProvider, GarminImportProvider>();
 builder.Services.AddSingleton<IDataProvider>(new PendingProvider(

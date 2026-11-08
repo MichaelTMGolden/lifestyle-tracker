@@ -84,3 +84,28 @@ self.addEventListener('fetch', event => {
     }))
   }
 })
+
+// Habit reminders (Web Push). The payload is { title, body, url, tag }.
+self.addEventListener('push', event => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch { data = { body: event.data?.text() } }
+  event.waitUntil(self.registration.showNotification(data.title || 'Personal Dashboard', {
+    body: data.body || '',
+    tag: data.tag || 'reminder', // a newer reminder for the same habit replaces the old one
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: data.url || '/' },
+  }))
+})
+
+// Tapping a notification focuses an open dashboard window, or opens one.
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const target = new URL(event.notification.data?.url || '/', self.location.origin).href
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const open = windows.find(w => new URL(w.url).origin === self.location.origin)
+    if (open) { await open.focus(); if ('navigate' in open) await open.navigate(target).catch(() => {}); return }
+    await self.clients.openWindow(target)
+  })())
+})

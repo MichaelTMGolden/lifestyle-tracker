@@ -50,7 +50,7 @@ public static partial class ApiEndpoints
     public record HabitRow(
         int Id, string Name, string Cadence, int TargetPerPeriod, bool TracksTime, bool ShowInQuickActions,
         int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak,
-        int BestStreak);
+        int BestStreak, int? ReminderMinutes);
 
     /// <summary>
     /// The active habits as the Habits and Today pages show them. Pass
@@ -66,7 +66,7 @@ public static partial class ApiEndpoints
             .OrderBy(h => h.Id)
             .Select(h => new
             {
-                h.Id, h.Name, h.Cadence, h.TargetPerPeriod, h.TracksTime, h.ShowInQuickActions,
+                h.Id, h.Name, h.Cadence, h.TargetPerPeriod, h.TracksTime, h.ShowInQuickActions, h.ReminderMinutes,
                 last30Completed = h.Logs.Count(l => l.Date >= since && l.Completed),
                 doneToday = h.Logs.Any(l => l.Date == today && l.Completed),
                 minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
@@ -98,7 +98,8 @@ public static partial class ApiEndpoints
         return rows.Select(r => new HabitRow(
             r.Id, r.Name, r.Cadence, r.TargetPerPeriod, r.TracksTime, r.ShowInQuickActions,
             r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id],
-            Math.Max(streaks[r.Id], HabitCadencePolicy.BestStreak(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart)))).ToList();
+            Math.Max(streaks[r.Id], HabitCadencePolicy.BestStreak(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart)),
+            r.ReminderMinutes)).ToList();
     }
 
     private static async Task<Dictionary<int, HashSet<DateOnly>>> CompletedDatesAsync(AppDbContext db, List<int> habitIds, DateOnly? from, DateOnly to)
