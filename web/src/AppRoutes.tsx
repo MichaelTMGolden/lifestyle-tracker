@@ -9,6 +9,7 @@ const pages = {
   schedule: () => import('./pages/SchedulePage'),
   connect: () => import('./pages/ConnectionsPage'),
   settings: () => import('./pages/SettingsPage'),
+  health: () => import('./pages/HealthPage'),
 }
 const TodayPage = lazy(pages.today)
 const SchedulePage = lazy(pages.schedule)
@@ -16,6 +17,7 @@ const TasksPage = lazy(pages.plan)
 const HabitsPage = lazy(pages.habits)
 const ConnectionsPage = lazy(pages.connect)
 const SettingsPage = lazy(pages.settings)
+const HealthPage = lazy(pages.health)
 
 // Once the app is idle, load every page's code: switching tabs is instant and
 // the service worker caches them, so pages not yet visited still open offline.
@@ -43,9 +45,10 @@ export default function AppRoutes() {
       <Route path="/habits" element={<Suspense fallback={loading}><HabitsPage /></Suspense>} />
       <Route path="/schedule" element={<Suspense fallback={loading}><SchedulePage /></Suspense>} />
       <Route path="/settings" element={<Suspense fallback={loading}><SettingsPage /></Suspense>} />
+      <Route path="/health" element={<Suspense fallback={loading}><HealthPage /></Suspense>} />
       <Route path="/kit" element={<Suspense fallback={loading}><KitPage /></Suspense>} />
       {/* Hidden in v2 (their data stays): old links and bookmarks land on Today. */}
-      {['/health', '/health/:key', '/nutrition', '/artist', '/review', '/bingo'].map(path => <Route key={path} path={path} element={<Navigate to="/" replace />} />)}
+      {['/health/:key', '/nutrition', '/artist', '/review', '/bingo'].map(path => <Route key={path} path={path} element={<Navigate to="/" replace />} />)}
       <Route path="*" element={<section className="card"><h1>Page not found</h1><p>This dashboard page does not exist.</p><Link className="btn" to="/">Back to Today</Link></section>} />
     </Route>
   </Routes>

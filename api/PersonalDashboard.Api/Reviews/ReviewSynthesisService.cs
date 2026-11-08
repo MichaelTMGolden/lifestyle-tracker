@@ -33,7 +33,7 @@ public class ReviewSynthesisService
     private string? ApiKey => _cfg["Anthropic:ApiKey"] ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
     public bool IsEnabled => !string.IsNullOrWhiteSpace(ApiKey);
     // Model is configurable; default to the current mid-tier Sonnet (good for this judgment task).
-    public string Model => _cfg["Anthropic:Model"] ?? Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
+    public string Model => _cfg["Anthropic:Model"] ?? Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") ?? "claude-opus-5-5";
 
     public async Task<WeeklyReview> GenerateForWeekAsync(AppDbContext db, DateOnly weekStart, DateOnly today, CancellationToken ct = default)
     {
@@ -101,13 +101,15 @@ public class ReviewSynthesisService
         try
         {
             var client = _http.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(60);
+            client.Timeout = TimeSpan.FromMinutes(5); // current models think first; give them time
             var body = new
             {
                 model = Model,
-                max_tokens = 1600,
+                max_tokens = 16000, // thinking counts toward output, so leave room for it plus the JSON
                 system = SystemPrompt,
                 messages = new[] { new { role = "user", content = UserPrompt(digestJson, prevOutputJson) } },
+                // If a safety classifier declines, retry on a suitable model instead of failing the review.
+                fallbacks = "default",
             };
             using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages")
             {
@@ -115,6 +117,7 @@ public class ReviewSynthesisService
             };
             req.Headers.Add("x-api-key", ApiKey);
             req.Headers.Add("anthropic-version", "2023-06-01");
+            req.Headers.Add("anthropic-beta", "server-side-fallback-2026-07-01");
             using var resp = await client.SendAsync(req, ct);
             var payload = await resp.Content.ReadAsStringAsync(ct);
             if (!resp.IsSuccessStatusCode)
@@ -123,7 +126,17 @@ public class ReviewSynthesisService
                 return null;
             }
             using var doc = JsonDocument.Parse(payload);
-            return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString();
+            var root = doc.RootElement;
+            if (root.TryGetProperty("stop_reason", out var stop) && stop.GetString() == "refusal")
+            {
+                _log.LogWarning("Weekly review declined by the model.");
+                return null;
+            }
+            // Thinking blocks come first on current models; the answer is the text block.
+            foreach (var block in root.GetProperty("content").EnumerateArray())
+                if (block.TryGetProperty("type", out var type) && type.GetString() == "text")
+                    return block.GetProperty("text").GetString();
+            return null;
         }
         catch (Exception ex)
         {
