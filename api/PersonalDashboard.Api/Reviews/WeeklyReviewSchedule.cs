@@ -44,7 +44,7 @@ public class WeeklyReviewSchedule(IServiceScopeFactory scopes, ILogger<WeeklyRev
         if (!reviews.IsEnabled) return;
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = await DeviceClock.CurrentAsync(db, utcNow, ct);
-        var lastWeek = WeekDue(clock.LocalNow, alreadyReviewed: false)!.Value;
+        if (WeekDue(clock.LocalNow, alreadyReviewed: false) is not DateOnly lastWeek) return; // e.g. Monday before 08:00
         // A failed attempt doesn't count: try again on the next tick.
         var done = await db.WeeklyReviews.AnyAsync(r => r.WeekStart == lastWeek && r.Status == "Generated", ct);
         if (WeekDue(clock.LocalNow, done) is not DateOnly week) return;
