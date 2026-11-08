@@ -83,8 +83,11 @@ export default function TodayPage() {
       else void start(h.id, h.name).catch(() => { /* TimerProvider shows the error. */ })
       return
     }
-    quick(() => writes.toggleHabit(h))
-    toast.show({ message: h.doneToday ? `${h.name} unmarked` : `${h.name} done`, action: { label: 'Undo', onClick: () => quick(() => writes.toggleHabit({ ...h, doneToday: !h.doneToday })) } })
+    // Offer Undo only once the change is saved; a failed write has already rolled back.
+    writes.toggleHabit(h).then(() => {
+      const saved = { ...h, doneToday: !h.doneToday }
+      toast.show({ message: h.doneToday ? `${h.name} unmarked` : `${h.name} done`, action: { label: 'Undo', onClick: () => quick(() => writes.toggleHabit(saved)) } })
+    }, failed)
   }
   async function logPast(h: Habit, mins: number) {
     try { await api.logHabitTime(h.id, mins); toast.show({ message: `${h.name} · ${mins} min logged` }); await Promise.all([writes.refresh(), qc.invalidateQueries({ queryKey: ['goals'] })]) }
