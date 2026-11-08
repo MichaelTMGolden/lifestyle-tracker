@@ -203,6 +203,18 @@ public static partial class ApiEndpoints
         });
 
         // --- Calendar ---
+        // Every event overlapping the client's local days from today: ones already
+        // under way and all-day events included (unlike /calendar/upcoming).
+        api.MapGet("/calendar/days", async (AppDbContext db, HttpRequest req, int days = 7) =>
+        {
+            var clock = ClientClock.From(req);
+            var from = clock.TodayStartUtc;
+            var to = from.AddDays(Math.Clamp(days, 1, 31));
+            return await OverlappingEvents(db.CalendarEvents.AsNoTracking(), from, to)
+                .OrderBy(e => e.StartsAt)
+                .ToListAsync();
+        });
+
         api.MapGet("/calendar/upcoming", async (AppDbContext db, int days = 14) =>
         {
             var now = DateTimeOffset.UtcNow;
@@ -213,4 +225,9 @@ public static partial class ApiEndpoints
                 .ToListAsync();
         });
     }
+
+    /// <summary>Events that overlap [from, to): started before the end and still running after the start.</summary>
+    public static IQueryable<CalendarEvent> OverlappingEvents(IQueryable<CalendarEvent> events, DateTimeOffset from, DateTimeOffset to) =>
+        events.Where(e => e.StartsAt < to && e.EndsAt > from);
+
 }
