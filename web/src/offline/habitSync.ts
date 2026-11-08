@@ -49,7 +49,7 @@ function withLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
 function edit(change: (list: QueuedWrite[]) => QueuedWrite[]) {
   return withLock(EDIT_LOCK, async () => {
     const next = change(load())
-    try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* storage full or blocked */ }
+    localStorage.setItem(KEY, JSON.stringify(next)) // throws when storage is full or blocked: the caller decides
     publish(next)
   })
 }
@@ -64,8 +64,16 @@ const newId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toSt
 
 /** fetch() rejects with a TypeError only when the request never reached a server. */
 const unreachable = (e: unknown) => e instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false)
-/** Worth retrying later rather than giving up on. */
-const transient = (e: unknown) => unreachable(e) || /temporarily unavailable|too many requests|session has expired/i.test(e instanceof Error ? e.message : String(e))
+/**
+ * Worth retrying later rather than giving up on: no connection, signed out
+ * (401: kept until you sign in again), timeouts, rate limits and server errors.
+ * Other answers (404 habit deleted, 400 date too old) will never succeed.
+ */
+const transient = (e: unknown) => {
+  if (unreachable(e)) return true
+  const status = (e as { status?: unknown })?.status
+  return typeof status !== 'number' || status === 401 || status === 408 || status === 429 || status >= 500
+}
 
 function send(w: QueuedWrite) {
   return w.kind === 'done'
@@ -75,7 +83,14 @@ function send(w: QueuedWrite) {
 
 async function submit(w: QueuedWrite): Promise<WriteResult> {
   const result = new Promise<WriteResult>((resolve, reject) => waiting.set(w.id, { resolve, reject }))
-  await edit(list => [...list, w])
+  try { await edit(list => [...list, w]) }
+  catch {
+    // This device can't store the tap (storage full or blocked): send it now
+    // without a safety net, and say so plainly if that fails too.
+    waiting.delete(w.id)
+    try { return await send(w) }
+    catch (e) { throw unreachable(e) ? new Error("No connection, and this device can't save taps offline. Try again when you're back online.") : e }
+  }
   void flush()
   return result
 }
@@ -100,13 +115,17 @@ export function flush(): Promise<void> {
   sending = withLock(SEND_LOCK, async () => {
     // Writes that had been waiting (offline, or queued by another tab): worth telling the user about.
     let caughtUp = 0
+    // Each write at most once per pass: if storage can't record a removal, stop instead of looping.
+    const tried = new Set<string>()
     for (;;) {
       const next = load()[0]
-      if (!next) break
+      if (!next || tried.has(next.id)) break
+      tried.add(next.id)
       inFlight.add(next.id)
       try {
         const reply = await send(next)
-        await edit(list => list.filter(x => x.id !== next.id))
+        // Sent: drop it from the queue. If storage can't be written, a replay is still safe (request ids, explicit states).
+        await edit(list => list.filter(x => x.id !== next.id)).catch(() => publish(load().filter(x => x.id !== next.id)))
         const mine = waiting.get(next.id)
         if (mine) { mine.resolve(reply); waiting.delete(next.id) } else caughtUp++
       } catch (e) {
@@ -114,7 +133,7 @@ export function flush(): Promise<void> {
           for (const [id, w] of waiting) { w.resolve(QUEUED); waiting.delete(id) }
           break
         }
-        await edit(list => list.filter(x => x.id !== next.id))
+        await edit(list => list.filter(x => x.id !== next.id)).catch(() => publish(load().filter(x => x.id !== next.id)))
         const mine = waiting.get(next.id)
         if (mine) { mine.reject(e); waiting.delete(next.id) }
         else onDropped?.(next, e instanceof Error ? e.message : String(e))
