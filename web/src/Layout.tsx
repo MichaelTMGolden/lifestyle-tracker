@@ -23,7 +23,7 @@ const primary: Destination[] = [
 ]
 const secondary: Destination[] = [
   { path: '/health', label: 'Health', detail: 'Readiness, trends and your weekly summary', keywords: 'sleep heart steps garmin stress body battery review weekly summary', icon: 'health' },
-  { path: '/schedule', label: 'Schedule', detail: 'Your week and appointments', keywords: 'calendar events timetable agenda routine', icon: 'schedule' },
+  { path: '/schedule', label: 'Routine', detail: 'Your weekly routine template', keywords: 'schedule calendar timetable agenda routine week template', icon: 'schedule' },
   { path: '/connect', label: 'Connect', detail: 'Connected data sources', keywords: 'integrations sync import garmin google', icon: 'connect' },
   { path: '/settings', label: 'Settings', detail: 'Targets and baselines', keywords: 'preferences configuration', icon: 'settings' },
 ]
