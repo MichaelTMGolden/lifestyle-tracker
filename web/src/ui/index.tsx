@@ -1,8 +1,9 @@
 // Rite component kit. Small, unopinionated building blocks; pages compose them.
-import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from './icons'
 import type { IconName } from './iconPaths'
+import { ToastHostContext } from './toastContext'
 import './ui.css'
 
 export { Icon } from './icons'
@@ -133,6 +134,13 @@ export function Sheet({ open, onClose, title, children, labelledBy }: {
     if (open && !d.open) d.showModal()
     else if (!open && d.open) d.close()
   }, [open])
+  // While open, this sheet hosts toasts so they show above the modal and stay clickable.
+  const toastHost = useContext(ToastHostContext)
+  useEffect(() => {
+    const d = ref.current
+    if (!open || !d || !toastHost) return
+    return toastHost.register(d)
+  }, [open, toastHost])
   return <dialog ref={ref} className="ui-sheet" aria-labelledby={titleId} onClose={onClose}
     onClick={e => { if (e.target === e.currentTarget) onClose() }}>
     <div className="ui-sheet__grip" aria-hidden="true" />

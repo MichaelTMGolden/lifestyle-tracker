@@ -1,6 +1,7 @@
 // Toast with an optional action (usually Undo). One provider near the root.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ToastContext, type ToastInput } from './toastContext'
+import { createPortal } from 'react-dom'
+import { ToastContext, ToastHostContext, type ToastInput } from './toastContext'
 
 type ToastItem = ToastInput & { id: number }
 
@@ -8,6 +9,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const nextId = useRef(1)
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
+  // Open sheets, oldest first; the newest one hosts the toasts.
+  const [hosts, setHosts] = useState<HTMLElement[]>([])
+  const register = useCallback((host: HTMLElement) => {
+    setHosts(list => [...list.filter(h => h !== host), host])
+    return () => setHosts(list => list.filter(h => h !== host))
+  }, [])
+  const hostApi = useMemo(() => ({ register }), [register])
 
   const dismiss = useCallback((id: number) => {
     clearTimeout(timers.current.get(id))
@@ -31,13 +39,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo(() => ({ show, dismiss }), [show, dismiss])
 
+  const list = <div className="ui-toasts" role="status" aria-live="polite">
+    {toasts.map(t => <div key={t.id} className={`ui-toast${t.tone === 'error' ? ' ui-toast--error' : ''}`}>
+      <span className="ui-toast__msg">{t.message}</span>
+      {t.action && <button type="button" className="ui-btn ui-btn--quiet ui-btn--sm" onClick={() => { dismiss(t.id); t.action!.onClick() }}>{t.action.label}</button>}
+    </div>)}
+  </div>
+  const host = hosts.at(-1)
+
   return <ToastContext.Provider value={api}>
-    {children}
-    <div className="ui-toasts" role="status" aria-live="polite">
-      {toasts.map(t => <div key={t.id} className={`ui-toast${t.tone === 'error' ? ' ui-toast--error' : ''}`}>
-        <span className="ui-toast__msg">{t.message}</span>
-        {t.action && <button type="button" className="ui-btn ui-btn--quiet ui-btn--sm" onClick={() => { dismiss(t.id); t.action!.onClick() }}>{t.action.label}</button>}
-      </div>)}
-    </div>
+    <ToastHostContext.Provider value={hostApi}>
+      {children}
+      {host ? createPortal(list, host) : list}
+    </ToastHostContext.Provider>
   </ToastContext.Provider>
 }

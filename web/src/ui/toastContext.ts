@@ -11,3 +11,11 @@ export function useToast(): ToastApi {
   if (!api) throw new Error('useToast must be used inside <ToastProvider>')
   return api
 }
+
+/**
+ * A modal sheet makes the rest of the page inert and draws above it, so while
+ * one is open toasts render inside it. Sheets register themselves here; the
+ * most recently opened one hosts the toasts. Returns an unregister function.
+ */
+export type ToastHostApi = { register: (host: HTMLElement) => () => void }
+export const ToastHostContext = createContext<ToastHostApi | null>(null)
