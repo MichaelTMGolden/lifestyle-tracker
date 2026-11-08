@@ -81,11 +81,12 @@ export default function TasksPage() {
     const day = destination === 'today' ? today : destination === 'tomorrow' ? nextDateKey() : destination === 'day' ? selected : null
     await onAction(async () => {
       const task = await api.createTodo({ ...input, title: input.title.trim(), dueAt: fromDateInput(input.dueAt) })
+      // The task exists now: close the form so a retry can't create a duplicate.
+      setSheet(null)
       if (day) {
         try { await dailyPlanning.plan(task.id, day) }
         catch (e) { throw new Error(`Task saved to your inbox, but planning it failed. ${message(e)}`, { cause: e }) }
       }
-      setSheet(null)
     }, day ? `Task planned for ${dayLabel(day).long}.` : 'Task added to your inbox.')
   }
   async function save(task: Todo, input: TodoInput) {
@@ -127,7 +128,8 @@ export default function TasksPage() {
   }
 
   const loading = todos.isPending
-  const loadError = todos.error ?? events.error
+  // A failed list must never read as an empty plan.
+  const loadError = todos.error ?? events.error ?? dayTodos.error ?? pending.error
 
   return <div className="pl-page">
     <header className="pl-head">
@@ -167,7 +169,7 @@ export default function TasksPage() {
             <CheckRow checked disabled={busy} onChange={() => void onAction(() => api.toggleDailyTodo(d.id), 'To-do reopened.')} label={d.title} />
           </div>)}
         </div>}
-        {!dayEvents.length && !plannedOn(selected).length && !quickItems.length && <Empty>{selected === today ? 'Nothing planned for today yet.' : 'This day is free.'}</Empty>}
+        {!dayEvents.length && !plannedOn(selected).length && !quickItems.length && !events.error && !dayTodos.error && <Empty>{selected === today ? 'Nothing planned for today yet.' : 'This day is free.'}</Empty>}
         <form className="pl-add" onSubmit={addQuick}>
           <Icon name="plus" size={18} />
           <label className="ui-sr-only" htmlFor="pl-quick">Add a quick to-do for {selectedLabel.long}</label>
