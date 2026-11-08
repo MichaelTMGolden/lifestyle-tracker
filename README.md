@@ -47,7 +47,7 @@ dotnet run
 ```
 
 On first start it **applies migrations and seeds ~90 days of dummy data**
-automatically. API → http://localhost:5080. Try http://localhost:5080/api/summary.
+automatically. API → http://localhost:5080. Try http://localhost:5080/healthz.
 
 Sample data is enabled by default only in Development. Production applies
 migrations and seeds the basic practices, goals and timetable without invented
@@ -192,7 +192,7 @@ cd web
 npm ci
 npm run lint
 npm run build
-node --experimental-strip-types --test --test-isolation=none tests/healthData.test.ts tests/chartMath.test.ts tests/timer-operation-gate.test.mjs tests/task-views.test.mjs
+node --experimental-strip-types --test --test-isolation=none tests/timer-operation-gate.test.mjs tests/task-views.test.mjs
 ```
 
 The `DashboardPlanningAndProgress` migration adds task planning columns, settings,
@@ -208,7 +208,6 @@ local integration secrets are not loaded.
 | GET  | `/api/today` | At-a-glance homepage rollup (steps, sleep, habits, next-up) |
 | GET  | `/api/schedule/week` | Weekly timetable grouped by day |
 | GET  | `/api/schedule/today` | Today's blocks + events, with calendar precedence |
-| GET  | `/api/summary` | Legacy rollup |
 | GET  | `/api/metrics` | List available metric keys |
 | GET  | `/api/metrics/{key}?days=90` | Time series (e.g. `weight_kg`, `steps`) |
 | POST | `/api/weight` | Log today's weight manually (`{value}`) |

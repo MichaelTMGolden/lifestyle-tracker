@@ -19,11 +19,6 @@ const primary: Destination[] = [
 ]
 const secondary: Destination[] = [
   { path: '/schedule', label: 'Schedule', detail: 'Your week and appointments', keywords: 'calendar events timetable agenda routine', icon: 'schedule' },
-  { path: '/health', label: 'Health', detail: 'Readiness and health trends', keywords: 'sleep weight heart steps garmin', icon: 'health' },
-  { path: '/review', label: 'Review', detail: 'Weekly reflection', keywords: 'digest recommendations commitments recap', icon: 'review' },
-  { path: '/nutrition', label: 'Nutrition', detail: 'Food, calories and macros', keywords: 'meals protein carbs fat', icon: 'nutrition' },
-  { path: '/artist', label: 'Artist', detail: 'Skill growth and your audience', keywords: 'music spotify listeners benchmarks', icon: 'artist' },
-  { path: '/bingo', label: 'Bingo', detail: 'Yearly milestones', keywords: 'year annual board', icon: 'bingo' },
   { path: '/connect', label: 'Connect', detail: 'Connected data sources', keywords: 'integrations sync import garmin google', icon: 'connect' },
   { path: '/settings', label: 'Settings', detail: 'Targets and baselines', keywords: 'preferences configuration', icon: 'settings' },
 ]
