@@ -10,7 +10,7 @@ export type Intent<H extends QuickHabit = QuickHabit> =
   | { kind: 'done'; habit: H }
   | { kind: 'timer'; habit: H }
   | { kind: 'todo'; title: string }
-  | { kind: 'choose'; habits: H[]; minutes: number | null }
+  | { kind: 'choose'; habits: H[]; minutes: number | null; done: boolean }
 
 const DONE_WORDS = new Set(['done', 'did', 'finished', 'complete', 'completed', 'check', 'tick', 'log', 'logged'])
 
@@ -59,11 +59,18 @@ export function parseQuickLog<H extends QuickHabit>(input: string, habits: H[]):
 
   // Not about a habit: it's a to-do, in the user's own words.
   if (matches.length === 0) return { kind: 'todo', title: text }
-  if (matches.length > 1) return { kind: 'choose', habits: matches, minutes: duration?.minutes ?? null }
+  if (matches.length > 1) return { kind: 'choose', habits: matches, minutes: duration?.minutes ?? null, done: doneWord }
 
   const habit = matches[0]
   if (duration) return habit.tracksTime ? { kind: 'minutes', habit, minutes: duration.minutes } : { kind: 'done', habit }
   if (habit.tracksTime && !doneWord) return { kind: 'timer', habit }
+  return { kind: 'done', habit }
+}
+
+/** The action for a habit picked from a 'choose' list, honouring what was typed. */
+export function resolveChoice<H extends QuickHabit>(choice: Extract<Intent<H>, { kind: 'choose' }>, habit: H): Intent<H> {
+  if (choice.minutes && habit.tracksTime) return { kind: 'minutes', habit, minutes: choice.minutes }
+  if (habit.tracksTime && !choice.done && !choice.minutes) return { kind: 'timer', habit }
   return { kind: 'done', habit }
 }
 

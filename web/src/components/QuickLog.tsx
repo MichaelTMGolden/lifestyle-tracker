@@ -2,21 +2,28 @@
 // "guitar" starts its timer, anything else becomes a to-do. The line under the
 // box always says what Enter will do.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { api, type Habit } from '../api'
+import { useQueryClient } from '@tanstack/react-query'
+import { api, type Habit, type TodayBundle } from '../api'
 import { dateKey } from '../dailyPlanning'
 import { addMinutes, QUEUED, setDone } from '../offline/habitSync'
-import { describe, parseQuickLog, type Intent } from '../quickLog'
+import { describe, parseQuickLog, resolveChoice, type Intent } from '../quickLog'
 import { useTimer } from '../timer/useTimer'
 import { Button, Icon, Sheet } from '../ui'
 import { useToast } from '../ui/hooks'
 import './QuickLog.css'
 
 const OFFLINE = 'saved on this device · syncs when you are back online'
+const HABITS_KEY = 'pd:quick-log-habits'
+function cachedHabits(): Habit[] { try { return JSON.parse(localStorage.getItem(HABITS_KEY) || '[]') as Habit[] } catch { return [] } }
+function saveHabits(h: Habit[]) { try { localStorage.setItem(HABITS_KEY, JSON.stringify(h)) } catch { /* optional */ } }
 
 export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast()
   const { timers, start, notifyChange } = useTimer()
-  const [habits, setHabits] = useState<Habit[]>([])
+  const qc = useQueryClient()
+  // Start from habits already on hand (Today's cached bundle, or the last list this
+  // sheet saw), so matching works offline before a fresh list arrives.
+  const [habits, setHabits] = useState<Habit[]>(() => qc.getQueryData<TodayBundle>(['today-bundle', dateKey()])?.habits ?? cachedHabits())
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,10 +33,15 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (!open) return
     let live = true
-    api.habits().then(h => { if (live) { setHabits(h); setError(null) } }, () => { if (live) setError("Couldn't load your habits. You can still add a to-do.") })
+    api.habits().then(h => { if (live) { setHabits(h); setError(null); saveHabits(h) } }, () => {
+      if (!live) return
+      const known = qc.getQueryData<TodayBundle>(['today-bundle', dateKey()])?.habits ?? cachedHabits()
+      if (known.length) setHabits(known)
+      else setError("Couldn't load your habits. You can still add a to-do.")
+    })
     const focus = setTimeout(() => input.current?.focus(), 50)
     return () => { live = false; clearTimeout(focus) }
-  }, [open])
+  }, [open, qc])
 
   const intent = useMemo(() => parseQuickLog(text, habits), [text, habits])
   const close = () => { setText(''); setError(null); onClose() }
@@ -61,7 +73,11 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
         case 'choose':
           return
       }
-      notifyChange() // pages showing habits or today's list refresh
+      notifyChange() // Today and Habits refresh on this
+      // Plan, Today and goal views read these through React Query.
+      void qc.invalidateQueries({ queryKey: ['daily'] })
+      void qc.invalidateQueries({ queryKey: ['today-bundle'] })
+      void qc.invalidateQueries({ queryKey: ['goals'] })
       close()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -82,7 +98,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       {(!intent || intent.kind === 'choose') && <p className="ql-hint">{intent ? describe(intent) : 'Type a habit and minutes (guitar 30), a habit to tick (reading), or a to-do.'}</p>}
       {error && <p className="ql-error" role="alert">{error}</p>}
       {intent?.kind === 'choose' && <div className="ql-choices">
-        {intent.habits.map(h => <Button key={h.id} size="sm" disabled={busy} onClick={() => void run(intent.minutes && h.tracksTime ? { kind: 'minutes', habit: h, minutes: intent.minutes } : h.tracksTime && !intent.minutes ? { kind: 'timer', habit: h } : { kind: 'done', habit: h })}>{h.name}</Button>)}
+        {intent.habits.map(h => <Button key={h.id} size="sm" disabled={busy} onClick={() => void run(resolveChoice(intent, h))}>{h.name}</Button>)}
       </div>}
       {intent && intent.kind !== 'choose' && <Button type="submit" variant="primary" block disabled={busy}>{busy ? 'Saving…' : describe(intent)}</Button>}
       {asTodo && <Button variant="quiet" block disabled={busy} onClick={() => void run(asTodo)}>Add as a to-do instead</Button>}
