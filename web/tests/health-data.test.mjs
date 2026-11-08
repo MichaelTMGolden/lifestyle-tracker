@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ageDays, daily, trend } from '../src/pages/health/data.ts'
+import { ageDays, ago, daily, trend } from '../src/pages/health/data.ts'
 
 const p = (recordedAt, value, extra = {}) => ({ recordedAt, value, unit: null, ...extra })
 
@@ -34,4 +34,11 @@ test('empty or one-sided ranges report no change', () => {
 test('age in days', () => {
   assert.equal(ageDays('2026-11-06', '2026-11-08'), 2)
   assert.equal(ageDays('2026-11-08', '2026-11-08'), 0)
+})
+
+test('ago reads naturally, then falls back to a date', () => {
+  assert.equal(ago('2026-11-08', '2026-11-08'), 'today')
+  assert.equal(ago('2026-11-07', '2026-11-08'), 'yesterday')
+  assert.equal(ago('2026-11-05', '2026-11-08'), '3 days ago')
+  assert.match(ago('2026-06-12', '2026-11-08'), /12/)
 })

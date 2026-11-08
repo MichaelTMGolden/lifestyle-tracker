@@ -32,3 +32,12 @@ export function trend(series: { date: string; value: number }[], days: number, t
 
 /** Days between a YYYY-MM-DD date and today. */
 export const ageDays = (date: string, today: string) => Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000)
+
+/** "today", "yesterday", "3 days ago", or a date once it is over a fortnight old. */
+export function ago(date: string, today: string) {
+  const n = ageDays(date, today)
+  if (n <= 0) return 'today'
+  if (n === 1) return 'yesterday'
+  if (n < 15) return `${n} days ago`
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}

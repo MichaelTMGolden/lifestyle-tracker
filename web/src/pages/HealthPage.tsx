@@ -8,7 +8,7 @@ import { dateKey } from '../dailyPlanning'
 import { useTodayBundle } from '../todayData'
 import { Button, Card, Pill, Ring, SectionHead, Skeleton, Spark, Stat, Tabs } from '../ui'
 import { useToast } from '../ui/hooks'
-import { ageDays, daily, trend } from './health/data'
+import { ageDays, ago, daily, trend } from './health/data'
 import './health/health.css'
 
 const METRICS = [
@@ -28,6 +28,17 @@ export default function HealthPage() {
   const bundle = useTodayBundle()
   const series = useQueries({ queries: METRICS.map(m => ({ queryKey: ['metric', m.key], queryFn: () => api.metric(m.key, 180) })) })
   const t = bundle.data?.today
+  // When today has no reading yet, the latest one stands in, dimmed and dated.
+  const latest = (key: (typeof METRICS)[number]['key']) => {
+    const q = series[METRICS.findIndex(m => m.key === key)]
+    const last = q?.data ? daily(q.data).at(-1) : undefined
+    return last ? { value: last.value, when: ago(last.date, today) } : null
+  }
+  const reading = (now: number | null, key: (typeof METRICS)[number]['key'], show: (v: number) => string) => {
+    if (now != null) return { value: show(now) }
+    const l = latest(key)
+    return l ? { value: show(l.value), sub: l.when, stale: true } : { value: '–', sub: 'No reading', unit: undefined }
+  }
 
   return <div className="hl-page">
     <header className="hl-head">
@@ -42,10 +53,10 @@ export default function HealthPage() {
             ? <Ring value={t.readiness} max={100} size={72} stroke={5} label={`Readiness ${t.readiness} of 100`}>{t.readiness}</Ring>
             : <div className="hl-today__none" aria-hidden="true">–</div>}
           <div className="hl-today__stats">
-            <Stat label="Sleep" value={t.lastSleepScore ?? '–'} />
-            <Stat label="Resting HR" value={t.restingHr ?? '–'} unit={t.restingHr != null ? 'bpm' : undefined} />
-            <Stat label="Body Battery" value={t.bodyBattery != null ? Math.round(t.bodyBattery) : '–'} />
-            <Stat label="Steps" value={t.stepsToday != null ? t.stepsToday.toLocaleString() : '–'} />
+            <Stat label="Sleep" {...reading(t.lastSleepScore, 'sleep_score', v => String(Math.round(v)))} />
+            <Stat label="Resting HR" unit="bpm" {...reading(t.restingHr, 'resting_hr', v => String(Math.round(v)))} />
+            <Stat label="Body Battery" {...reading(t.bodyBattery, 'body_battery', v => String(Math.round(v)))} />
+            <Stat label="Steps" {...reading(t.stepsToday, 'steps', v => Math.round(v).toLocaleString())} />
           </div>
         </div>
         <ul className="hl-inputs" aria-label="Readiness inputs">
@@ -66,13 +77,15 @@ export default function HealthPage() {
           const q = series[i]
           if (q.isPending) return <div key={m.key} className="hl-trend"><Skeleton height={36} /></div>
           const s = trend(daily(q.data ?? []), days, today)
+          // Nothing in range: show the last reading, dimmed, rather than a dash.
+          const old = s.avg == null && s.last ? s.last : null
           const good = s.change == null || Math.abs(s.change) < 0.5 ? null : (s.change > 0) === (m.better === 'up')
           return <div key={m.key} className="hl-trend">
             <div className="hl-trend__text">
               <span className="hl-trend__label">{m.label}</span>
-              <span className="hl-trend__value">{s.avg != null ? m.fmt(s.avg) : '–'}{s.avg != null && m.unit && <small> {m.unit}</small>}</span>
+              <span className={`hl-trend__value${old ? ' hl-trend__value--stale' : ''}`}>{s.avg != null ? m.fmt(s.avg) : old ? m.fmt(old.value) : '–'}{(s.avg != null || old) && m.unit && <small> {m.unit}</small>}</span>
               <span className="hl-trend__sub">
-                {s.avg == null ? 'No readings in this range' : `${days}-day average`}
+                {s.avg != null ? `${days}-day average` : old ? `Last reading ${ago(old.date, today)}` : 'No readings yet'}
                 {s.change != null && Math.abs(s.change) >= 0.5 && <span className={good ? 'hl-ok' : 'hl-stale'}> · {s.change > 0 ? '▲' : '▼'} {m.fmt(Math.abs(s.change))}</span>}
               </span>
             </div>

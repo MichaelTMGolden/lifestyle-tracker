@@ -98,7 +98,7 @@ export default function SchedulePage() {
 
     <Tabs options={views} value={view} onChange={setView} label="Show" />
 
-    {!week ? <Skeleton lines={5} />
+    {!week ? <Skeleton lines={5} height={48} />
       : view === 'day' ? <>
         <div className="sc-days" role="group" aria-label="Day">
           {dayTabs.map(t => <button key={t.value} type="button" aria-pressed={t.value === current?.day} className={`sc-day${t.value === current?.day ? ' sc-day--on' : ''}`} onClick={() => setDay(t.value)}>{t.label}</button>)}
