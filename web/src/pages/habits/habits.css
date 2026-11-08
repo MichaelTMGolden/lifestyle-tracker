@@ -64,3 +64,16 @@
 .hb-retired { list-style: none; margin: 0; padding: 0; }
 .hb-retired li { display: flex; align-items: center; gap: var(--rite-2); border-top: 1px solid var(--rite-border); padding: 4px 0; }
 .hb-retired__name { flex: 1; }
+
+/* Goal form (in a sheet) */
+.gl-form { display: flex; flex-direction: column; gap: var(--rite-4); }
+.gl-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--rite-muted); min-width: 0; }
+.gl-field small { font-size: 12px; }
+.gl-fieldset { border: 0; margin: 0; padding: 0; }
+.gl-fieldset legend { padding: 0; margin-bottom: 6px; }
+.gl-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rite-3); }
+.gl-input { box-sizing: border-box; width: 100%; min-height: var(--rite-tap); padding: 0 var(--rite-3); border-radius: var(--rite-radius-sm); border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 16px var(--font-body); }
+.gl-input:focus { outline: 2px solid var(--rite-accent-light); outline-offset: 1px; }
+.gl-chips { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
+.gl-chip { min-height: 40px; padding: 0 var(--rite-4); border-radius: var(--rite-pill); border: 1px solid var(--rite-border-strong); background: transparent; color: var(--rite-text); font: 500 14px var(--font-body); cursor: pointer; }
+.gl-chip--on { background: var(--rite-tint-strong); border-color: var(--rite-accent); }

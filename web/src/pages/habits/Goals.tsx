@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api, type Goal, type GoalInput, type Habit } from '../../api'
 import { Collapsible } from '../../components/Collapsible'
 import { daysBetween, fmtDate, fmtDaySpan, fmtHours, fmtMonthYear } from '../../lib'
-import { Button, Card, Pill, Progress, SectionHead } from '../../ui'
+import { Button, Card, Pill, Progress, SectionHead, Sheet } from '../../ui'
 import { GoalForm } from './GoalForm'
 import { goalPace } from './stats'
 
@@ -19,15 +19,16 @@ export function GoalsSection({ goals, habits, onChanged }: { goals: Goal[]; habi
 
   return <section className="hb-goals" aria-labelledby="hb-goals-title">
     <SectionHead id="hb-goals-title" title="Goals"
-      aside={editing == null && <Button size="sm" variant="quiet" icon="plus" onClick={() => setEditing('new')}>New goal</Button>} />
-    {editing === 'new' && <GoalForm habits={habits} onSubmit={create} onCancel={() => setEditing(null)} />}
+      aside={<Button size="sm" variant="quiet" icon="plus" onClick={() => setEditing('new')}>New goal</Button>} />
     <div className="hb-goals__grid">
-      {active.map(g => editing === g.id
-        ? <GoalForm key={g.id} habits={habits} goal={g} onSubmit={input => void save(g.id, input)} onCancel={() => setEditing(null)} />
-        : <GoalCard key={g.id} goal={g} onEdit={() => setEditing(g.id)} onDelete={() => remove(g.id)}
-            onRetire={() => void run(api.archiveGoal(g.id))} />)}
-      {active.length === 0 && editing !== 'new' && <p className="hb-hint">No goals yet. A goal rolls practice minutes from one or more habits into an hour target.</p>}
+      {active.map(g => <GoalCard key={g.id} goal={g} onEdit={() => setEditing(g.id)} onDelete={() => remove(g.id)}
+        onRetire={() => void run(api.archiveGoal(g.id))} />)}
+      {active.length === 0 && <p className="hb-hint">No goals yet. A goal rolls practice minutes from one or more habits into an hour target.</p>}
     </div>
+    <Sheet open={editing != null} onClose={() => setEditing(null)} title={editing === 'new' ? 'New goal' : 'Edit goal'} labelledBy="hb-goal-sheet">
+      {editing != null && <GoalForm key={String(editing)} habits={habits} goal={editing === 'new' ? undefined : goals.find(g => g.id === editing)}
+        onSubmit={input => void (editing === 'new' ? create(input) : save(editing, input))} />}
+    </Sheet>
     {retired.length > 0 && <Collapsible title={`Completed (${retired.length})`} storageKey="pd:goals-completed">
       <ul className="hb-retired">
         {retired.map(g => <li key={g.id}>
