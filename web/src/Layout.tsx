@@ -140,6 +140,7 @@ function HabitSync() {
       toast.show({ message: 'Offline taps synced.' })
       void qc.invalidateQueries({ queryKey: ['today-bundle'] })
       void qc.invalidateQueries({ queryKey: ['goals'] })
+      void qc.invalidateQueries({ queryKey: ['stats'] })
     }
     window.addEventListener('pd:habits-synced', synced)
     return () => window.removeEventListener('pd:habits-synced', synced)

@@ -1,9 +1,11 @@
 // Stats: the past year across every habit. How much of what you asked for got
 // done each month, the best week, streaks, each habit's numbers and goal hours.
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, type Habit } from '../api'
 import { habitColor } from '../habitColor'
+import { useTimer } from '../timer/useTimer'
 import { fmtHours } from '../lib'
 import { Bars, Button, Icon, Progress, Skeleton, Stat } from '../ui'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
@@ -19,6 +21,10 @@ export default function StatsPage() {
     queryKey: ['stats', YEAR_DAYS],
     queryFn: async () => { const [habits, heat, goals] = await Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()]); return { habits, heat, goals } },
   })
+  // A timer stopped here or on another device logs minutes: show the new totals.
+  const { dataTick } = useTimer()
+  const refetch = q.refetch
+  useEffect(() => { if (dataTick) void refetch() }, [dataTick, refetch])
 
   if (!q.data) return <div className="hb-page" aria-busy={!q.error}>
     <header className="hb-head"><h1>Stats</h1></header>
@@ -35,11 +41,14 @@ export default function StatsPage() {
   const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, byDate: heatById.get(h.id) ?? new Map<string, number>() }))
   const rates = monthlyRates(rows, today, 12)
   const best = bestWeek(rows, today, 53)
-  const yearStart = today.replace(/^(\d{4})/, y => String(Number(y) - 1))
-  const inYear = (r: { byDate: Map<string, number> | ReadonlyMap<string, number> }) => [...r.byDate].filter(([d]) => d > yearStart)
+  // One window for everything: the first day of the month eleven months ago, to today.
+  const yearStart = `${rates[0]?.month ?? today.slice(0, 7)}-01`
+  const inYear = (r: { byDate: Map<string, number> | ReadonlyMap<string, number> }) => [...r.byDate].filter(([d]) => d >= yearStart && d <= today)
   const activeDays = new Set(rows.flatMap(r => inYear(r).map(([d]) => d))).size
   const yearMinutes = rows.reduce((s, r) => s + inYear(r).reduce((m, [, v]) => m + v, 0), 0)
-  const topStreak = habits.reduce<Habit | null>((m, h) => !m || h.bestStreak > m.bestStreak ? h : m, null)
+  // Weekly streaks count weeks: compare everything in days.
+  const runDays = (h: Habit) => isWeekly(h) ? h.bestStreak * 7 : h.bestStreak
+  const topStreak = habits.reduce<Habit | null>((m, h) => !m || runDays(h) > runDays(m) ? h : m, null)
   const thisMonth = rates.at(-1)
   const ratedMonths = rates.filter(r => r.rate != null)
   const liveGoals = goals.filter(g => !g.archived)

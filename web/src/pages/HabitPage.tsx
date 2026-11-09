@@ -17,6 +17,7 @@ import './habits/habits.css'
 const YEAR_DAYS = 371
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const WEEKDAY_NAMES = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays']
+const OFFLINE_NOTE = 'saved on this device · syncs when you are back online'
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 const shortDate = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
@@ -65,19 +66,24 @@ export default function HabitPage() {
   const today = todayKey()
   const goal = goalForHabit(goals, h.id)
 
+  // Both show the change at once and keep it when the write is queued offline
+  // (a reload would fail then); a saved write reloads the server's numbers.
   async function toggle() {
     const next = !h.doneToday
     setHabit({ ...h, doneToday: next })
     try {
       const reply = await setDone(h, today, next)
-      toast.show({ message: reply === QUEUED ? `${h.name}: saved on this device · syncs when you are back online` : next ? `${h.name} done` : `${h.name} unmarked for today` })
+      if (reply === QUEUED) { toast.show({ message: `${h.name}: ${OFFLINE_NOTE}` }); return }
+      toast.show({ message: next ? `${h.name} done` : `${h.name} unmarked for today` })
       await load()
     } catch (e) { failed(e) }
   }
   async function logTime(mins: number) {
+    setHabit({ ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins })
     try {
       const reply = await addMinutes(h, today, mins)
-      toast.show({ message: reply === QUEUED ? `${h.name} · ${mins} min: saved on this device · syncs when you are back online` : `${h.name} · ${mins} min logged` })
+      if (reply === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: ${OFFLINE_NOTE}` }); return }
+      toast.show({ message: `${h.name} · ${mins} min logged` })
       await load()
     } catch (e) { failed(e) }
   }
