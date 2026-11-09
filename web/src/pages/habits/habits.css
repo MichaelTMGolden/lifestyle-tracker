@@ -134,3 +134,6 @@
 .hb-others .hb-card { background: transparent; }
 .hb-others .hb-card__name { font-size: 18px; }
 .hb-focus-note { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); font-size: 13px; color: var(--rite-muted); }
+.st-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--rite-2); }
+.st-notes li { display: flex; flex-direction: column; gap: 2px; font-size: 14px; padding-bottom: var(--rite-2); border-bottom: 1px solid var(--rite-hair); overflow-wrap: anywhere; }
+.st-notes__date { font-size: 12px; color: var(--rite-muted); }

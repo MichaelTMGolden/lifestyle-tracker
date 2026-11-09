@@ -118,3 +118,22 @@
 .td-agenda li { padding: 6px 0; }
 /* With ⋯ open its toggle sits at the row's top right: keep Today clear of it. */
 .td-row--task:has(.td-row__more[open]) > .ui-btn { margin-right: 44px; }
+
+/* Evening check-in */
+.td-checkin { display: flex; flex-direction: column; gap: var(--rite-4); padding: var(--rite-4); border-radius: var(--rite-radius-lg); border: 1px solid var(--rite-border-accent, var(--rite-border)); background: var(--rite-surface); }
+.td-checkin__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 24px; letter-spacing: 0; }
+.td-checkin__part { display: flex; flex-direction: column; gap: var(--rite-2); }
+.td-checkin__row { flex-direction: row; align-items: center; justify-content: space-between; font-size: 14px; }
+.td-checkin__label { font-size: 12px; color: var(--rite-muted); }
+.td-checkin__habits { display: flex; flex-wrap: wrap; gap: 6px; }
+.td-checkin__habit { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--rite-border-strong); background: transparent; color: var(--rite-text); font: 500 13px var(--font-body); cursor: pointer; }
+.td-mood { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.td-mood__opt { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 60px; padding: 8px 2px; border-radius: 12px; border: 1px solid var(--rite-border); background: transparent; color: var(--rite-muted); font: 500 12px var(--font-body); cursor: pointer; }
+.td-mood__opt[aria-checked="true"] { border-color: var(--rite-accent); color: var(--rite-text); background: var(--rite-tint, transparent); }
+.td-mood__dot { width: 14px; height: 14px; border-radius: 50%; background: var(--rite-accent); }
+.td-mood__dot[data-mood="1"] { opacity: .25; } .td-mood__dot[data-mood="2"] { opacity: .45; } .td-mood__dot[data-mood="3"] { opacity: .65; } .td-mood__dot[data-mood="4"] { opacity: .85; }
+.td-checkin__input { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 15px var(--font-body); }
+.td-checkin--done { flex-direction: row; align-items: center; justify-content: space-between; padding: var(--rite-3) var(--rite-4); gap: var(--rite-3); }
+.td-checkin--done p { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 14px; min-width: 0; }
+.td-checkin__eyebrow { font-size: 12px; color: var(--rite-muted); }
+.td-checkin__line { color: var(--rite-muted); overflow-wrap: anywhere; }
