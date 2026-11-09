@@ -40,7 +40,7 @@ export default function StatsPage() {
   const { habits, heat, goals } = q.data
   const today = todayKey()
   const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
-  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, byDate: heatById.get(h.id) ?? new Map<string, number>() }))
+  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, byDate: heatById.get(h.id) ?? new Map<string, number>() }))
   const rates = monthlyRates(rows, today, 12)
   const best = bestWeek(rows, today, 53)
   // One window for everything: the first day of the month eleven months ago, to today.

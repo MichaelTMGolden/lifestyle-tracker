@@ -13,7 +13,7 @@ import { daysBetween, fmtDaySpan, fmtHours } from '../lib'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { useStreakMilestones } from './habits/milestones'
-import { rememberHabits } from './habits/lastLoaded'
+import { lastHabits, rememberHabits } from './habits/lastLoaded'
 import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
@@ -28,9 +28,11 @@ const RANGE_KEY = 'pd:habits-range'
 const loadRange = (): Range => { try { const v = localStorage.getItem(RANGE_KEY); return v === '6m' || v === 'y' ? v : '4w' } catch { return '4w' } }
 
 export default function HabitsPage() {
-  const [habits, setHabits] = useState<Habit[]>([])
-  const [heat, setHeat] = useState<HabitHeatmap[]>([])
-  const [goals, setGoals] = useState<Goal[]>([])
+  // Start from what was last loaded, so coming back (even offline) shows the list.
+  const [cached] = useState(lastHabits)
+  const [habits, setHabits] = useState<Habit[]>(() => cached?.habits ?? [])
+  const [heat, setHeat] = useState<HabitHeatmap[]>(() => cached?.heat ?? [])
+  const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [range, setRangeState] = useState<Range>(loadRange)
@@ -45,7 +47,7 @@ export default function HabitsPage() {
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
-      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null); rememberHabits({ habits: h, heat: hm, goals: g, heatDays: YEAR_DAYS }) })
+      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false)), [])
   useEffect(() => { void load() }, [load])
@@ -55,6 +57,9 @@ export default function HabitsPage() {
   useEffect(() => { const on = () => void load(); window.addEventListener('pd:habits-synced', on); return () => window.removeEventListener('pd:habits-synced', on) }, [load])
 
   // Show a change at once: the habit row and today's heatmap cell.
+  // Remember what is on screen, local (queued) changes included, for the next visit.
+  useEffect(() => { if (habits.length) rememberHabits({ habits, heat, goals, heatDays: YEAR_DAYS }) }, [habits, heat, goals])
+
   function showHabit(row: Habit) {
     const today = todayKey()
     setHabits(list => list.map(h => h.id === row.id ? row : h))

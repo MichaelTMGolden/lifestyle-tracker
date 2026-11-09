@@ -46,3 +46,12 @@ test('best week is the one with the most practice days', () => {
   assert.deepEqual(bestWeek([a, b], '2026-11-11', 2), { start: '2026-11-02', days: 3, minutes: 0 })
   assert.equal(bestWeek([], '2026-11-11', 2), null)
 })
+
+test('extra days on one habit never cover another habit, and the true first entry counts', () => {
+  const daily = { habit: { cadence: 'daily', targetPerPeriod: 1 }, byDate: map('2026-02-01') } // 1 of 28
+  const weekly = { habit: { cadence: 'weekly', targetPerPeriod: 1 }, byDate: map(...Array.from({ length: 28 }, (_, i) => `2026-02-${String(i + 1).padStart(2, '0')}`)) } // 28 done, 4 asked
+  assert.equal(monthlyRates([daily, weekly], '2026-02-28', 1)[0].rate, 5 / 32)
+  // Logged long before the window: the gap months count as missed, not as "no habits".
+  const old = { habit: { cadence: 'daily', targetPerPeriod: 1 }, byDate: map('2026-02-10'), from: '2025-10-01' }
+  assert.equal(monthlyRates([old], '2026-02-28', 2)[0].rate, 0)
+})

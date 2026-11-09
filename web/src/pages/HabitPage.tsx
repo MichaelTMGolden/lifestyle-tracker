@@ -10,7 +10,7 @@ import { useTimer } from '../timer/useTimer'
 import { Bars, Button, Icon, Progress, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
-import { lastHabits } from './habits/lastLoaded'
+import { lastHabits, rememberHabit } from './habits/lastLoaded'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
 import { cellsFor, goalForHabit, goalPace, minutesByDate, todayKey } from './habits/stats'
 import './habits/habits.css'
@@ -78,7 +78,8 @@ function HabitView({ id }: { id: number }) {
   // (a reload would fail then); a saved write reloads the server's numbers.
   async function toggle() {
     const next = !h.doneToday
-    setHabit({ ...h, doneToday: next })
+    const shown = { ...h, doneToday: next }
+    setHabit(shown); rememberHabit(shown)
     try {
       const reply = await setDone(h, today, next)
       if (reply === QUEUED) { toast.show({ message: `${h.name}: ${OFFLINE_NOTE}` }); return }
@@ -87,7 +88,8 @@ function HabitView({ id }: { id: number }) {
     } catch (e) { failed(e) }
   }
   async function logTime(mins: number) {
-    setHabit({ ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins })
+    const shown = { ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins }
+    setHabit(shown); rememberHabit(shown)
     try {
       const reply = await addMinutes(h, today, mins)
       if (reply === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: ${OFFLINE_NOTE}` }); return }
@@ -118,7 +120,7 @@ function HabitView({ id }: { id: number }) {
 
 function Insights({ habit: h, byDate, today, goal }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal }) {
   const color = habitColor(h)
-  const rates = weekdayRates(byDate, today, 12, firstDay(byDate))
+  const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate))
   const counted = rates.filter(r => r.total > 0)
   const share = (r: { done: number; total: number }) => r.total ? r.done / r.total : 0
   // Only name a weak day when there is enough history and a real gap.

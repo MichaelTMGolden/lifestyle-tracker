@@ -79,7 +79,11 @@ export function monthlyTotals(byDate: ReadonlyMap<string, number>, today: string
   })
 }
 
-export type Tracked = { habit: HabitRhythm; byDate: ReadonlyMap<string, number> }
+export type Tracked = {
+  habit: HabitRhythm; byDate: ReadonlyMap<string, number>
+  /** The habit's first ever entry; `byDate` may only hold a recent window. */
+  from?: string | null
+}
 
 /**
  * Share of what all habits asked for that was done, per month (0–1, or null for a
@@ -87,7 +91,7 @@ export type Tracked = { habit: HabitRhythm; byDate: ReadonlyMap<string, number> 
  * and weekly habits ask for their target, not every day.
  */
 export function monthlyRates(rows: Tracked[], today: string, months = 12): { month: string; rate: number | null }[] {
-  const per = rows.map(r => ({ r, from: firstDay(r.byDate), months: monthlyTotals(r.byDate, today, months) }))
+  const per = rows.map(r => ({ r, from: r.from ?? firstDay(r.byDate), months: monthlyTotals(r.byDate, today, months) }))
   return Array.from({ length: months }, (_, i) => {
     let done = 0, asked = 0
     for (const { r, from, months: ms } of per) {
@@ -98,8 +102,10 @@ export function monthlyRates(rows: Tracked[], today: string, months = 12): { mon
       if (startDay == null) continue
       const span = mo.elapsed - startDay + 1
       if (span <= 0) continue
-      asked += expectedDays(r.habit, span)
-      done += mo.days
+      const want = expectedDays(r.habit, span)
+      asked += want
+      // Extra days on one habit don't make up for misses on another.
+      done += Math.min(mo.days, want)
     }
     return { month: per[0]?.months[i]?.month ?? '', rate: asked > 0 ? Math.min(1, done / asked) : null }
   })
