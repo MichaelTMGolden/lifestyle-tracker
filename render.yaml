@@ -73,6 +73,8 @@ services:
           name: personal-dashboard
           type: web
           envVarKey: GARMIN_ENC_KEY
+      - key: Usda__ApiKey
+        sync: false        # optional, as on Oregon: only USDA food search (Nutrition, hidden in v2) uses it
       - key: SIDECAR_TOKEN
         generateValue: true
       - key: SIDECAR_URL
