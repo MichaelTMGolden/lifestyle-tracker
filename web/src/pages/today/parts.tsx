@@ -220,7 +220,7 @@ export function ComingUp({ agenda, tasks, busy, onAction }: { agenda: AgendaRow[
           <CheckRow checked={false} disabled={busy} label={t.title} meta={due(t)}
             onChange={() => onAction(() => api.toggleTodo(t.id), 'Task done.')} />
           <Button size="sm" variant="quiet" disabled={busy} aria-label={`Do ${t.title} today`}
-            onClick={() => onAction(() => dailyPlanning.plan(t.id, today, false), 'Added to today.')}>Today</Button>
+            onClick={() => onAction(() => dailyPlanning.plan(t.id, today, t.isPriority ?? false), 'Added to today.')}>Today</Button>
           <details className="td-row__more">
             <summary aria-label={`More for ${t.title}`}><Icon name="more" size={18} /></summary>
             <TaskPlanActions task={t} busy={busy} onAction={onAction} />
