@@ -14,7 +14,7 @@ import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { useStreakMilestones } from './habits/milestones'
 import { lastHabits, rememberHabits } from './habits/lastLoaded'
-import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
+import { cellsFor, daysThisWeek, goalForHabit, heatWithToday, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
 const YEAR_DAYS = 371 // 53 weeks, so the calendar view always fills its first column
@@ -34,6 +34,8 @@ export default function HabitsPage() {
   const [heat, setHeat] = useState<HabitHeatmap[]>(() => cached?.heat ?? [])
   const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
   const [loading, setLoading] = useState(true)
+  // True once the server has answered: an empty list then means no habits, not "not loaded".
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [range, setRangeState] = useState<Range>(loadRange)
   const [adding, setAdding] = useState(false)
@@ -47,7 +49,7 @@ export default function HabitsPage() {
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
-      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
+      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null); setLoaded(true) })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false)), [])
   useEffect(() => { void load() }, [load])
@@ -58,19 +60,12 @@ export default function HabitsPage() {
 
   // Show a change at once: the habit row and today's heatmap cell.
   // Remember what is on screen, local (queued) changes included, for the next visit.
-  useEffect(() => { if (habits.length) rememberHabits({ habits, heat, goals, heatDays: YEAR_DAYS }) }, [habits, heat, goals])
+  useEffect(() => { if (loaded || habits.length) rememberHabits({ habits, heat, goals, heatDays: YEAR_DAYS }) }, [loaded, habits, heat, goals])
 
   function showHabit(row: Habit) {
     const today = todayKey()
     setHabits(list => list.map(h => h.id === row.id ? row : h))
-    setHeat(list => list.map(r => {
-      if (r.id !== row.id) return r
-      const days = r.days.filter(d => d.date !== today)
-      const dates = r.completedDates.filter(d => d !== today)
-      return row.doneToday
-        ? { ...r, days: [...days, { date: today, minutes: row.minutesToday }], completedDates: [...dates, today] }
-        : { ...r, days, completedDates: dates }
-    }))
+    setHeat(list => list.map(r => r.id === row.id ? heatWithToday(r, row, today) : r))
   }
   // A failed write reloads so the page shows what was actually saved.
   const failed = (e: unknown) => {

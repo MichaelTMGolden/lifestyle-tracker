@@ -10,9 +10,9 @@ import { useTimer } from '../timer/useTimer'
 import { Bars, Button, Icon, Progress, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
-import { lastHabits, rememberHabit } from './habits/lastLoaded'
+import { lastHabits, rememberHabit, rememberHabits } from './habits/lastLoaded'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
-import { cellsFor, goalForHabit, goalPace, minutesByDate, todayKey } from './habits/stats'
+import { cellsFor, goalForHabit, goalPace, heatWithToday, minutesByDate, todayKey } from './habits/stats'
 import './habits/habits.css'
 
 const YEAR_DAYS = 371
@@ -44,6 +44,8 @@ function HabitView({ id }: { id: number }) {
       .then(([hs, hm, g]) => {
         const h = hs.find(x => x.id === id) ?? null
         setHabit(h); setHeat(hm.find(r => r.id === id) ?? null); setGoals(g)
+        // Fresh from the server: the next page opened from the cache starts from this.
+        rememberHabits({ habits: hs, heat: hm, goals: g, heatDays: YEAR_DAYS })
         setState(h ? 'ready' : 'missing')
       })
       .catch(e => setState(message(e))), [id])
@@ -74,12 +76,17 @@ function HabitView({ id }: { id: number }) {
   const today = todayKey()
   const goal = goalForHabit(goals, h.id)
 
+  // Show a change at once on the row and today's heatmap cell, and keep it for the list.
+  function show(row: Habit) {
+    const cell = heat ? heatWithToday(heat, row, today) : null
+    setHabit(row); if (cell) setHeat(cell); rememberHabit(row, cell)
+  }
   // Both show the change at once and keep it when the write is queued offline
   // (a reload would fail then); a saved write reloads the server's numbers.
   async function toggle() {
     const next = !h.doneToday
     const shown = { ...h, doneToday: next }
-    setHabit(shown); rememberHabit(shown)
+    show(shown)
     try {
       const reply = await setDone(h, today, next)
       if (reply === QUEUED) { toast.show({ message: `${h.name}: ${OFFLINE_NOTE}` }); return }
@@ -89,7 +96,7 @@ function HabitView({ id }: { id: number }) {
   }
   async function logTime(mins: number) {
     const shown = { ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins }
-    setHabit(shown); rememberHabit(shown)
+    show(shown)
     try {
       const reply = await addMinutes(h, today, mins)
       if (reply === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: ${OFFLINE_NOTE}` }); return }
