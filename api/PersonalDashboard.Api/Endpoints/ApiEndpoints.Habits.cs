@@ -354,10 +354,8 @@ public static partial class ApiEndpoints
         {
             var habit = await db.Habits.FindAsync(id);
             if (habit is null) return Results.NotFound();
-            db.Habits.Remove(habit);
-            await db.SaveChangesAsync();
-            // A season left with no habits ends today; past seasons keep their history.
-            await Seasons.EndIfEmptyAsync(db, ClientClock.From(req).Today);
+            // Under the season lock; a season left with no habits ends (history kept).
+            await Seasons.DeleteHabitAsync(db, habit, ClientClock.From(req).Today);
             return Results.NoContent();
         });
     }
