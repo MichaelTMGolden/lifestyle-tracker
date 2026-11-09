@@ -48,9 +48,14 @@ export function prefetchToday() {
 }
 
 export function useTodayBundle() {
+  const day = dateKey()
   return useQuery({
-    queryKey: bundleKey(),
+    queryKey: bundleKey(day),
     queryFn: fetchBundle,
+    // Today's copy saved on this device, whatever page the app opened on
+    // (it counts as old, so the refetch below still runs).
+    initialData: () => savedBundle(day)?.data,
+    initialDataUpdatedAt: () => savedBundle(day)?.at,
     // Show the cached day at once, but always check for changes made on other
     // pages (Habits, Tasks) or devices since it was fetched.
     refetchOnMount: 'always',

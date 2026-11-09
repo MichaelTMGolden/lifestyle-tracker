@@ -37,8 +37,12 @@ const readList = async (shell, key) => { const r = await shell.match(key); retur
  * can always start (offline too). Keeps the previous build's files, drops older.
  */
 async function installBuild(html) {
-  let files = []
-  try { const r = await fetch('/asset-list.json', { cache: 'no-store' }); if (r.ok) files = await r.json() } catch { /* an older server: the HTML's own files only */ }
+  // Without the build's full file list the new shell can't be known complete:
+  // keep the saved one (throws; the caller ignores it and tries next open).
+  const list = await fetch('/asset-list.json', { cache: 'no-store' })
+  if (!list.ok) throw new Error('asset list unavailable')
+  const files = await list.json()
+  if (!Array.isArray(files) || files.length === 0) throw new Error('asset list empty')
   const needed = [...new Set([...assetUrls(html), ...files])]
   await cacheAll(needed)
   const shell = await caches.open(SHELL)
