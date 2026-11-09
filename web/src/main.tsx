@@ -9,11 +9,16 @@ import { prefetchToday, queryClient } from './todayData'
 
 // A saved page from an older build asked for code a deploy has since removed:
 // load the current build once (the service worker skips its saved copy for ?fresh).
-window.addEventListener('vite:preloadError', event => {
-  try { if (sessionStorage.getItem('pd:fresh')) return; sessionStorage.setItem('pd:fresh', '1') } catch { return }
-  event.preventDefault()
-  const params = new URLSearchParams(location.search); params.set('fresh', '1')
-  location.replace(`${location.pathname}?${params}`)
+// Only when the server can be reached: offline, a failed download is just that,
+// and leaving a working page would strand it on a network error.
+window.addEventListener('vite:preloadError', () => {
+  if (!navigator.onLine) return
+  void fetch('/asset-list.json', { cache: 'no-store' }).then(r => {
+    if (!r.ok) return
+    try { if (sessionStorage.getItem('pd:fresh')) return; sessionStorage.setItem('pd:fresh', '1') } catch { return }
+    const params = new URLSearchParams(location.search); params.set('fresh', '1')
+    location.replace(`${location.pathname}?${params}`)
+  }, () => { /* unreachable: stay on this page */ })
 })
 if (new URLSearchParams(location.search).has('fresh')) {
   const params = new URLSearchParams(location.search); params.delete('fresh')
