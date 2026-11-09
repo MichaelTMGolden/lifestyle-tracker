@@ -1,7 +1,8 @@
 // Today page pieces: running timers, habit tiles, the today list and what's coming up.
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import type { Alert, DailyTodo, Goal, Habit, Todo } from '../../api'
+import { api, type Alert, type DailyTodo, type Goal, type Habit, type Todo } from '../../api'
+import { dailyPlanning, dateKey } from '../../dailyPlanning'
 import type { AgendaRow } from './agenda'
 import { DragGrip, Reorderable } from '../../components/Reorderable'
 import { TaskPlanActions, type PlanningAction } from '../../components/DailyPlanning'
@@ -192,20 +193,37 @@ export function Alerts({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id:
 }
 
 /* ---------- Coming up: rest of today's schedule and tasks to pull in ---------- */
+const fmtShort = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+
 export function ComingUp({ agenda, tasks, busy, onAction }: { agenda: AgendaRow[]; tasks: Todo[]; busy: boolean; onAction: PlanningAction }) {
+  const today = dateKey()
+  // One line per task: tick to complete, a one-tap "Today", and the rest behind ⋯.
+  const due = (t: Todo) => {
+    if (!t.dueAt) return 'No due date'
+    const d = t.dueAt.slice(0, 10)
+    return d < today ? `Overdue · ${fmtShort(d)}` : d === today ? 'Due today' : `Due ${fmtShort(d)}`
+  }
   return <div className="td-coming">
     {agenda.length > 0 && <ul className="td-agenda" aria-label="Rest of today">
       {agenda.map(r => <li key={r.key} className={r.current ? 'td-agenda--now' : undefined}>
         <span className="td-agenda__time">{r.current ? 'Now' : fmtMinutes(r.start)}</span>
-        <span className="td-agenda__text"><span>{r.title}</span><small>{r.meta}</small></span>
+        <span className="td-agenda__text"><span>{r.title}</span>{r.meta && <small>{r.meta}</small>}</span>
       </li>)}
     </ul>}
     {tasks.length > 0 && <div className="td-tasks">
       <h3 className="td-sub">Tasks you could do today</h3>
-      {tasks.map(t => <div key={t.id} className="td-task">
-        <span className="td-task__text">{t.title}<small>{t.dueAt ? `Due ${new Date(`${t.dueAt.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : 'No due date'}</small></span>
-        <TaskPlanActions task={t} busy={busy} onAction={onAction} showComplete />
-      </div>)}
+      <div className="td-list">
+        {tasks.map(t => <div key={t.id} className={`td-row td-row--task${t.dueAt && t.dueAt.slice(0, 10) < today ? ' td-row--overdue' : ''}`}>
+          <CheckRow checked={false} disabled={busy} label={t.title} meta={due(t)}
+            onChange={() => onAction(() => api.toggleTodo(t.id), 'Task done.')} />
+          <Button size="sm" variant="quiet" disabled={busy} aria-label={`Do ${t.title} today`}
+            onClick={() => onAction(() => dailyPlanning.plan(t.id, today, false), 'Added to today.')}>Today</Button>
+          <details className="td-row__more">
+            <summary aria-label={`More for ${t.title}`}><Icon name="more" size={18} /></summary>
+            <TaskPlanActions task={t} busy={busy} onAction={onAction} />
+          </details>
+        </div>)}
+      </div>
     </div>}
     {!agenda.length && !tasks.length && <p className="td-hint">Nothing else today.</p>}
     <Link className="td-link" to="/tasks">All tasks →</Link>

@@ -112,3 +112,7 @@
 .td-timer__main { flex-wrap: wrap; }
 .td-timer__actions { flex-wrap: wrap; }
 @media (max-width: 420px) { .td-timer__actions { flex: 1 1 100%; } .td-timer__actions > * { flex: 1 1 0; } }
+/* Coming up: one compact row per task, like Today's list. */
+.td-row--task .ui-btn--quiet { flex-shrink: 0; }
+.td-row--overdue .ui-check-row__meta { color: var(--rite-warn); }
+.td-agenda li { padding: 6px 0; }
