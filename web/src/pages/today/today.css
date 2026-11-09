@@ -97,3 +97,5 @@
 .td-task { display: flex; flex-direction: column; gap: var(--rite-2); padding: var(--rite-2) 0; border-bottom: 1px solid var(--rite-hair); }
 .td-task__text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .td-task__text small { font-size: 12px; color: var(--rite-muted); }
+.td-timer__actions { display: inline-flex; gap: var(--rite-2); flex-shrink: 0; }
+.td-timer__actions a.ui-btn, .hb-sheet a.ui-btn { text-decoration: none; }

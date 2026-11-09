@@ -1,5 +1,6 @@
 // Everything for one habit: stats, the year view, insights, logging, rhythm, entries and settings.
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { api, type Habit, type HabitLogEntry } from '../../api'
 import { fmtDate, fmtElapsed, fmtHours } from '../../lib'
 import { skillProgressApi } from '../../skillProgressApi'
@@ -62,6 +63,7 @@ export function HabitDetail({ habit: h, yearCells, insights, running, elapsedMs,
       {running
         ? <Button variant="primary" block icon="stop" onClick={onStop}>Stop &amp; log · {fmtElapsed(elapsedMs)}</Button>
         : <Button variant="primary" block icon="play" onClick={onStart}>Start timer</Button>}
+      <Link className="ui-btn ui-btn--ghost ui-btn--block" to={`/focus/${h.id}`}>Open in focus</Link>
     </section>
       : <Button variant={h.doneToday ? 'ghost' : 'primary'} block icon="check" onClick={onToggle} aria-pressed={h.doneToday}>
           {h.doneToday ? 'Done today · tap to undo' : 'Mark done today'}

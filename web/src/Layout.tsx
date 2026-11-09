@@ -22,6 +22,7 @@ const primary: Destination[] = [
   { path: '/tasks', label: 'Plan', detail: 'Tasks and what is coming up', keywords: 'todo to-do tasks priorities backlog', icon: 'plan' },
 ]
 const secondary: Destination[] = [
+  { path: '/focus', label: 'Focus', detail: 'A full-screen timer for one habit', keywords: 'timer practice session stopwatch concentrate', icon: 'play' },
   { path: '/stats', label: 'Stats', detail: 'Your year across every habit', keywords: 'statistics progress year months streaks hours insights', icon: 'review' },
   { path: '/health', label: 'Health', detail: 'Readiness, trends and your weekly summary', keywords: 'sleep heart steps garmin stress body battery review weekly summary', icon: 'health' },
   { path: '/schedule', label: 'Routine', detail: 'Your weekly routine template', keywords: 'schedule calendar timetable agenda routine week template', icon: 'schedule' },
@@ -48,6 +49,16 @@ export default function Layout() {
   const results = q ? all.filter(d => `${d.label} ${d.detail} ${d.keywords}`.toLocaleLowerCase().includes(q)) : secondary
 
   const openMore = useCallback(() => { setQuery(''); setMoreOpen(true) }, [])
+
+  // The app icon's Quick log shortcut opens /?quick=1; closing the sheet tidies the address.
+  const quickFromUrl = new URLSearchParams(location.search).get('quick') === '1'
+  const closeQuick = useCallback(() => {
+    setQuickOpen(false)
+    const params = new URLSearchParams(location.search)
+    if (params.get('quick') !== '1') return
+    params.delete('quick')
+    navigate({ pathname: location.pathname, search: params.size ? `?${params}` : '' }, { replace: true })
+  }, [location.search, location.pathname, navigate])
   const closeMore = useCallback(() => setMoreOpen(false), [])
 
   useEffect(() => {
@@ -121,7 +132,7 @@ export default function Layout() {
       </div>
       <MobileActionBar />
       {/* Desktop entry point; on phones the action bar opens its own. */}
-      <QuickLogSheet open={quickOpen} onClose={() => setQuickOpen(false)} />
+      <QuickLogSheet open={quickOpen || quickFromUrl} onClose={closeQuick} />
       <HabitSync />
     </ToastProvider>
   </TimerProvider>
