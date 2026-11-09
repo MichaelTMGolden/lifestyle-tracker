@@ -19,6 +19,8 @@ const shortDate = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(un
 export default function StatsPage() {
   const q = useQuery({
     queryKey: ['stats', YEAR_DAYS],
+    // Logs change from many places (habit pages, entries, timers): always refetch on open.
+    refetchOnMount: 'always',
     queryFn: async () => { const [habits, heat, goals] = await Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()]); return { habits, heat, goals } },
   })
   // A timer stopped here or on another device logs minutes: show the new totals.

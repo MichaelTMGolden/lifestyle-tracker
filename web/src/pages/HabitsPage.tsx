@@ -13,6 +13,7 @@ import { daysBetween, fmtDaySpan, fmtHours } from '../lib'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { useStreakMilestones } from './habits/milestones'
+import { rememberHabits } from './habits/lastLoaded'
 import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
@@ -44,7 +45,7 @@ export default function HabitsPage() {
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
-      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
+      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null); rememberHabits({ habits: h, heat: hm, goals: g, heatDays: YEAR_DAYS }) })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false)), [])
   useEffect(() => { void load() }, [load])
