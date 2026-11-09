@@ -17,7 +17,7 @@ import { lastHabits, rememberHabits } from './habits/lastLoaded'
 import { SeasonBanner, SeasonSheet } from './habits/SeasonSheet'
 import { useSeasons } from './habits/useSeasons'
 import { splitByFocus } from '../seasons'
-import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
+import { cellsFor, daysThisWeek, goalForHabit, heatWithToday, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
 const YEAR_DAYS = 371 // 53 weeks, so the calendar view always fills its first column
@@ -68,14 +68,7 @@ export default function HabitsPage() {
   function showHabit(row: Habit) {
     const today = todayKey()
     setHabits(list => list.map(h => h.id === row.id ? row : h))
-    setHeat(list => list.map(r => {
-      if (r.id !== row.id) return r
-      const days = r.days.filter(d => d.date !== today)
-      const dates = r.completedDates.filter(d => d !== today)
-      return row.doneToday
-        ? { ...r, days: [...days, { date: today, minutes: row.minutesToday }], completedDates: [...dates, today] }
-        : { ...r, days, completedDates: dates }
-    }))
+    setHeat(list => list.map(r => r.id === row.id ? heatWithToday(r, row, today) : r))
   }
   // A failed write reloads so the page shows what was actually saved.
   const failed = (e: unknown) => {
