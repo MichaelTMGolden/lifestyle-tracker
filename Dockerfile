@@ -28,6 +28,18 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# Postgres 18 client tools (pg_dump, pg_restore, psql) for the one-time
+# database move in entrypoint.sh; the database runs Postgres 18.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && rm -rf /var/lib/apt/lists/*
 COPY sidecar/ ./sidecar/
 RUN python3 -m venv /opt/sidecar-venv \
     && /opt/sidecar-venv/bin/pip install --no-cache-dir -r ./sidecar/requirements.txt

@@ -5,6 +5,16 @@ databases:
     databaseName: personal_dashboard
     user: dashboard
     plan: basic-256mb     # paid, so the data doesn't expire (free Postgres expires)
+    # Oregon (Render's default). Kept, untouched, as a fallback after the move to
+    # Singapore below; delete it (and personal-dashboard) only once Singapore is proven.
+
+  # Singapore: much closer to Australia than Oregon (each request roughly halves).
+  - name: dashboard-db-sg
+    region: singapore
+    databaseName: personal_dashboard
+    user: dashboard
+    plan: basic-256mb
+    postgresMajorVersion: "18"
 
 services:
   - type: web
@@ -32,3 +42,63 @@ services:
         value: http://127.0.0.1:8001   # the sidecar runs inside this container
       - key: SYNC_HOURS
         value: "1"   # auto-sync all connections (Garmin + Google) every N hours (fractions ok; 0 disables)
+
+  # The same app in Singapore, on dashboard-db-sg. On its first start
+  # entrypoint.sh copies the Oregon database into the (empty) new one. Every
+  # secret comes by reference from the Oregon service or database, so none is
+  # typed or seen during the move.
+  - type: web
+    name: personal-dashboard-sg
+    region: singapore
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: SEED_DUMMY_DATA
+        value: "false"
+      - key: ConnectionStrings__Postgres
+        fromDatabase:
+          name: dashboard-db-sg
+          property: connectionString
+      - key: APP_PASSWORD           # the same sign-in password as before
+        fromService:
+          name: personal-dashboard
+          type: web
+          envVarKey: APP_PASSWORD
+      - key: GARMIN_ENC_KEY         # the same key, so stored secrets still decrypt
+        fromService:
+          name: personal-dashboard
+          type: web
+          envVarKey: GARMIN_ENC_KEY
+      - key: SIDECAR_TOKEN
+        generateValue: true
+      - key: SIDECAR_URL
+        value: http://127.0.0.1:8001
+      - key: SYNC_HOURS
+        value: "1"
+      # One-time copy source (see entrypoint.sh): the Oregon database.
+      - key: COPY_FROM_REGION
+        value: oregon
+      - key: COPY_FROM_HOST
+        fromDatabase:
+          name: dashboard-db
+          property: host
+      - key: COPY_FROM_PORT
+        fromDatabase:
+          name: dashboard-db
+          property: port
+      - key: COPY_FROM_DB
+        fromDatabase:
+          name: dashboard-db
+          property: database
+      - key: COPY_FROM_USER
+        fromDatabase:
+          name: dashboard-db
+          property: user
+      - key: COPY_FROM_PASSWORD
+        fromDatabase:
+          name: dashboard-db
+          property: password
