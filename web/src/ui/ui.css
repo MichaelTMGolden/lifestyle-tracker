@@ -156,3 +156,14 @@ a.ui-list-row:hover, button.ui-list-row:hover { background: var(--rite-surface);
 @keyframes ui-tick-pop { 0% { transform: scale(.7); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
 @keyframes ui-burst { from { transform: scale(.6); opacity: .7; } to { transform: scale(2.1); opacity: 0; } }
 @keyframes ui-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 3px var(--habit-border, var(--rite-border-accent)), 0 0 22px 2px var(--habit-tint, var(--rite-tint)); } }
+
+/* ---------- Bars ---------- */
+.ui-bars { margin: 0; display: flex; flex-direction: column; gap: var(--rite-2); min-width: 0; }
+.ui-bars__plot { display: flex; align-items: stretch; gap: 2px; height: calc(var(--bars-h, 96px) + 18px); border-bottom: 1px solid var(--rite-border); }
+.ui-bars__bar { all: unset; cursor: pointer; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; position: relative; padding-bottom: 18px; }
+.ui-bars__bar:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; border-radius: 4px; }
+.ui-bars__fill { display: block; border-radius: 4px 4px 0 0; background: var(--bars-c, var(--habit, var(--rite-accent))); opacity: .55; min-height: 0; transition: opacity .15s; }
+.ui-bars__fill[data-zero] { height: 2px !important; background: var(--rite-border); opacity: 1; }
+.ui-bars__bar[aria-pressed="true"] .ui-bars__fill:not([data-zero]) { opacity: 1; }
+.ui-bars__label { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; line-height: 16px; color: var(--rite-muted); white-space: nowrap; overflow: hidden; }
+.ui-bars__readout { font-size: 13px; color: var(--rite-text); min-height: 1.3em; }

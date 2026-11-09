@@ -88,3 +88,27 @@
 .hb-swatch[aria-checked="true"] { border-color: var(--rite-text); box-shadow: inset 0 0 0 2px var(--rite-surface); }
 .hb-swatch:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .hb-card--milestone, .hb-card__action.is-ticked svg, .hb-card__action.is-ticked::after { animation: none; } }
+
+/* Habit page and Stats */
+.hb-head__actions { display: flex; gap: var(--rite-1, 4px); flex-wrap: wrap; justify-content: flex-end; }
+.hb-head__actions a.ui-btn { text-decoration: none; }
+.hb-back { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; font-size: 13px; color: var(--rite-muted); text-decoration: none; }
+.hb-back svg { transform: rotate(180deg); }
+.hb-back:hover { color: var(--rite-text); }
+.hb-detail { max-width: 720px; }
+.hb-detail__head h1 { margin: 2px 0 0; font-family: var(--font-display); font-weight: 400; font-size: 38px; line-height: 1.05; letter-spacing: 0; color: var(--habit-light, var(--rite-text)); overflow-wrap: anywhere; }
+.st-page { max-width: 760px; }
+.st-label { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 22px; letter-spacing: 0; }
+.st-table-wrap { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.st-table th, .st-table td { padding: 10px 8px; text-align: right; border-bottom: 1px solid var(--rite-border); white-space: nowrap; font-weight: 400; }
+.st-table thead th { font-size: 12px; color: var(--rite-muted); font-weight: 500; }
+.st-table th:first-child { text-align: left; padding-left: 0; white-space: normal; }
+.st-table td:last-child, .st-table th:last-child { padding-right: 0; }
+.st-table small { color: var(--rite-muted); font-size: 12px; }
+.st-habit { display: inline-flex; align-items: center; gap: 8px; color: var(--rite-text); text-decoration: none; min-height: 28px; }
+.st-habit:hover { text-decoration: underline; }
+.st-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.st-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--rite-4); }
+.st-goals li { display: flex; flex-direction: column; gap: 6px; }
+.st-goals b { color: var(--rite-text); font-weight: 500; }

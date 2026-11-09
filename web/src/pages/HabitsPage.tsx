@@ -1,19 +1,19 @@
-// Habits: one card per habit (streak, cadence, one-tap action, heatmap), a detail
-// sheet for logging and settings, then goals and challenges.
+// Habits: one card per habit (streak, cadence, one-tap action, heatmap) that opens
+// the habit's own page, then goals and challenges.
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, type Goal, type Habit, type HabitHeatmap } from '../api'
 import { ChallengesSection } from '../components/Challenges'
 import { useTimer } from '../timer/useTimer'
 import { Button, Sheet, Skeleton, Tabs } from '../ui'
 import { useToast } from '../ui/hooks'
-import { addMinutes, QUEUED, setDone } from '../offline/habitSync'
+import { QUEUED, setDone } from '../offline/habitSync'
 import { Celebration } from '../components/Celebration'
 import { daysBetween, fmtDaySpan, fmtHours } from '../lib'
 import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
-import { HabitSheet } from './habits/HabitSheet'
 import { useStreakMilestones } from './habits/milestones'
-import { cellsFor, daysThisWeek, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
+import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
 const YEAR_DAYS = 371 // 53 weeks, so the calendar view always fills its first column
@@ -33,12 +33,12 @@ export default function HabitsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [range, setRangeState] = useState<Range>(loadRange)
-  const [openId, setOpenId] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
   const [celebrated, setCelebrated] = useState(loadCelebrated)
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   const toast = useToast()
   const milestone = useStreakMilestones(habits)
+  const navigate = useNavigate()
 
   const setRange = (r: Range) => { setRangeState(r); try { localStorage.setItem(RANGE_KEY, r) } catch { /* private mode */ } }
 
@@ -88,29 +88,9 @@ export default function HabitsPage() {
     } catch (e) { failed(e) }
   }
 
-  async function logTime(h: Habit, mins: number) {
-    showHabit({ ...h, doneToday: true, minutesToday: h.minutesToday + mins, totalMinutes: h.totalMinutes + mins })
-    try {
-      const reply = await addMinutes(h, todayKey(), mins)
-      if (reply === QUEUED) { toast.show({ message: `${h.name} · ${mins} min: ${OFFLINE_NOTE}` }); return }
-      if (reply.habit) showHabit(reply.habit)
-      toast.show({ message: `${h.name} · ${mins} min logged` })
-      setGoals(await api.goals()) // minutes feed goal progress
-    } catch (e) { failed(e) }
-  }
-
-  // TimerProvider shows a lasting error banner, but it sits behind an open sheet,
-  // so while one is open the failure also shows as a toast inside it.
-  const timerFailed = (e: unknown) => {
-    if (openId != null) toast.show({ message: e instanceof Error ? e.message : String(e), tone: 'error' })
-  }
-  const startTimer = (h: Habit) => { void start(h.id, h.name).catch(timerFailed) }
-  const stopTimer = (h: Habit) => { void stop(h.id).catch(timerFailed) }
-
-  async function removeHabit(h: Habit) {
-    if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
-    try { await api.deleteHabit(h.id); setOpenId(null); await load() } catch (e) { failed(e) }
-  }
+  // TimerProvider shows the error banner.
+  const startTimer = (h: Habit) => { void start(h.id, h.name).catch(() => {}) }
+  const stopTimer = (h: Habit) => { void stop(h.id).catch(() => {}) }
 
   const celebrating = goals.find(g => g.state === 'complete' && !g.archived && !celebrated.includes(g.id)) ?? null
   const dismissCelebration = useCallback(() => {
@@ -125,11 +105,6 @@ export default function HabitsPage() {
   const weekDone = week.reduce((s, { h, done }) => s + Math.min(done, weeklyTarget(h)), 0)
   const weekTarget = week.reduce((s, { h }) => s + weeklyTarget(h), 0)
   const longest = habits.filter(h => !isWeekly(h)).reduce((m, h) => Math.max(m, h.currentStreak), 0)
-  // The goal most specific to a habit: fewest feeder habits wins (100h Guitar over a shared goal).
-  const goalFor = (id: number) => goals
-    .filter(g => !g.archived && g.state !== 'complete' && g.sources.some(s => s.habitId === id))
-    .sort((a, b) => a.sources.length - b.sources.length)[0]
-  const open = habits.find(h => h.id === openId) ?? null
 
   return <div className="hb-page">
     <header className="hb-head">
@@ -139,7 +114,10 @@ export default function HabitsPage() {
           This week <b>{weekDone} of {weekTarget}</b>{longest > 0 && <> · longest run <b>{longest} {longest === 1 ? 'day' : 'days'}</b></>}
         </p>}
       </div>
-      <Button size="sm" variant="quiet" icon="plus" onClick={() => setAdding(true)}>New habit</Button>
+      <div className="hb-head__actions">
+        <Link className="ui-btn ui-btn--quiet ui-btn--sm" to="/stats">Stats</Link>
+        <Button size="sm" variant="quiet" icon="plus" onClick={() => setAdding(true)}>New habit</Button>
+      </div>
     </header>
 
     <Tabs options={ranges} value={range} onChange={setRange} label="Heatmap range" />
@@ -152,8 +130,8 @@ export default function HabitsPage() {
       {week.map(({ h, done }) => {
         const byDate = heatById.get(h.id) ?? new Map<string, number>()
         return <HabitCard key={h.id} habit={h} range={range} cells={cellsFor(h, byDate, RANGE_DAYS[range])} doneThisWeek={done}
-          goal={goalFor(h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
-          onOpen={() => setOpenId(h.id)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
+          goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
+          onOpen={() => navigate(`/habits/${h.id}`)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
       })}
       {!loading && !error && habits.length === 0 && <p className="hb-hint">No habits yet. Add one to start a streak.</p>}
     </div>
@@ -161,20 +139,10 @@ export default function HabitsPage() {
     <GoalsSection goals={goals} habits={habits} onChanged={load} />
     <ChallengesSection />
 
-    <HabitSheet habit={open} yearCells={open ? cellsFor(open, heatById.get(open.id) ?? new Map(), YEAR_DAYS) : []}
-      running={open ? isRunning(open.id) : false} elapsedMs={open ? elapsedMs(open.id) : 0}
-      onClose={() => setOpenId(null)}
-      onLog={async m => { if (open) await logTime(open, m) }}
-      onToggle={() => { if (open) void toggle(open) }}
-      onStart={() => { if (open) startTimer(open) }}
-      onStop={() => { if (open) stopTimer(open) }}
-      onChanged={load}
-      onDelete={() => { if (open) void removeHabit(open) }} />
-
     <NewHabitSheet open={adding} onClose={() => setAdding(false)} onCreated={async () => { setAdding(false); await load() }} />
 
     {/* Wait for any sheet to close: a modal dialog would hide the celebration while its timer marks it seen. */}
-    {celebrating && openId == null && !adding && <Celebration eyebrow="Goal complete" title={celebrating.name}
+    {celebrating && !adding && <Celebration eyebrow="Goal complete" title={celebrating.name}
       figure={fmtHours(celebrating.targetMinutes)}
       note={celebrating.completedOn && celebrating.startDate ? `Done in ${fmtDaySpan(Math.max(1, daysBetween(celebrating.startDate, celebrating.completedOn)))}.` : 'Target reached.'}
       onDone={dismissCelebration} />}

@@ -70,3 +70,8 @@ export function goalPace(g: Goal): Pace | null {
   if (Math.abs(gap) <= 3) return { text: 'On pace', tone: 'good' }
   return gap < 0 ? { text: `${fmtDaySpan(gap)} ahead`, tone: 'good' } : { text: `${fmtDaySpan(gap)} behind`, tone: 'warn' }
 }
+
+/** The goal most specific to a habit (100h Guitar over a shared goal): fewest feeder habits wins. */
+export const goalForHabit = (goals: Goal[], id: number) => goals
+  .filter(g => !g.archived && g.state !== 'complete' && g.sources.some(s => s.habitId === id))
+  .sort((a, b) => a.sources.length - b.sources.length)[0]
