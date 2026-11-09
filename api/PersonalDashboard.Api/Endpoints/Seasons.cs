@@ -56,22 +56,28 @@ public static class Seasons
     public static async Task EndAsync(AppDbContext db, DateOnly today)
     {
         await using var tx = await Serialize(db);
-        var current = await CurrentAsync(db, today);
-        if (current is null) return;
+        if (await CurrentAsync(db, today) is { } current) await EndAsync(db, current, today);
+        await tx.CommitAsync();
+    }
+
+    private static async Task EndAsync(AppDbContext db, Season current, DateOnly today)
+    {
         if (current.StartsOn == today) db.Seasons.Remove(current);
         else current.EndsOn = today.AddDays(-1);
         await db.SaveChangesAsync();
-        await tx.CommitAsync();
     }
 
     /// <summary>Ends the current season if none of its habits exist any more.</summary>
     public static async Task EndIfEmptyAsync(AppDbContext db, DateOnly today)
     {
+        // Under the lock, so a season another device saves meanwhile is never the one ended.
+        await using var tx = await Serialize(db);
         var current = await CurrentAsync(db, today);
         if (current is null) return;
         var ids = current.HabitIds;
         if (await db.Habits.AnyAsync(h => ids.Contains(h.Id) && !h.Archived)) return;
-        await EndAsync(db, today);
+        await EndAsync(db, current, today);
+        await tx.CommitAsync();
     }
 
     /// <summary>

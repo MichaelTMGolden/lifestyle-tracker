@@ -33,6 +33,7 @@ export default function HabitPage() {
 
 function HabitView({ id }: { id: number }) {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const toast = useToast()
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   // Start from what the Habits page already loaded (instant, and usable offline).
@@ -111,7 +112,12 @@ function HabitView({ id }: { id: number }) {
   }
   async function remove() {
     if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
-    try { await api.deleteHabit(h.id); navigate('/habits', { replace: true }) } catch (e) { failed(e) }
+    try {
+      await api.deleteHabit(h.id)
+      // Deleting a season's last habit ends that season on the server.
+      void qc.invalidateQueries({ queryKey: ['seasons'] }); void qc.invalidateQueries({ queryKey: ['stats'] })
+      navigate('/habits', { replace: true })
+    } catch (e) { failed(e) }
   }
 
   return <div className="hb-page hb-detail" style={habitStyle(h)}>
