@@ -5,7 +5,7 @@ import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { api, type Habit } from '../api'
+import { api, type Goal, type Habit } from '../api'
 import { habitStyle } from '../habitColor'
 import { fmtElapsed, fmtHours } from '../lib'
 import { useTimer } from '../timer/useTimer'
@@ -127,18 +127,20 @@ function Focus() {
     </div>
   </div>
 
-  return <FocusView habit={habit} running={running} ms={running ? elapsedMs(habit.id) : 0} goals={goals.data} busy={busy} note={note} error={error} onClose={close}
+  // A goal fed by several habits counts every running feeder, as Today's timer card does.
+  const goal = goals.data ? goalForHabit(goals.data, habit.id) : undefined
+  const goalLiveMs = goal ? timers.filter(t => goal.sources.some(s => s.habitId === t.habitId)).reduce((sum, t) => sum + elapsedMs(t.habitId), 0) : 0
+  return <FocusView habit={habit} running={running} ms={running ? elapsedMs(habit.id) : 0} goal={goal} goalLiveMs={goalLiveMs} busy={busy} note={note} error={error} onClose={close}
     onStart={() => { haptic(); void act(() => start(habit.id, habit.name)) }}
     onStop={() => { haptic(); const mins = Math.round(elapsedMs(habit.id) / 60000); void act(() => stop(habit.id), mins > 0 ? `${mins} min logged` : 'Stopped. Under a minute isn’t logged.') }} />
 }
 
-function FocusView({ habit: h, running, ms, goals, busy, note, error, onClose, onStart, onStop }: {
-  habit: Habit; running: boolean; ms: number; goals: Parameters<typeof goalForHabit>[0] | undefined
+function FocusView({ habit: h, running, ms, goal, goalLiveMs, busy, note, error, onClose, onStart, onStop }: {
+  habit: Habit; running: boolean; ms: number; goal: Goal | undefined; goalLiveMs: number
   busy: boolean; note: string; error: string; onClose: () => void; onStart: () => void; onStop: () => void
 }) {
   const live = ms / 60000
-  const goal = goals ? goalForHabit(goals, h.id) : undefined
-  const goalNow = goal ? goal.accumulatedMinutes + live : 0
+  const goalNow = goal ? goal.accumulatedMinutes + goalLiveMs / 60000 : 0
   const today = h.minutesToday + live
   return <div className={`fx${running ? ' fx--running' : ''}`} role="dialog" aria-modal="true" aria-labelledby="fx-name" style={habitStyle(h)}>
     <div className="fx__top">
