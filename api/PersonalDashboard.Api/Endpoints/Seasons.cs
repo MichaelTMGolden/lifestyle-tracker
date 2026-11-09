@@ -25,11 +25,14 @@ public static class Seasons
     {
         var name = string.IsNullOrWhiteSpace(input.Name) ? null : input.Name.Trim();
         if (name is { Length: > MaxName }) return $"name must be {MaxName} characters or fewer";
-        var ids = (input.HabitIds ?? new()).Distinct().ToList();
-        if (ids.Count == 0) return "pick at least one habit";
-        var known = await db.Habits.Where(h => ids.Contains(h.Id) && !h.Archived).Select(h => h.Id).ToListAsync();
-        if (known.Count != ids.Count) return "unknown habit";
+        var asked = (input.HabitIds ?? new()).Distinct().ToList();
         if (input.EndsOn is { } end && end < today) return "the end date can't be in the past";
+        // Habits deleted since the season was set are dropped, keeping the order given.
+        var known = (await db.Habits.Where(h => asked.Contains(h.Id) && !h.Archived).Select(h => h.Id).ToListAsync()).ToHashSet();
+        var ids = asked.Where(known.Contains).ToList();
+        if (ids.Count == 0) return "pick at least one habit";
+
+        await using var tx = await Serialize(db);
 
         // A season dated after today (a phone whose clock or time zone moved back)
         // would overlap this one: this one replaces it.
@@ -45,17 +48,32 @@ public static class Seasons
             db.Seasons.Add(new Season { Name = name, StartsOn = today, EndsOn = input.EndsOn, HabitIds = ids });
         }
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return null;
     }
 
     /// <summary>Ends the current season: from today every habit is in focus again.</summary>
     public static async Task EndAsync(AppDbContext db, DateOnly today)
     {
+        await using var tx = await Serialize(db);
         var current = await CurrentAsync(db, today);
         if (current is null) return;
         if (current.StartsOn == today) db.Seasons.Remove(current);
         else current.EndsOn = today.AddDays(-1);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
+    }
+
+    /// <summary>
+    /// One season change at a time (two devices saving together would otherwise
+    /// both read the same current season and each add one, overlapping). The lock
+    /// is held until the transaction ends.
+    /// </summary>
+    private static async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> Serialize(AppDbContext db)
+    {
+        var tx = await db.Database.BeginTransactionAsync();
+        if (db.Database.IsNpgsql()) await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71520902)");
+        return tx;
     }
 
     internal static void Map(RouteGroupBuilder api)
