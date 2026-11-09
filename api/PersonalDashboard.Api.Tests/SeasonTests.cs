@@ -82,6 +82,22 @@ public class SeasonTests
     }
 
     [Fact]
+    public async Task Deleting_the_last_focus_habit_ends_the_season_but_keeps_history()
+    {
+        var (db, a, b) = await Database();
+        await Seasons.SetAsync(db, new("Old", [b], Today.AddDays(-20)), Today.AddDays(-40)); // a past season
+        await Seasons.SetAsync(db, new("Now", [a], null), Today.AddDays(-5));
+        db.Habits.Remove(await db.Habits.SingleAsync(h => h.Id == a));
+        await db.SaveChangesAsync();
+        await Seasons.EndIfEmptyAsync(db, Today);
+        Assert.Null(await Seasons.CurrentAsync(db, Today));
+        var all = await db.Seasons.AsNoTracking().OrderBy(s => s.StartsOn).ToListAsync();
+        Assert.Equal(2, all.Count);
+        Assert.Equal(Today.AddDays(-1), all[1].EndsOn);
+        Assert.Equal([b], all[0].HabitIds);
+    }
+
+    [Fact]
     public async Task A_season_that_ran_out_is_not_current()
     {
         var (db, a, _) = await Database();

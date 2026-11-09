@@ -156,7 +156,7 @@ function SeasonLine({ habit: h, current }: { habit: Habit; current: SeasonRow | 
 
 function Insights({ habit: h, byDate, today, goal, allIds }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal; allIds: number[] }) {
   const { seasons: all, current } = useSeasons()
-  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id])
+  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id], today)
   const color = habitColor(h)
   // Days it was out of focus aren't counted as missed.
   const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate), d => inFocusOn(seasons, h.id, d))

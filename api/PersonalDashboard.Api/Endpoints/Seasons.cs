@@ -64,6 +64,16 @@ public static class Seasons
         await tx.CommitAsync();
     }
 
+    /// <summary>Ends the current season if none of its habits exist any more.</summary>
+    public static async Task EndIfEmptyAsync(AppDbContext db, DateOnly today)
+    {
+        var current = await CurrentAsync(db, today);
+        if (current is null) return;
+        var ids = current.HabitIds;
+        if (await db.Habits.AnyAsync(h => ids.Contains(h.Id) && !h.Archived)) return;
+        await EndAsync(db, today);
+    }
+
     /// <summary>
     /// One season change at a time (two devices saving together would otherwise
     /// both read the same current season and each add one, overlapping). The lock
