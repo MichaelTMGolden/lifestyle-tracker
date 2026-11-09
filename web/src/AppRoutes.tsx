@@ -7,6 +7,7 @@ const pages = {
   habits: () => import('./pages/HabitsPage'),
   habit: () => import('./pages/HabitPage'),
   stats: () => import('./pages/StatsPage'),
+  focus: () => import('./pages/FocusPage'),
   plan: () => import('./pages/TasksPage'),
   schedule: () => import('./pages/SchedulePage'),
   connect: () => import('./pages/ConnectionsPage'),
@@ -19,6 +20,7 @@ const TasksPage = lazy(pages.plan)
 const HabitsPage = lazy(pages.habits)
 const HabitPage = lazy(pages.habit)
 const StatsPage = lazy(pages.stats)
+const FocusPage = lazy(pages.focus)
 const ConnectionsPage = lazy(pages.connect)
 const SettingsPage = lazy(pages.settings)
 const HealthPage = lazy(pages.health)
@@ -48,6 +50,8 @@ export default function AppRoutes() {
       <Route path="/connect" element={<Suspense fallback={loading}><ConnectionsPage /></Suspense>} />
       <Route path="/habits" element={<Suspense fallback={loading}><HabitsPage /></Suspense>} />
       <Route path="/habits/:id" element={<Suspense fallback={loading}><HabitPage /></Suspense>} />
+      <Route path="/focus" element={<Suspense fallback={loading}><FocusPage /></Suspense>} />
+      <Route path="/focus/:id" element={<Suspense fallback={loading}><FocusPage /></Suspense>} />
       <Route path="/stats" element={<Suspense fallback={loading}><StatsPage /></Suspense>} />
       <Route path="/schedule" element={<Suspense fallback={loading}><SchedulePage /></Suspense>} />
       <Route path="/settings" element={<Suspense fallback={loading}><SettingsPage /></Suspense>} />

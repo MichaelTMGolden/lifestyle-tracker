@@ -33,7 +33,10 @@ export function RunningTimers({ timers, goals, elapsedMs, onStop }: {
         </div>
         <div className="td-timer__main">
           <span className="td-timer__time" role="timer" aria-label={`${t.habitName} elapsed`}>{fmtElapsed(ms)}</span>
-          <Button variant="primary" onClick={() => onStop(t.habitId)} aria-label={`Stop ${t.habitName} timer and log the time`}>Stop &amp; log</Button>
+          <span className="td-timer__actions">
+            <Link className="ui-btn ui-btn--ghost" to={`/focus/${t.habitId}`} aria-label={`Open ${t.habitName} in focus`}>Focus</Link>
+            <Button variant="primary" onClick={() => onStop(t.habitId)} aria-label={`Stop ${t.habitName} timer and log the time`}>Stop &amp; log</Button>
+          </span>
         </div>
         {goal && <Progress value={Math.min(100, Math.round((total / Math.max(1, goal.targetMinutes)) * 100))} max={100} label={`${goal.name} progress`} />}
       </section>

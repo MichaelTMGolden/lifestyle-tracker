@@ -97,3 +97,9 @@
 .td-task { display: flex; flex-direction: column; gap: var(--rite-2); padding: var(--rite-2) 0; border-bottom: 1px solid var(--rite-hair); }
 .td-task__text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .td-task__text small { font-size: 12px; color: var(--rite-muted); }
+.td-timer__actions { display: inline-flex; gap: var(--rite-2); flex-shrink: 0; }
+.td-timer__actions a.ui-btn, .hb-sheet a.ui-btn { text-decoration: none; }
+/* Narrow phones: the actions drop under the clock rather than overflow. */
+.td-timer__main { flex-wrap: wrap; }
+.td-timer__actions { flex-wrap: wrap; }
+@media (max-width: 420px) { .td-timer__actions { flex: 1 1 100%; } .td-timer__actions > * { flex: 1 1 0; } }
