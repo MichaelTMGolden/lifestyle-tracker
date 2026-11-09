@@ -12,7 +12,7 @@ import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
 import { lastHabits, rememberHabit, rememberHabits } from './habits/lastLoaded'
 import { useSeasons } from './habits/useSeasons'
-import { inFocusOn, type SeasonRow } from '../seasons'
+import { inFocusOn, liveSeasons, type SeasonRow } from '../seasons'
 import { useQueryClient } from '@tanstack/react-query'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
 import { cellsFor, goalForHabit, goalPace, heatWithToday, minutesByDate, todayKey } from './habits/stats'
@@ -40,13 +40,15 @@ function HabitView({ id }: { id: number }) {
   const [habit, setHabit] = useState<Habit | null>(() => cached?.habits.find(x => x.id === id) ?? null)
   const [heat, setHeat] = useState<HabitHeatmap | null>(() => cached?.heat.find(r => r.id === id) ?? null)
   const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
+  // Every habit's id: a season whose habits were all deleted counts as none.
+  const [allIds, setAllIds] = useState<number[]>(() => cached?.habits.map(x => x.id) ?? [])
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | string>('loading')
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
       .then(([hs, hm, g]) => {
         const h = hs.find(x => x.id === id) ?? null
-        setHabit(h); setHeat(hm.find(r => r.id === id) ?? null); setGoals(g)
+        setHabit(h); setHeat(hm.find(r => r.id === id) ?? null); setGoals(g); setAllIds(hs.map(x => x.id))
         // Fresh from the server: the next page opened from the cache starts from this.
         rememberHabits({ habits: hs, heat: hm, goals: g, heatDays: YEAR_DAYS })
         setState(h ? 'ready' : 'missing')
@@ -119,7 +121,7 @@ function HabitView({ id }: { id: number }) {
     </header>
 
     <HabitDetail habit={h} yearCells={cellsFor(h, byDate, YEAR_DAYS)}
-      insights={<Insights habit={h} byDate={byDate} today={today} goal={goal} />}
+      insights={<Insights habit={h} byDate={byDate} today={today} goal={goal} allIds={allIds} />}
       running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)}
       onLog={logTime} onToggle={() => void toggle()}
       onStart={() => { void start(h.id, h.name).catch(e => toast.show({ message: message(e), tone: 'error' })) }}
@@ -152,8 +154,9 @@ function SeasonLine({ habit: h, current }: { habit: Habit; current: SeasonRow | 
   </p>
 }
 
-function Insights({ habit: h, byDate, today, goal }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal }) {
-  const { seasons, current } = useSeasons()
+function Insights({ habit: h, byDate, today, goal, allIds }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal; allIds: number[] }) {
+  const { seasons: all, current } = useSeasons()
+  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id])
   const color = habitColor(h)
   // Days it was out of focus aren't counted as missed.
   const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate), d => inFocusOn(seasons, h.id, d))
@@ -168,7 +171,7 @@ function Insights({ habit: h, byDate, today, goal }: { habit: Habit; byDate: Map
   const pace = goal ? goalPace(goal) : null
 
   return <>
-    <SeasonLine habit={h} current={current} />
+    <SeasonLine habit={h} current={current && seasons.includes(current) ? current : null} />
     {goal && <section className="hb-sheet__section" aria-labelledby="hb-goal">
       <h3 id="hb-goal" className="hb-sheet__label">Goal · {goal.name}</h3>
       <div className="hb-card__goal-line">

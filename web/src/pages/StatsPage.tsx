@@ -7,7 +7,7 @@ import { api, type Habit } from '../api'
 import { habitColor } from '../habitColor'
 import { useTimer } from '../timer/useTimer'
 import { useSeasons } from './habits/useSeasons'
-import { inFocusOn } from '../seasons'
+import { inFocusOn, liveSeasons } from '../seasons'
 import { fmtHours } from '../lib'
 import { Bars, Button, Icon, Progress, Skeleton, Stat } from '../ui'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
@@ -43,7 +43,8 @@ export default function StatsPage() {
   const { habits, heat, goals } = q.data
   const today = todayKey()
   const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
-  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, asked: (d: string) => inFocusOn(seasons, h.id, d), byDate: heatById.get(h.id) ?? new Map<string, number>() }))
+  const live = liveSeasons(seasons, habits.map(h => h.id))
+  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, asked: (d: string) => inFocusOn(live, h.id, d), byDate: heatById.get(h.id) ?? new Map<string, number>() }))
   const rates = monthlyRates(rows, today, 12)
   const best = bestWeek(rows, today, 53)
   // One window for everything: the first day of the month eleven months ago, to today.
