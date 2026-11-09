@@ -53,8 +53,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     // Schedule the initial external synchronization alongside polling/focus events.
     const initial = setTimeout(() => { void refresh() }, 0)
     const id = setInterval(() => { if (!document.hidden) refresh() }, POLL_MS)
-    const onFocus = () => refresh()
-    const onVis = () => { if (document.visibilityState === 'visible') refresh() }
+    // Focus and visibility often fire together: one read per few seconds is plenty.
+    let lastRead = 0
+    const soon = () => { if (Date.now() - lastRead > 5000) { lastRead = Date.now(); void refresh() } }
+    const onFocus = () => soon()
+    const onVis = () => { if (document.visibilityState === 'visible') soon() }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVis)
     return () => { clearTimeout(initial); clearInterval(id); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis) }

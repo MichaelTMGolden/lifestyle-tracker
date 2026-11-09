@@ -16,10 +16,33 @@ export const queryClient = new QueryClient({
 // Keyed by local date, so the first render after midnight fetches the new day.
 const bundleKey = (day = dateKey()): QueryKey => ['today-bundle', day]
 
+// The last bundle seen on this device, for an instant first paint (same day only).
+const SAVED = 'pd:today-bundle'
+function savedBundle(day: string): { data: TodayBundle; at: number } | undefined {
+  try {
+    const raw = localStorage.getItem(SAVED)
+    const v = raw ? JSON.parse(raw) as { day: string; at: number; data: TodayBundle } : null
+    return v && v.day === day && v.data ? { data: v.data, at: v.at } : undefined
+  } catch { return undefined }
+}
+const fetchBundle = async () => {
+  const data = await api.todayBundle()
+  try { localStorage.setItem(SAVED, JSON.stringify({ day: dateKey(), at: Date.now(), data })) } catch { /* full or private */ }
+  return data
+}
+
+/** Start Today's request while the page's code is still downloading. */
+export function prefetchToday() {
+  const day = dateKey()
+  const saved = savedBundle(day)
+  if (saved && !queryClient.getQueryData(bundleKey(day))) queryClient.setQueryData(bundleKey(day), saved.data, { updatedAt: saved.at })
+  void queryClient.fetchQuery({ queryKey: bundleKey(day), queryFn: fetchBundle, staleTime: 0 }).catch(() => { /* the page shows errors */ })
+}
+
 export function useTodayBundle() {
   return useQuery({
     queryKey: bundleKey(),
-    queryFn: api.todayBundle,
+    queryFn: fetchBundle,
     // Show the cached day at once, but always check for changes made on other
     // pages (Habits, Tasks) or devices since it was fetched.
     refetchOnMount: 'always',

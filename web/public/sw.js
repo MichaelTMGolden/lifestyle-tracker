@@ -1,7 +1,9 @@
 // Service worker: makes the dashboard installable and lets the app shell open
 // without a connection. Your data is never cached: /api requests always go to
 // the network.
-//  - Page loads: network first (so a deploy shows at once), cached shell as fallback.
+//  - Page loads: the saved shell at once, refreshed in the background (with its
+//    assets), so opening never waits on the network; a deploy shows from the
+//    next open. No saved shell yet: the network.
 //  - /assets/*: hashed by the build, so cache first; old ones are trimmed.
 //  - Icons, manifest, fonts: stale-while-revalidate.
 const SHELL = 'pd-shell-v1'
@@ -58,10 +60,18 @@ self.addEventListener('fetch', event => {
   if (sameOrigin && (url.pathname.startsWith('/api/') || url.pathname === '/healthz')) return
 
   if (req.mode === 'navigate' && sameOrigin) {
-    event.respondWith(fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put('/', copy)) }
+    const fresh = fetch(req).then(async res => {
+      // Store the new shell only once its own assets are cached, so the saved
+      // shell can always start offline.
+      if (res.ok) {
+        const html = await res.clone().text()
+        await cacheAssets(assetUrls(html))
+        await (await caches.open(SHELL)).put('/', res.clone())
+      }
       return res
-    }).catch(() => caches.match('/', { cacheName: SHELL }).then(hit => hit ?? Response.error())))
+    })
+    event.waitUntil(fresh.catch(() => { /* offline: the saved shell serves */ }))
+    event.respondWith(caches.match('/', { cacheName: SHELL }).then(hit => hit ?? fresh.catch(() => Response.error())))
     return
   }
 
