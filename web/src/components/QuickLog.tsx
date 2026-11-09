@@ -78,6 +78,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       void qc.invalidateQueries({ queryKey: ['daily'] })
       void qc.invalidateQueries({ queryKey: ['today-bundle'] })
       void qc.invalidateQueries({ queryKey: ['goals'] })
+      void qc.invalidateQueries({ queryKey: ['stats'] })
       close()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

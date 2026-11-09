@@ -8,6 +8,7 @@ import './ui.css'
 
 export { Icon } from './icons'
 export { ToastProvider } from './toast'
+export { Bars, type Bar } from './Bars'
 
 const cx = (...names: (string | false | null | undefined)[]) => names.filter(Boolean).join(' ')
 

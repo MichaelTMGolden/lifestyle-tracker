@@ -22,6 +22,7 @@ const primary: Destination[] = [
   { path: '/tasks', label: 'Plan', detail: 'Tasks and what is coming up', keywords: 'todo to-do tasks priorities backlog', icon: 'plan' },
 ]
 const secondary: Destination[] = [
+  { path: '/stats', label: 'Stats', detail: 'Your year across every habit', keywords: 'statistics progress year months streaks hours insights', icon: 'review' },
   { path: '/health', label: 'Health', detail: 'Readiness, trends and your weekly summary', keywords: 'sleep heart steps garmin stress body battery review weekly summary', icon: 'health' },
   { path: '/schedule', label: 'Routine', detail: 'Your weekly routine template', keywords: 'schedule calendar timetable agenda routine week template', icon: 'schedule' },
   { path: '/connect', label: 'Connect', detail: 'Connected data sources', keywords: 'integrations sync import garmin google', icon: 'connect' },
@@ -139,6 +140,7 @@ function HabitSync() {
       toast.show({ message: 'Offline taps synced.' })
       void qc.invalidateQueries({ queryKey: ['today-bundle'] })
       void qc.invalidateQueries({ queryKey: ['goals'] })
+      void qc.invalidateQueries({ queryKey: ['stats'] })
     }
     window.addEventListener('pd:habits-synced', synced)
     return () => window.removeEventListener('pd:habits-synced', synced)

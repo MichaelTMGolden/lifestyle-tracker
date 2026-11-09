@@ -3,6 +3,15 @@ import type { Goal, Habit, HabitHeatmap } from '../../api'
 import { fmtDaySpan, intensityLevel } from '../../lib'
 import type { HeatCell } from '../../ui/hooks'
 
+/** A habit's heatmap row with today's cell matching the habit row (for changes shown before the server confirms). */
+export function heatWithToday(r: HabitHeatmap, row: Habit, today: string): HabitHeatmap {
+  const days = r.days.filter(d => d.date !== today)
+  const dates = r.completedDates.filter(d => d !== today)
+  return row.doneToday
+    ? { ...r, days: [...days, { date: today, minutes: row.minutesToday }], completedDates: [...dates, today] }
+    : { ...r, days, completedDates: dates }
+}
+
 export const keyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -70,3 +79,8 @@ export function goalPace(g: Goal): Pace | null {
   if (Math.abs(gap) <= 3) return { text: 'On pace', tone: 'good' }
   return gap < 0 ? { text: `${fmtDaySpan(gap)} ahead`, tone: 'good' } : { text: `${fmtDaySpan(gap)} behind`, tone: 'warn' }
 }
+
+/** The goal most specific to a habit (100h Guitar over a shared goal): fewest feeder habits wins. */
+export const goalForHabit = (goals: Goal[], id: number) => goals
+  .filter(g => !g.archived && g.state !== 'complete' && g.sources.some(s => s.habitId === id))
+  .sort((a, b) => a.sources.length - b.sources.length)[0]

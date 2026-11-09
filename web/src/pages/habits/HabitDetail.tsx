@@ -1,38 +1,20 @@
-// Everything for one habit: stats, the year view, logging, rhythm, entries and settings.
-import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+// Everything for one habit: stats, the year view, insights, logging, rhythm, entries and settings.
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { api, type Habit, type HabitLogEntry } from '../../api'
 import { fmtDate, fmtElapsed, fmtHours } from '../../lib'
 import { skillProgressApi } from '../../skillProgressApi'
 import { enablePush, pushState, sendTestPush, type PushState } from '../../push'
-import { Button, Heatmap, Sheet, Stat, Tabs } from '../../ui'
+import { Button, Heatmap, Stat, Tabs } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
 import { habitColor, habitStyle, PALETTE } from '../../habitColor'
 import { consistency, isWeekly, streakUnit } from './stats'
 
 const cadences = [{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }] as const
 
-export function HabitSheet({ habit, yearCells, running, elapsedMs, onClose, onLog, onToggle, onStart, onStop, onChanged, onDelete }: {
-  habit: Habit | null
-  yearCells: HeatCell[]
-  running: boolean
-  elapsedMs: number
-  onClose: () => void
-  onLog: (minutes: number) => Promise<void>
-  onToggle: () => void
-  onStart: () => void
-  onStop: () => void
-  onChanged: () => Promise<unknown>
-  onDelete: () => void
-}) {
-  return <Sheet open={habit != null} onClose={onClose} title={habit?.name ?? ''} labelledBy="habit-sheet-title">
-    {/* Keyed so each habit's form state starts fresh. */}
-    {habit && <HabitDetail key={habit.id} habit={habit} yearCells={yearCells} running={running} elapsedMs={elapsedMs}
-      onLog={onLog} onToggle={onToggle} onStart={onStart} onStop={onStop} onChanged={onChanged} onDelete={onDelete} />}
-  </Sheet>
-}
-
-function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle, onStart, onStop, onChanged, onDelete }: {
+export function HabitDetail({ habit: h, yearCells, insights, running, elapsedMs, onLog, onToggle, onStart, onStop, onChanged, onDelete }: {
   habit: Habit; yearCells: HeatCell[]; running: boolean; elapsedMs: number
+  /** Charts shown under the year view. */
+  insights?: ReactNode
   onLog: (minutes: number) => Promise<void>; onToggle: () => void; onStart: () => void; onStop: () => void
   onChanged: () => Promise<unknown>; onDelete: () => void
 }) {
@@ -65,6 +47,8 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
       <Heatmap cells={yearCells} variant="calendar" label={`${h.name}: last year`} today={yearCells.at(-1)?.date} cellSize={10} />
     </section>
 
+    {insights}
+
     {h.tracksTime ? <section className="hb-sheet__section" aria-labelledby="hb-log">
       <h3 id="hb-log" className="hb-sheet__label">Today · {h.minutesToday} min</h3>
       <div className="hb-sheet__row">
@@ -83,7 +67,8 @@ function HabitDetail({ habit: h, yearCells, running, elapsedMs, onLog, onToggle,
           {h.doneToday ? 'Done today · tap to undo' : 'Mark done today'}
         </Button>}
 
-    <Rhythm habit={h} onChanged={onChanged} />
+    {/* Keyed so the form follows a rhythm saved elsewhere. */}
+    <Rhythm key={`${h.cadence}:${h.targetPerPeriod}`} habit={h} onChanged={onChanged} />
     <Colour habit={h} onChanged={onChanged} />
     <Reminder habit={h} onChanged={onChanged} />
     {h.tracksTime && <Entries habitId={h.id} version={`${h.minutesToday}:${h.totalMinutes}`} onChanged={onChanged} />}
@@ -154,27 +139,30 @@ function Rhythm({ habit, onChanged }: { habit: Habit; onChanged: () => Promise<u
 }
 
 /**
- * Edit or delete the last 30 days of logged minutes (fixes bad timer data).
+ * Edit or delete logged minutes from the past year (fixes bad timer data), newest first.
  * Entries are fetched each time the list opens and again whenever the habit's
  * minutes change (`version`), and pending edits are dropped then, so a stale
  * value can never overwrite time logged since.
  */
+const PAGE = 30
+
 function Entries({ habitId, version, onChanged }: { habitId: number; version: string; onChanged: () => Promise<unknown> }) {
   const [open, setOpen] = useState(false)
   const [logs, setLogs] = useState<HabitLogEntry[] | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
+  const [shown, setShown] = useState(PAGE)
 
   const reload = useCallback(async () => {
     try {
-      const fresh = await api.habitLogs(habitId, 30)
+      const fresh = await api.habitLogs(habitId, 365)
       setLogs(fresh); setEdits({}); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
   }, [habitId])
   useEffect(() => {
     if (!open) return
     let live = true
-    api.habitLogs(habitId, 30).then(
+    api.habitLogs(habitId, 365).then(
       fresh => { if (live) { setLogs(fresh); setEdits({}); setError('') } },
       e => { if (live) setError(e instanceof Error ? e.message : String(e)) })
     return () => { live = false }
@@ -195,9 +183,9 @@ function Entries({ habitId, version, onChanged }: { habitId: number; version: st
     <summary className="hb-sheet__label">Edit entries</summary>
     {error && <p role="alert" className="hb-error">{error}</p>}
     {!logs && !error && <p className="hb-hint">Loading…</p>}
-    {logs?.length === 0 && <p className="hb-hint">No entries in the last 30 days.</p>}
+    {logs?.length === 0 && <p className="hb-hint">No entries in the past year.</p>}
     {logs && logs.length > 0 && <ul className="hb-entries__list">
-      {logs.map(l => <li key={l.id}>
+      {logs.slice(0, shown).map(l => <li key={l.id}>
         <span className="hb-entries__date">{fmtDate(l.date)}</span>
         <label className="ui-sr-only" htmlFor={`hb-entry-${l.id}`}>Minutes on {fmtDate(l.date)}</label>
         <input id={`hb-entry-${l.id}`} className="hb-input hb-input--sm" type="number" inputMode="numeric" min={0}
@@ -207,6 +195,7 @@ function Entries({ habitId, version, onChanged }: { habitId: number; version: st
         <Button size="sm" variant="quiet" className="hb-danger" icon="close" aria-label={`Delete ${fmtDate(l.date)} entry`} onClick={() => void remove(l.date)} />
       </li>)}
     </ul>}
+    {logs && logs.length > shown && <Button size="sm" variant="quiet" onClick={() => setShown(n => n + PAGE)}>Show older ({logs.length - shown} more)</Button>}
   </details>
 }
 

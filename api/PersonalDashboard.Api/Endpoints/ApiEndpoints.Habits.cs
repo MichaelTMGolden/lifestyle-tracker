@@ -51,7 +51,7 @@ public static partial class ApiEndpoints
     public record HabitRow(
         int Id, string Name, string Cadence, int TargetPerPeriod, bool TracksTime, bool ShowInQuickActions,
         int Last30Completed, bool DoneToday, int MinutesToday, int TotalMinutes, int TotalCompletions, int CurrentStreak,
-        int BestStreak, int? ReminderMinutes, string? ColorHex);
+        int BestStreak, int? ReminderMinutes, string? ColorHex, DateOnly? FirstLoggedOn);
 
     /// <summary>
     /// The active habits as the Habits and Today pages show them. Pass
@@ -73,6 +73,7 @@ public static partial class ApiEndpoints
                 minutesToday = h.Logs.Where(l => l.Date == today).Sum(l => (int?)l.Minutes) ?? 0,
                 totalMinutes = h.Logs.Sum(l => (int?)l.Minutes) ?? 0,
                 totalCompletions = h.Logs.Count(l => l.Completed),
+                firstLoggedOn = h.Logs.Where(l => l.Completed).Min(l => (DateOnly?)l.Date),
             })
             .ToListAsync();
         if (rows.Count == 0) return [];
@@ -100,7 +101,7 @@ public static partial class ApiEndpoints
             r.Id, r.Name, r.Cadence, r.TargetPerPeriod, r.TracksTime, r.ShowInQuickActions,
             r.last30Completed, r.doneToday, r.minutesToday, r.totalMinutes, r.totalCompletions, streaks[r.Id],
             Math.Max(streaks[r.Id], HabitCadencePolicy.BestStreak(dates.GetValueOrDefault(r.Id) ?? [], today, r.Cadence, r.TargetPerPeriod, windowStart)),
-            r.ReminderMinutes, r.ColorHex)).ToList();
+            r.ReminderMinutes, r.ColorHex, r.firstLoggedOn)).ToList();
     }
 
     private static async Task<Dictionary<int, HashSet<DateOnly>>> CompletedDatesAsync(AppDbContext db, List<int> habitIds, DateOnly? from, DateOnly to)
