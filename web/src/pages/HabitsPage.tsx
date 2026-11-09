@@ -37,6 +37,8 @@ export default function HabitsPage() {
   const [heat, setHeat] = useState<HabitHeatmap[]>(() => cached?.heat ?? [])
   const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
   const [loading, setLoading] = useState(true)
+  // True once the server has answered: an empty list then means no habits, not "not loaded".
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [range, setRangeState] = useState<Range>(loadRange)
   const [adding, setAdding] = useState(false)
@@ -52,7 +54,7 @@ export default function HabitsPage() {
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
-      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null) })
+      .then(([h, hm, g]) => { setHabits(h); setHeat(hm); setGoals(g); setError(null); setLoaded(true) })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false)), [])
   useEffect(() => { void load() }, [load])
@@ -63,7 +65,7 @@ export default function HabitsPage() {
 
   // Show a change at once: the habit row and today's heatmap cell.
   // Remember what is on screen, local (queued) changes included, for the next visit.
-  useEffect(() => { if (habits.length) rememberHabits({ habits, heat, goals, heatDays: YEAR_DAYS }) }, [habits, heat, goals])
+  useEffect(() => { if (loaded || habits.length) rememberHabits({ habits, heat, goals, heatDays: YEAR_DAYS }) }, [loaded, habits, heat, goals])
 
   function showHabit(row: Habit) {
     const today = todayKey()
