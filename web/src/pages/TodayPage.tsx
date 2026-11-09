@@ -2,7 +2,7 @@
 // anything carried over, and what's coming up. Essentials fit without scrolling.
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api, type DailyTodo, type Habit, type Todo } from '../api'
 import { CarryForwardPanel, type PlanningAction } from '../components/DailyPlanning'
 import { Collapsible } from '../components/Collapsible'
@@ -18,6 +18,7 @@ import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
 import { useStreakMilestones } from './habits/milestones'
 import { useSeasons } from './habits/useSeasons'
+import { CheckIn } from './today/CheckIn'
 import { splitByFocus } from '../seasons'
 import { eventOnDay, PLAN_DAYS } from './plan/days'
 import { Alerts, ComingUp, HabitTiles, LogTimeSheet, RunningTimers, TodayList } from './today/parts'
@@ -41,6 +42,7 @@ export default function TodayPage() {
   const qc = useQueryClient()
   const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
   const { current: season } = useSeasons()
+  const [params] = useSearchParams()
   // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
   const [quietDay, setQuietDay] = useState(false)
   const upcoming = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS), enabled: quietDay })
@@ -157,6 +159,9 @@ export default function TodayPage() {
         <HabitTiles compact habits={others} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} />
       </div>}
     </section>
+
+    <CheckIn openHabits={focus.filter(h => !h.doneToday)} tasks={planned.filter(t => !t.completedAt)} daily={daily.filter(d => !d.done)}
+      busy={busy} onAction={onAction} onTapHabit={tapHabit} forced={params.get('checkin') === '1'} />
 
     <section aria-labelledby="td-today">
       <SectionHead id="td-today" title="Today" aside={<Link className="td-link" to="/tasks?view=today">Plan →</Link>} />

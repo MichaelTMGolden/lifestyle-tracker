@@ -8,8 +8,11 @@ import { fmtHours } from '../lib'
 import { addMinutes, QUEUED, setDone } from '../offline/habitSync'
 import { useTimer } from '../timer/useTimer'
 import { Bars, Button, Icon, Progress, Skeleton } from '../ui'
+import type { HeatCell } from '../ui/hooks'
 import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
+import { MOODS } from './today/mood'
+import { useQuery } from '@tanstack/react-query'
 import { lastHabits, rememberHabit, rememberHabits } from './habits/lastLoaded'
 import { useSeasons } from './habits/useSeasons'
 import { inFocusOn, liveSeasons, type SeasonRow } from '../seasons'
@@ -45,6 +48,8 @@ function HabitView({ id }: { id: number }) {
   const [allIds, setAllIds] = useState<number[]>(() => cached?.habits.map(x => x.id) ?? [])
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | string>('loading')
 
+  const notes = useQuery({ queryKey: ['day-notes', YEAR_DAYS], queryFn: () => api.dayNotes(YEAR_DAYS) })
+  const notesByDate = new Map((notes.data ?? []).map(n => [n.date, n] as const))
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
       .then(([hs, hm, g]) => {
@@ -81,6 +86,11 @@ function HabitView({ id }: { id: number }) {
   const byDate = minutesByDate(heat ?? undefined)
   const today = todayKey()
   const goal = goalForHabit(goals, h.id)
+  // A day's check-in shows in its heatmap cell's tooltip.
+  const withNotes = (cells: HeatCell[]) => cells.map(c => {
+    const n = notesByDate.get(c.date)
+    return n ? { ...c, title: `${c.title} · ${[n.mood ? MOODS[n.mood - 1] : null, n.note ? `“${n.note}”` : null].filter(Boolean).join(' · ')}` } : c
+  })
 
   // Show a change at once on the row and today's heatmap cell, and keep it for the list.
   function show(row: Habit) {
@@ -126,7 +136,7 @@ function HabitView({ id }: { id: number }) {
       <h1>{h.name}</h1>
     </header>
 
-    <HabitDetail habit={h} yearCells={cellsFor(h, byDate, YEAR_DAYS)}
+    <HabitDetail habit={h} yearCells={withNotes(cellsFor(h, byDate, YEAR_DAYS))}
       insights={<Insights habit={h} byDate={byDate} today={today} goal={goal} allIds={allIds} />}
       running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)}
       onLog={logTime} onToggle={() => void toggle()}

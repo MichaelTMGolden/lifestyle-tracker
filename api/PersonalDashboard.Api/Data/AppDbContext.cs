@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Habit> Habits => Set<Habit>();
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
     public DbSet<Season> Seasons => Set<Season>();
+    public DbSet<DayNote> DayNotes => Set<DayNote>();
     public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
     public DbSet<AppliedRequest> AppliedRequests => Set<AppliedRequest>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
@@ -66,6 +67,8 @@ public class AppDbContext : DbContext
         b.Entity<Habit>().Property(h => h.ColorHex).HasMaxLength(7);
         b.Entity<Season>().Property(x => x.Name).HasMaxLength(80);
         b.Entity<Season>().HasIndex(x => x.StartsOn);
+        b.Entity<DayNote>().HasKey(x => x.Date);
+        b.Entity<DayNote>().Property(x => x.Note).HasMaxLength(500);
 
         // At most one running timer per habit; deleting the habit clears it.
         b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();

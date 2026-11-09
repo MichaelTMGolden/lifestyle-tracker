@@ -396,6 +396,26 @@ namespace PersonalDashboard.Api.Migrations
                     b.ToTable("DataSources");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.DayNote", b =>
+                {
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("Mood")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Date");
+
+                    b.ToTable("DayNotes");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.FoodEntry", b =>
                 {
                     b.Property<long>("Id")

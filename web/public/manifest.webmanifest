@@ -54,8 +54,10 @@
       ]
     },
     {
-      "name": "Habits",
-      "url": "/habits",
+      "name": "Check in",
+      "short_name": "Check in",
+      "description": "Close the day: mood, a line, tidy tomorrow",
+      "url": "/?checkin=1",
       "icons": [
         {
           "src": "/icon-192.png",
@@ -64,8 +66,8 @@
       ]
     },
     {
-      "name": "Plan",
-      "url": "/tasks",
+      "name": "Habits",
+      "url": "/habits",
       "icons": [
         {
           "src": "/icon-192.png",

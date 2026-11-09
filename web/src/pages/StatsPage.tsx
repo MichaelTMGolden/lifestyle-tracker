@@ -9,7 +9,10 @@ import { useTimer } from '../timer/useTimer'
 import { useSeasons } from './habits/useSeasons'
 import { inFocusOn, liveSeasons } from '../seasons'
 import { fmtHours } from '../lib'
-import { Bars, Button, Icon, Progress, Skeleton, Stat } from '../ui'
+import { Bars, Button, Heatmap, Icon, Progress, Skeleton, Stat } from '../ui'
+import type { HeatCell } from '../ui/hooks'
+import { MOODS } from './today/mood'
+import { addDays } from './habits/insights'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
 import { consistency, goalPace, isWeekly, minutesByDate, streakUnit, todayKey } from './habits/stats'
 import './habits/habits.css'
@@ -28,6 +31,7 @@ export default function StatsPage() {
   // A timer stopped here or on another device logs minutes: show the new totals.
   const { dataTick } = useTimer()
   const { seasons, current: season } = useSeasons()
+  const notes = useQuery({ queryKey: ['day-notes', YEAR_DAYS], queryFn: () => api.dayNotes(YEAR_DAYS), refetchOnMount: 'always' })
   const refetch = q.refetch
   useEffect(() => { if (dataTick) void refetch() }, [dataTick, refetch])
 
@@ -107,6 +111,8 @@ export default function StatsPage() {
       {habits.length === 0 && <p className="hb-hint">No habits yet.</p>}
     </section>
 
+    {notes.data && notes.data.length > 0 && <MoodSection notes={notes.data} today={today} />}
+
     {liveGoals.length > 0 && <section className="hb-sheet__section" aria-labelledby="st-goals">
       <h2 id="st-goals" className="st-label">Goals</h2>
       <ul className="st-goals">
@@ -123,4 +129,27 @@ export default function StatsPage() {
       </ul>
     </section>}
   </div>
+}
+
+/** The year's check-ins: a calendar shaded by mood, and the latest lines written. */
+function MoodSection({ notes, today }: { notes: { date: string; mood: number | null; note: string | null }[]; today: string }) {
+  const byDate = new Map(notes.map(n => [n.date, n] as const))
+  const cells: HeatCell[] = Array.from({ length: YEAR_DAYS }, (_, i) => {
+    const date = addDays(today, -(YEAR_DAYS - 1 - i))
+    const n = byDate.get(date)
+    const level = (n?.mood ? Math.max(1, n.mood - 1) : n?.note ? 1 : 0) as HeatCell['level']
+    const what = n ? [n.mood ? MOODS[n.mood - 1] : null, n.note ? `“${n.note}”` : null].filter(Boolean).join(' · ') : 'no check-in'
+    return { date, level, title: `${shortDate(date)}: ${what}` }
+  })
+  const rated = notes.filter(n => n.mood)
+  const avg = rated.length ? rated.reduce((s, n) => s + n.mood!, 0) / rated.length : null
+  const recent = notes.filter(n => n.note).slice(-6).reverse()
+  return <section className="hb-sheet__section" aria-labelledby="st-mood">
+    <h2 id="st-mood" className="st-label">Check-ins</h2>
+    <p className="hb-hint">{notes.length} {notes.length === 1 ? 'day' : 'days'} checked in{avg != null ? ` · usually ${MOODS[Math.round(avg) - 1].toLowerCase()}` : ''}. Darker is a better day.</p>
+    <Heatmap cells={cells} variant="calendar" label="Mood by day over the past year" today={today} cellSize={10} />
+    {recent.length > 0 && <ul className="st-notes">
+      {recent.map(n => <li key={n.date}><span className="st-notes__date">{shortDate(n.date)}{n.mood ? ` · ${MOODS[n.mood - 1]}` : ''}</span>{n.note}</li>)}
+    </ul>}
+  </section>
 }

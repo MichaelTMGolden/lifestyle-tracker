@@ -2,6 +2,7 @@
 import type { DashboardSettings } from './settings'
 import type { SeasonRow } from './seasons'
 export type { SeasonRow }
+export type DayNoteRow = { date: string; mood: number | null; note: string | null }
 
 export interface CalendarEvent {
   id: number
@@ -594,6 +595,10 @@ export const api = {
   logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
     post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
   seasons: () => get<SeasonRow[]>('/api/seasons'),
+  /** Evening check-ins (mood 1–5 and a line) for the last `days` days, oldest first. */
+  dayNotes: (days = 371) => get<DayNoteRow[]>(`/api/day-notes?days=${days}`),
+  /** Saves a day's check-in; both empty clears it. */
+  saveDayNote: (date: string, input: { mood: number | null; note: string | null }) => send<void>('PUT', `/api/day-notes/${date}`, input),
   /** Sets the season from today (edits it if it started today). */
   setSeason: (input: { name: string | null; habitIds: number[]; endsOn: string | null }) => send<void>('PUT', '/api/seasons/current', input),
   endSeason: () => send<void>('DELETE', '/api/seasons/current'),

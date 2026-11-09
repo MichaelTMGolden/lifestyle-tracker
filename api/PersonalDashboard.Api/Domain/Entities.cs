@@ -139,6 +139,15 @@ public class Habit
     public List<HabitLog> Logs { get; set; } = new();
 }
 
+/// <summary>The evening check-in for one day: a mood from 1 (rough) to 5 (great) and one line.</summary>
+public class DayNote
+{
+    public DateOnly Date { get; set; }
+    public int? Mood { get; set; }
+    public string? Note { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 /// <summary>
 /// A stretch of time with a few habits in focus (e.g. guitar and singing for three
 /// months). Habits outside it are still tracked but not expected. Seasons never
