@@ -1,15 +1,20 @@
+import { readdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Writes /asset-list.json: every file the build put in /assets. The service
 // worker caches the whole list before it switches to a new build, so lazy page
 // chunks are there offline and an older saved page never asks for missing code.
+// Read from disk once the build is written: Vite drops empty style-only chunks
+// late, so the in-memory bundle can name files that never ship.
 const assetList = (): Plugin => ({
   name: 'asset-list',
   apply: 'build',
-  generateBundle(_, bundle) {
-    const files = Object.keys(bundle).filter(f => f.startsWith('assets/')).map(f => `/${f}`).sort()
-    this.emitFile({ type: 'asset', fileName: 'asset-list.json', source: JSON.stringify(files) })
+  writeBundle(options) {
+    const out = options.dir ?? 'dist'
+    const files = readdirSync(join(out, 'assets')).map(f => `/assets/${f}`).sort()
+    writeFileSync(join(out, 'asset-list.json'), JSON.stringify(files))
   },
 })
 
