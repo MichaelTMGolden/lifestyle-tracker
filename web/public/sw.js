@@ -42,13 +42,16 @@ async function installBuild(html) {
   const needed = [...new Set([...assetUrls(html), ...files])]
   await cacheAll(needed)
   const shell = await caches.open(SHELL)
-  const current = await readList(shell, CURRENT)
+  const assets = await caches.open(ASSETS)
+  // First run after upgrading from a worker that kept no build list: treat
+  // everything already cached as the previous build, so an open tab keeps its chunks.
+  const known = await shell.match(CURRENT)
+  const current = known ? await readList(shell, CURRENT) : (await assets.keys()).map(r => new URL(r.url).pathname)
   const same = current.length === needed.length && current.every(u => needed.includes(u))
   if (!same) await shell.put(PREVIOUS, new Response(JSON.stringify(current)))
   await shell.put(CURRENT, new Response(JSON.stringify(needed)))
   await shell.put('/', new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }))
   const keep = new Set([...needed, ...(same ? await readList(shell, PREVIOUS) : current)])
-  const assets = await caches.open(ASSETS)
   for (const req of await assets.keys()) if (!keep.has(new URL(req.url).pathname)) await assets.delete(req)
 }
 
