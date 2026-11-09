@@ -49,6 +49,8 @@ export interface Habit {
   reminderMinutes: number | null
   /** #rrggbb, or null for the default from the habit's id. */
   colorHex: string | null
+  /** The first day it was ever done (YYYY-MM-DD); null if never. */
+  firstLoggedOn: string | null
 }
 
 export interface Todo {
