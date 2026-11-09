@@ -193,10 +193,13 @@ export function Alerts({ alerts, onDismiss }: { alerts: Alert[]; onDismiss: (id:
 }
 
 /* ---------- Coming up: rest of today's schedule and tasks to pull in ---------- */
+const SHOW_TASKS = 5
 const fmtShort = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
 export function ComingUp({ agenda, tasks, busy, onAction }: { agenda: AgendaRow[]; tasks: Todo[]; busy: boolean; onAction: PlanningAction }) {
   const today = dateKey()
+  const [all, setAll] = useState(false)
+  const shown = all ? tasks : tasks.slice(0, SHOW_TASKS)
   // One line per task: tick to complete, a one-tap "Today", and the rest behind ⋯.
   const due = (t: Todo) => {
     if (!t.dueAt) return 'No due date'
@@ -213,7 +216,7 @@ export function ComingUp({ agenda, tasks, busy, onAction }: { agenda: AgendaRow[
     {tasks.length > 0 && <div className="td-tasks">
       <h3 className="td-sub">Tasks you could do today</h3>
       <div className="td-list">
-        {tasks.map(t => <div key={t.id} className={`td-row td-row--task${t.dueAt && t.dueAt.slice(0, 10) < today ? ' td-row--overdue' : ''}`}>
+        {shown.map(t => <div key={t.id} className={`td-row td-row--task${t.dueAt && t.dueAt.slice(0, 10) < today ? ' td-row--overdue' : ''}`}>
           <CheckRow checked={false} disabled={busy} label={t.title} meta={due(t)}
             onChange={() => onAction(() => api.toggleTodo(t.id), 'Task done.')} />
           <Button size="sm" variant="quiet" disabled={busy} aria-label={`Do ${t.title} today`}
@@ -224,6 +227,7 @@ export function ComingUp({ agenda, tasks, busy, onAction }: { agenda: AgendaRow[
           </details>
         </div>)}
       </div>
+      {tasks.length > SHOW_TASKS && <Button size="sm" variant="quiet" onClick={() => setAll(a => !a)} aria-expanded={all}>{all ? 'Show fewer' : `Show all ${tasks.length}`}</Button>}
     </div>}
     {!agenda.length && !tasks.length && <p className="td-hint">Nothing else today.</p>}
     <Link className="td-link" to="/tasks">All tasks →</Link>
