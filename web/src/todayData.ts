@@ -27,16 +27,22 @@ function savedBundle(day: string): { data: TodayBundle; at: number } | undefined
 }
 const fetchBundle = () => api.todayBundle()
 
-// Save every change to today's bundle (fetches, taps, queued offline taps), so
-// reopening shows what was last on screen.
+// Save today's bundle on this device so reopening shows what was last on screen,
+// but only while no write is in flight: an optimistic change is saved once the
+// server has it (or, for habits, once it is durably queued offline). A write that
+// fails is undone first, so it is never saved.
 let saving: ReturnType<typeof setTimeout> | undefined
-queryClient.getQueryCache().subscribe(event => {
-  const q = event.query
-  if (event.type !== 'updated' || q.queryKey[0] !== 'today-bundle' || q.queryKey[1] !== dateKey() || !q.state.data) return
+function saveSnapshot() {
   clearTimeout(saving)
   saving = setTimeout(() => {
+    if (pendingWrites > 0) return
+    const q = queryClient.getQueryCache().find<TodayBundle>({ queryKey: bundleKey(), exact: true })
+    if (!q?.state.data) return
     try { localStorage.setItem(SAVED, JSON.stringify({ day: dateKey(), at: q.state.dataUpdatedAt, data: q.state.data })) } catch { /* full or private */ }
   }, 300)
+}
+queryClient.getQueryCache().subscribe(event => {
+  if (event.type === 'updated' && event.query.queryKey[0] === 'today-bundle' && pendingWrites === 0) saveSnapshot()
 })
 
 /** Start Today's request while the page's code is still downloading. */
@@ -134,7 +140,8 @@ function todayWrites(qc: QueryClient) {
     })
   }
   const settled = () => {
-    if (--pendingWrites > 0 || !resyncAfterWrites) return
+    if (--pendingWrites === 0) saveSnapshot() // everything on screen is now saved or queued
+    if (pendingWrites > 0 || !resyncAfterWrites) return
     resyncAfterWrites = false
     void qc.invalidateQueries({ queryKey: ['today-bundle'] })
   }
