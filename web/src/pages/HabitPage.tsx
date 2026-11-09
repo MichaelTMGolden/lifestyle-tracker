@@ -10,6 +10,7 @@ import { useTimer } from '../timer/useTimer'
 import { Bars, Button, Icon, Progress, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
+import { lastHabits } from './habits/lastLoaded'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
 import { cellsFor, goalForHabit, goalPace, minutesByDate, todayKey } from './habits/stats'
 import './habits/habits.css'
@@ -21,14 +22,21 @@ const OFFLINE_NOTE = 'saved on this device · syncs when you are back online'
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 const shortDate = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
+// Keyed by id so moving between habits starts each page fresh.
 export default function HabitPage() {
   const id = Number(useParams().id)
+  return <HabitView key={id} id={id} />
+}
+
+function HabitView({ id }: { id: number }) {
   const navigate = useNavigate()
   const toast = useToast()
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
-  const [habit, setHabit] = useState<Habit | null>(null)
-  const [heat, setHeat] = useState<HabitHeatmap | null>(null)
-  const [goals, setGoals] = useState<Goal[]>([])
+  // Start from what the Habits page already loaded (instant, and usable offline).
+  const [cached] = useState(() => { const l = lastHabits(); return l && l.heatDays >= YEAR_DAYS ? l : null })
+  const [habit, setHabit] = useState<Habit | null>(() => cached?.habits.find(x => x.id === id) ?? null)
+  const [heat, setHeat] = useState<HabitHeatmap | null>(() => cached?.heat.find(r => r.id === id) ?? null)
+  const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | string>('loading')
 
   const load = useCallback(() =>
