@@ -116,3 +116,5 @@
 .td-row--task .ui-btn--quiet { flex-shrink: 0; }
 .td-row--overdue .ui-check-row__meta { color: var(--rite-warn); }
 .td-agenda li { padding: 6px 0; }
+/* With ⋯ open its toggle sits at the row's top right: keep Today clear of it. */
+.td-row--task:has(.td-row__more[open]) > .ui-btn { margin-right: 44px; }
