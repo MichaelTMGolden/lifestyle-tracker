@@ -16,10 +16,52 @@ export const queryClient = new QueryClient({
 // Keyed by local date, so the first render after midnight fetches the new day.
 const bundleKey = (day = dateKey()): QueryKey => ['today-bundle', day]
 
+// The last bundle seen on this device, for an instant first paint (same day only).
+const SAVED = 'pd:today-bundle'
+function savedBundle(day: string): { data: TodayBundle; at: number } | undefined {
+  try {
+    const raw = localStorage.getItem(SAVED)
+    const v = raw ? JSON.parse(raw) as { day: string; at: number; data: TodayBundle } : null
+    return v && v.day === day && v.data ? { data: v.data, at: v.at } : undefined
+  } catch { return undefined }
+}
+const fetchBundle = () => api.todayBundle()
+
+// Save today's bundle on this device so reopening shows what was last on screen,
+// but only while no write is in flight: an optimistic change is saved once the
+// server has it (or, for habits, once it is durably queued offline). A write that
+// fails is undone first, so it is never saved.
+let saving: ReturnType<typeof setTimeout> | undefined
+function saveSnapshot() {
+  clearTimeout(saving)
+  saving = setTimeout(() => {
+    if (pendingWrites > 0) return
+    const q = queryClient.getQueryCache().find<TodayBundle>({ queryKey: bundleKey(), exact: true })
+    if (!q?.state.data) return
+    try { localStorage.setItem(SAVED, JSON.stringify({ day: dateKey(), at: q.state.dataUpdatedAt, data: q.state.data })) } catch { /* full or private */ }
+  }, 300)
+}
+queryClient.getQueryCache().subscribe(event => {
+  if (event.type === 'updated' && event.query.queryKey[0] === 'today-bundle' && pendingWrites === 0) saveSnapshot()
+})
+
+/** Start Today's request while the page's code is still downloading. */
+export function prefetchToday() {
+  const day = dateKey()
+  const saved = savedBundle(day)
+  if (saved && !queryClient.getQueryData(bundleKey(day))) queryClient.setQueryData(bundleKey(day), saved.data, { updatedAt: saved.at })
+  void queryClient.fetchQuery({ queryKey: bundleKey(day), queryFn: fetchBundle, staleTime: 0 }).catch(() => { /* the page shows errors */ })
+}
+
 export function useTodayBundle() {
+  const day = dateKey()
   return useQuery({
-    queryKey: bundleKey(),
-    queryFn: api.todayBundle,
+    queryKey: bundleKey(day),
+    queryFn: fetchBundle,
+    // Today's copy saved on this device, whatever page the app opened on
+    // (it counts as old, so the refetch below still runs).
+    initialData: () => savedBundle(day)?.data,
+    initialDataUpdatedAt: () => savedBundle(day)?.at,
     // Show the cached day at once, but always check for changes made on other
     // pages (Habits, Tasks) or devices since it was fetched.
     refetchOnMount: 'always',
@@ -98,7 +140,8 @@ function todayWrites(qc: QueryClient) {
     })
   }
   const settled = () => {
-    if (--pendingWrites > 0 || !resyncAfterWrites) return
+    if (--pendingWrites === 0) saveSnapshot() // everything on screen is now saved or queued
+    if (pendingWrites > 0 || !resyncAfterWrites) return
     resyncAfterWrites = false
     void qc.invalidateQueries({ queryKey: ['today-bundle'] })
   }

@@ -7,15 +7,21 @@ import '../App.css'
  * isn't signed in. The real protection is the server-side gate on /api/* — this
  * is the UX layer, so if the status check fails we fail open (the API still 401s).
  */
+// Signed in last time on this device: open at once and check in the background
+// (a lapsed session switches to the password screen; the API 401s regardless).
+const KEY = 'pd:authed'
+const wasAuthed = () => { try { return localStorage.getItem(KEY) === '1' } catch { return false } }
+const remember = (ok: boolean) => { try { if (ok) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY) } catch { /* private mode */ } }
+
 export function AuthGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<'loading' | 'ok' | 'login'>('loading')
+  const [state, setState] = useState<'loading' | 'ok' | 'login'>(() => wasAuthed() ? 'ok' : 'loading')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const check = () =>
     api.authStatus()
-      .then((s) => setState(s.required && !s.authed ? 'login' : 'ok'))
+      .then((s) => { const login = s.required && !s.authed; remember(!login); setState(login ? 'login' : 'ok') })
       .catch(() => setState('ok')) // API unreachable → let the app load; calls will surface errors
 
   useEffect(() => { check() }, [])

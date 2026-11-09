@@ -36,8 +36,14 @@ if (import.meta.env.PROD) {
     const urls = performance.getEntriesByType('resource').map(e => e.name).filter(u => new URL(u).pathname.startsWith('/assets/'))
     reg?.active?.postMessage({ type: 'cache-assets', urls })
   }
-  if ('requestIdleCallback' in window) requestIdleCallback(() => void preload(), { timeout: 5000 })
-  else setTimeout(() => void preload(), 3000)
+  // After the page has loaded and its data has had time to arrive, so these
+  // downloads never queue in front of what is on screen.
+  const later = () => setTimeout(() => {
+    if ('requestIdleCallback' in window) requestIdleCallback(() => void preload(), { timeout: 4000 })
+    else void preload()
+  }, 2500)
+  if (document.readyState === 'complete') later()
+  else window.addEventListener('load', later, { once: true })
 }
 const KitPage = lazy(() => import('./pages/KitPage'))
 const loading = <p className="route-loading" role="status">Loading your dashboard…</p>
