@@ -1,25 +1,55 @@
 // Service worker: makes the dashboard installable and lets the app shell open
 // without a connection. Your data is never cached: /api requests always go to
 // the network.
-//  - Page loads: the saved shell at once, refreshed in the background (with its
-//    assets), so opening never waits on the network; a deploy shows from the
-//    next open. No saved shell yet: the network.
-//  - /assets/*: hashed by the build, so cache first; old ones are trimmed.
+//  - Page loads: the saved shell at once, so opening never waits on the network.
+//    The current shell is fetched in the background and replaces the saved one
+//    only once every file of its build (asset-list.json) is cached; a deploy
+//    shows from the next open. ?fresh=1 asks for the network copy (the page
+//    found code missing). No saved shell yet: the network.
+//  - /assets/*: hashed by the build, so cache first. The saved build's files
+//    and the previous build's are kept; older ones are dropped.
 //  - Icons, manifest, fonts: stale-while-revalidate.
 const SHELL = 'pd-shell-v1'
 const ASSETS = 'pd-assets-v1'
 const STATIC = 'pd-static-v1'
 const KEEP = [SHELL, ASSETS, STATIC]
-const MAX_ASSETS = 80
+// Which build's files the saved shell needs, and the one before it (a page still
+// open from the old build can keep loading its own chunks).
+const CURRENT = '/__build/current'
+const PREVIOUS = '/__build/previous'
 
-// The page's own build output: entry JS/CSS (and preloads) named in index.html.
-// On a first visit these load before this worker exists, so fetch them here.
+// The page's own build output named in index.html (entry JS/CSS and preloads).
 const assetUrls = html => [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(m => m[1])
 
-async function cacheAssets(urls) {
+/** Cache every URL; rejects if any can't be fetched. */
+async function cacheAll(urls) {
   const cache = await caches.open(ASSETS)
-  await Promise.all(urls.filter(u => new URL(u, self.location.origin).pathname.startsWith('/assets/'))
-    .map(u => cache.match(u, { ignoreVary: true }).then(hit => hit ?? cache.add(u)).catch(() => { /* retried on the next visit */ })))
+  await Promise.all(urls.map(u => cache.match(u, { ignoreVary: true }).then(hit => hit ?? cache.add(u))))
+}
+
+/** Best effort, for files a page reports it has loaded. */
+const cacheSome = urls => cacheAll(urls.filter(u => new URL(u, self.location.origin).pathname.startsWith('/assets/'))).catch(() => { /* retried later */ })
+
+const readList = async (shell, key) => { const r = await shell.match(key); return r ? r.json() : [] }
+
+/**
+ * Make `html` the saved shell once all of its build's files are cached, so it
+ * can always start (offline too). Keeps the previous build's files, drops older.
+ */
+async function installBuild(html) {
+  let files = []
+  try { const r = await fetch('/asset-list.json', { cache: 'no-store' }); if (r.ok) files = await r.json() } catch { /* an older server: the HTML's own files only */ }
+  const needed = [...new Set([...assetUrls(html), ...files])]
+  await cacheAll(needed)
+  const shell = await caches.open(SHELL)
+  const current = await readList(shell, CURRENT)
+  const same = current.length === needed.length && current.every(u => needed.includes(u))
+  if (!same) await shell.put(PREVIOUS, new Response(JSON.stringify(current)))
+  await shell.put(CURRENT, new Response(JSON.stringify(needed)))
+  await shell.put('/', new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }))
+  const keep = new Set([...needed, ...(same ? await readList(shell, PREVIOUS) : current)])
+  const assets = await caches.open(ASSETS)
+  for (const req of await assets.keys()) if (!keep.has(new URL(req.url).pathname)) await assets.delete(req)
 }
 
 self.addEventListener('install', event => {
@@ -28,8 +58,7 @@ self.addEventListener('install', event => {
     await shell.addAll(['/manifest.webmanifest', '/favicon.svg', '/icon-192.png'])
     const page = await fetch('/', { cache: 'no-cache' })
     if (!page.ok) throw new Error('shell fetch failed')
-    await shell.put('/', page.clone())
-    await cacheAssets(assetUrls(await page.text()))
+    await installBuild(await page.text())
     await self.skipWaiting()
   })())
 })
@@ -37,7 +66,7 @@ self.addEventListener('install', event => {
 // The page reports the asset files it has already loaded (lazy page chunks
 // included), since those were fetched before this worker could see them.
 self.addEventListener('message', event => {
-  if (event.data?.type === 'cache-assets' && Array.isArray(event.data.urls)) event.waitUntil(cacheAssets(event.data.urls))
+  if (event.data?.type === 'cache-assets' && Array.isArray(event.data.urls)) event.waitUntil(cacheSome(event.data.urls))
 })
 
 self.addEventListener('activate', event => {
@@ -46,43 +75,36 @@ self.addEventListener('activate', event => {
     .then(() => self.clients.claim()))
 })
 
-async function trim(cacheName, max) {
-  const cache = await caches.open(cacheName)
-  const keys = await cache.keys()
-  for (const key of keys.slice(0, Math.max(0, keys.length - max))) await cache.delete(key)
-}
-
 self.addEventListener('fetch', event => {
   const req = event.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   const sameOrigin = url.origin === self.location.origin
-  if (sameOrigin && (url.pathname.startsWith('/api/') || url.pathname === '/healthz')) return
+  if (sameOrigin && (url.pathname.startsWith('/api/') || url.pathname === '/healthz' || url.pathname === '/asset-list.json')) return
 
   if (req.mode === 'navigate' && sameOrigin) {
-    const fresh = fetch(req).then(async res => {
-      // Store the new shell only once its own assets are cached, so the saved
-      // shell can always start offline.
-      if (res.ok) {
-        const html = await res.clone().text()
-        await cacheAssets(assetUrls(html))
-        await (await caches.open(SHELL)).put('/', res.clone())
-      }
-      return res
-    })
-    event.waitUntil(fresh.catch(() => { /* offline: the saved shell serves */ }))
-    event.respondWith(caches.match('/', { cacheName: SHELL }).then(hit => hit ?? fresh.catch(() => Response.error())))
+    // Always fetch the current shell; it replaces the saved one in the background.
+    const network = fetch(req).then(res => ({ res, copy: res.clone() }))
+    event.waitUntil(network.then(async ({ res, copy }) => { if (res.ok) await installBuild(await copy.text()) })
+      .catch(() => { /* offline, or its build only partly cached: keep the saved shell */ }))
+    const live = network.then(({ res }) => res)
+    if (url.searchParams.has('fresh')) {
+      event.respondWith(live.catch(() => caches.match('/', { cacheName: SHELL }).then(hit => hit ?? Response.error())))
+      return
+    }
+    event.respondWith(caches.match('/', { cacheName: SHELL }).then(hit => hit ?? live.catch(() => Response.error())))
     return
   }
 
   if (sameOrigin && url.pathname.startsWith('/assets/')) {
     // Hashed files never change, so a cached copy fetched without Origin still serves module (cors) requests.
     event.respondWith(caches.match(req, { cacheName: ASSETS, ignoreVary: true }).then(hit => hit ?? fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(ASSETS).then(c => c.put(req, copy)).then(() => trim(ASSETS, MAX_ASSETS)) }
+      if (res.ok) { const copy = res.clone(); caches.open(ASSETS).then(c => c.put(req, copy)) }
       return res
     })))
     return
   }
+
 
   const cacheable = sameOrigin ? /\.(png|svg|webmanifest|ico)$/.test(url.pathname)
     : url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com'

@@ -25,11 +25,19 @@ function savedBundle(day: string): { data: TodayBundle; at: number } | undefined
     return v && v.day === day && v.data ? { data: v.data, at: v.at } : undefined
   } catch { return undefined }
 }
-const fetchBundle = async () => {
-  const data = await api.todayBundle()
-  try { localStorage.setItem(SAVED, JSON.stringify({ day: dateKey(), at: Date.now(), data })) } catch { /* full or private */ }
-  return data
-}
+const fetchBundle = () => api.todayBundle()
+
+// Save every change to today's bundle (fetches, taps, queued offline taps), so
+// reopening shows what was last on screen.
+let saving: ReturnType<typeof setTimeout> | undefined
+queryClient.getQueryCache().subscribe(event => {
+  const q = event.query
+  if (event.type !== 'updated' || q.queryKey[0] !== 'today-bundle' || q.queryKey[1] !== dateKey() || !q.state.data) return
+  clearTimeout(saving)
+  saving = setTimeout(() => {
+    try { localStorage.setItem(SAVED, JSON.stringify({ day: dateKey(), at: q.state.dataUpdatedAt, data: q.state.data })) } catch { /* full or private */ }
+  }, 300)
+})
 
 /** Start Today's request while the page's code is still downloading. */
 export function prefetchToday() {
