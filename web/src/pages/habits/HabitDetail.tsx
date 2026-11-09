@@ -67,7 +67,8 @@ export function HabitDetail({ habit: h, yearCells, insights, running, elapsedMs,
           {h.doneToday ? 'Done today · tap to undo' : 'Mark done today'}
         </Button>}
 
-    <Rhythm habit={h} onChanged={onChanged} />
+    {/* Keyed so the form follows a rhythm saved elsewhere. */}
+    <Rhythm key={`${h.cadence}:${h.targetPerPeriod}`} habit={h} onChanged={onChanged} />
     <Colour habit={h} onChanged={onChanged} />
     <Reminder habit={h} onChanged={onChanged} />
     {h.tracksTime && <Entries habitId={h.id} version={`${h.minutesToday}:${h.totalMinutes}`} onChanged={onChanged} />}
