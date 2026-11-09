@@ -21,23 +21,22 @@ public static class DayNotes
         var note = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
         if (note is { Length: > MaxNote }) return $"note must be {MaxNote} characters or fewer";
 
+        // One save at a time: two devices saving or clearing the same day then
+        // resolve as last write wins instead of failing.
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (db.Database.IsNpgsql()) await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71520903)");
         var row = await db.DayNotes.FirstOrDefaultAsync(d => d.Date == date);
         if (input.Mood is null && note is null)
         {
-            if (row is not null) { db.DayNotes.Remove(row); await db.SaveChangesAsync(); }
-            return null;
+            if (row is not null) db.DayNotes.Remove(row);
         }
-        if (row is null) db.DayNotes.Add(row = new DayNote { Date = date });
-        row.Mood = input.Mood; row.Note = note; row.UpdatedAt = now;
-        try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException) when (db.Database.IsNpgsql())
+        else
         {
-            // Another device saved the same day first: write over it.
-            db.ChangeTracker.Clear();
-            var existing = await db.DayNotes.FirstAsync(d => d.Date == date);
-            existing.Mood = input.Mood; existing.Note = note; existing.UpdatedAt = now;
-            await db.SaveChangesAsync();
+            if (row is null) db.DayNotes.Add(row = new DayNote { Date = date });
+            row.Mood = input.Mood; row.Note = note; row.UpdatedAt = now;
         }
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return null;
     }
 
