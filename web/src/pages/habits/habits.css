@@ -112,3 +112,25 @@
 .st-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--rite-4); }
 .st-goals li { display: flex; flex-direction: column; gap: 6px; }
 .st-goals b { color: var(--rite-text); font-weight: 500; }
+
+/* Seasons */
+.hb-fieldset { border: 0; margin: 0; padding: 0; }
+.hb-fieldset legend { padding: 0; margin-bottom: 6px; }
+.hb-field small { font-size: 12px; color: var(--rite-muted); }
+.hb-chips { display: flex; flex-wrap: wrap; gap: var(--rite-2); }
+.hb-chip { min-height: 40px; padding: 0 var(--rite-4); border-radius: var(--rite-pill); border: 1px solid var(--rite-border-strong); background: transparent; color: var(--rite-text); font: 500 14px var(--font-body); cursor: pointer; }
+.hb-chip--on { background: var(--habit-tint, var(--rite-tint-strong)); border-color: var(--habit, var(--rite-accent)); }
+.hb-season { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-3); padding: var(--rite-3) var(--rite-4); border-radius: var(--rite-radius-lg); border: 1px solid var(--rite-border); background: var(--rite-surface); }
+.hb-season p { margin: 0; }
+.hb-season--empty p { font-size: 13px; color: var(--rite-muted); }
+.hb-season--empty b { color: var(--rite-text); font-weight: 500; }
+.hb-season__eyebrow { display: block; font-size: 12px; color: var(--rite-muted); margin-bottom: 4px; }
+.hb-season__focus { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.hb-season__habit { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 19px; color: var(--habit-light, var(--rite-text)); }
+.hb-season__habit::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--habit, var(--rite-accent)); }
+.hb-others { display: flex; flex-direction: column; gap: var(--rite-3); }
+.hb-others__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--rite-2); }
+.hb-others__head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 22px; letter-spacing: 0; color: var(--rite-muted); }
+.hb-others .hb-card { background: transparent; }
+.hb-others .hb-card__name { font-size: 18px; }
+.hb-focus-note { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-2); font-size: 13px; color: var(--rite-muted); }

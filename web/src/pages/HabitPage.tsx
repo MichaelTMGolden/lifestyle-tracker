@@ -11,6 +11,9 @@ import { Bars, Button, Icon, Progress, Skeleton } from '../ui'
 import { useToast } from '../ui/hooks'
 import { HabitDetail } from './habits/HabitDetail'
 import { lastHabits, rememberHabit, rememberHabits } from './habits/lastLoaded'
+import { useSeasons } from './habits/useSeasons'
+import { inFocusOn, liveSeasons, type SeasonRow } from '../seasons'
+import { useQueryClient } from '@tanstack/react-query'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
 import { cellsFor, goalForHabit, goalPace, heatWithToday, minutesByDate, todayKey } from './habits/stats'
 import './habits/habits.css'
@@ -30,6 +33,7 @@ export default function HabitPage() {
 
 function HabitView({ id }: { id: number }) {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const toast = useToast()
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   // Start from what the Habits page already loaded (instant, and usable offline).
@@ -37,13 +41,15 @@ function HabitView({ id }: { id: number }) {
   const [habit, setHabit] = useState<Habit | null>(() => cached?.habits.find(x => x.id === id) ?? null)
   const [heat, setHeat] = useState<HabitHeatmap | null>(() => cached?.heat.find(r => r.id === id) ?? null)
   const [goals, setGoals] = useState<Goal[]>(() => cached?.goals ?? [])
+  // Every habit's id: a season whose habits were all deleted counts as none.
+  const [allIds, setAllIds] = useState<number[]>(() => cached?.habits.map(x => x.id) ?? [])
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | string>('loading')
 
   const load = useCallback(() =>
     Promise.all([api.habits(), api.habitsHeatmap(YEAR_DAYS), api.goals()])
       .then(([hs, hm, g]) => {
         const h = hs.find(x => x.id === id) ?? null
-        setHabit(h); setHeat(hm.find(r => r.id === id) ?? null); setGoals(g)
+        setHabit(h); setHeat(hm.find(r => r.id === id) ?? null); setGoals(g); setAllIds(hs.map(x => x.id))
         // Fresh from the server: the next page opened from the cache starts from this.
         rememberHabits({ habits: hs, heat: hm, goals: g, heatDays: YEAR_DAYS })
         setState(h ? 'ready' : 'missing')
@@ -106,7 +112,12 @@ function HabitView({ id }: { id: number }) {
   }
   async function remove() {
     if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
-    try { await api.deleteHabit(h.id); navigate('/habits', { replace: true }) } catch (e) { failed(e) }
+    try {
+      await api.deleteHabit(h.id)
+      // Deleting a season's last habit ends that season on the server.
+      void qc.invalidateQueries({ queryKey: ['seasons'] }); void qc.invalidateQueries({ queryKey: ['stats'] })
+      navigate('/habits', { replace: true })
+    } catch (e) { failed(e) }
   }
 
   return <div className="hb-page hb-detail" style={habitStyle(h)}>
@@ -116,7 +127,7 @@ function HabitView({ id }: { id: number }) {
     </header>
 
     <HabitDetail habit={h} yearCells={cellsFor(h, byDate, YEAR_DAYS)}
-      insights={<Insights habit={h} byDate={byDate} today={today} goal={goal} />}
+      insights={<Insights habit={h} byDate={byDate} today={today} goal={goal} allIds={allIds} />}
       running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)}
       onLog={logTime} onToggle={() => void toggle()}
       onStart={() => { void start(h.id, h.name).catch(e => toast.show({ message: message(e), tone: 'error' })) }}
@@ -125,9 +136,36 @@ function HabitView({ id }: { id: number }) {
   </div>
 }
 
-function Insights({ habit: h, byDate, today, goal }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal }) {
+/** Whether this habit is in this season's focus, with a one-tap change. */
+function SeasonLine({ habit: h, current }: { habit: Habit; current: SeasonRow | null }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  if (!current) return null
+  const inFocus = current.habitIds.includes(h.id)
+  async function change() {
+    const ids = inFocus ? current!.habitIds.filter(x => x !== h.id) : [...current!.habitIds, h.id]
+    if (ids.length === 0) { toast.show({ message: 'A season needs at least one habit. End the season on Habits instead.' }); return }
+    setBusy(true)
+    try {
+      await api.setSeason({ name: current!.name, habitIds: ids, endsOn: current!.endsOn })
+      await Promise.all([qc.invalidateQueries({ queryKey: ['seasons'] }), qc.invalidateQueries({ queryKey: ['stats'] })])
+      toast.show({ message: inFocus ? `${h.name} is tracked, not in focus` : `${h.name} is in focus` })
+    } catch (e) { toast.show({ message: `Couldn't save: ${message(e)}`, tone: 'error' }) }
+    finally { setBusy(false) }
+  }
+  return <p className="hb-focus-note">
+    <span>{inFocus ? `In focus${current.name ? ` · ${current.name}` : ' this season'}` : 'Not in focus this season · still tracked'}</span>
+    <Button size="sm" variant="quiet" disabled={busy} onClick={() => void change()}>{inFocus ? 'Take out of focus' : 'Bring into focus'}</Button>
+  </p>
+}
+
+function Insights({ habit: h, byDate, today, goal, allIds }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal; allIds: number[] }) {
+  const { seasons: all, current } = useSeasons()
+  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id], today)
   const color = habitColor(h)
-  const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate))
+  // Days it was out of focus aren't counted as missed.
+  const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate), d => inFocusOn(seasons, h.id, d))
   const counted = rates.filter(r => r.total > 0)
   const share = (r: { done: number; total: number }) => r.total ? r.done / r.total : 0
   // Only name a weak day when there is enough history and a real gap.
@@ -139,6 +177,7 @@ function Insights({ habit: h, byDate, today, goal }: { habit: Habit; byDate: Map
   const pace = goal ? goalPace(goal) : null
 
   return <>
+    <SeasonLine habit={h} current={current && seasons.includes(current) ? current : null} />
     {goal && <section className="hb-sheet__section" aria-labelledby="hb-goal">
       <h3 id="hb-goal" className="hb-sheet__label">Goal · {goal.name}</h3>
       <div className="hb-card__goal-line">

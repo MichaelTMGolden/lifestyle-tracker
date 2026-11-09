@@ -17,6 +17,8 @@ import { useToast } from '../ui/hooks'
 import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
 import { useStreakMilestones } from './habits/milestones'
+import { useSeasons } from './habits/useSeasons'
+import { splitByFocus } from '../seasons'
 import { eventOnDay, PLAN_DAYS } from './plan/days'
 import { Alerts, ComingUp, HabitTiles, LogTimeSheet, RunningTimers, TodayList } from './today/parts'
 import '../dailyPlanning.css'
@@ -38,6 +40,7 @@ export default function TodayPage() {
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.goals, enabled: timers.length > 0 })
   const qc = useQueryClient()
   const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
+  const { current: season } = useSeasons()
   // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
   const [quietDay, setQuietDay] = useState(false)
   const upcoming = useQuery({ queryKey: ['calendar', PLAN_DAYS], queryFn: () => api.calendarDays(PLAN_DAYS), enabled: quietDay })
@@ -82,7 +85,9 @@ export default function TodayPage() {
   const { today, schedule, habits, todos: tasks, dailyTodos: daily, pending, alerts } = data
   const day = dateKey()
   const date = new Date()
-  const doneCount = habits.filter(h => h.doneToday).length
+  // This season's habits are the day's tiles and ring; the rest sit below as chips.
+  const { focus, others } = splitByFocus(habits, season)
+  const doneCount = focus.filter(h => h.doneToday).length
   const agenda = agendaRows(schedule.blocks, schedule.events, now)
   const nextUp = agenda.find(r => !r.current) ?? null
   const planned = tasks.filter(t => t.plannedFor === day)
@@ -135,7 +140,7 @@ export default function TodayPage() {
             : 'Nothing else scheduled today'}
         </span>
       </div>
-      {habits.length > 0 && <Ring value={doneCount} max={habits.length} label={`${doneCount} of ${habits.length} habits done today`} />}
+      {focus.length > 0 && <Ring value={doneCount} max={focus.length} label={`${doneCount} of ${focus.length} ${season && others.length ? 'focus ' : ''}habits done today`} />}
     </header>
 
     {bundle.error && <p className="td-error" role="alert">Couldn't refresh. Showing what was last loaded. <Button size="sm" variant="quiet" onClick={() => void bundle.refetch()}>Retry</Button></p>}
@@ -146,7 +151,11 @@ export default function TodayPage() {
 
     <section aria-labelledby="td-habits">
       <SectionHead id="td-habits" title="Habits" aside={<span className="td-hint">Tap to log</span>} />
-      <HabitTiles habits={habits} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} onLogPast={() => setLogging(true)} />
+      <HabitTiles habits={focus} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} onLogPast={() => setLogging(true)} />
+      {others.length > 0 && <div className="td-others">
+        <span className="td-others__label">Also tracking</span>
+        <HabitTiles compact habits={others} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} />
+      </div>}
     </section>
 
     <section aria-labelledby="td-today">

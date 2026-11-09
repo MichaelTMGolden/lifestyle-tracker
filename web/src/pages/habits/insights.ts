@@ -27,14 +27,16 @@ export type Slot = { done: number; total: number }
  * For each weekday (Monday first): how many of the last `weeks` weeks it was done,
  * out of how many such days there were. Days before `from` (the habit's first
  * log) and after `today` are left out, so a new habit isn't marked as missing;
- * today counts only once it is done.
+ * today counts only once it is done. With `asked`, days the habit wasn't in
+ * focus are left out too.
  */
-export function weekdayRates(byDate: ReadonlyMap<string, number>, today: string, weeks = 12, from?: string | null): Slot[] {
+export function weekdayRates(byDate: ReadonlyMap<string, number>, today: string, weeks = 12, from?: string | null, asked?: (day: string) => boolean): Slot[] {
   const slots: Slot[] = Array.from({ length: 7 }, () => ({ done: 0, total: 0 }))
   const start = addDays(mondayOf(today), -7 * (weeks - 1))
   for (let d = start; d <= today; d = addDays(d, 1)) {
     if (from && d < from) continue
     if (d === today && !byDate.has(d)) continue // today isn't missed yet
+    if (asked && !asked(d)) continue // out of focus that day: not expected
     const s = slots[weekdayOf(d)]
     s.total++
     if (byDate.has(d)) s.done++
@@ -83,31 +85,33 @@ export type Tracked = {
   habit: HabitRhythm; byDate: ReadonlyMap<string, number>
   /** The habit's first ever entry; `byDate` may only hold a recent window. */
   from?: string | null
+  /** Whether the habit was expected that day (in focus); every day when absent. */
+  asked?: (day: string) => boolean
 }
 
 /**
  * Share of what all habits asked for that was done, per month (0–1, or null for a
- * month before any habit started). Each habit counts only from its first log,
- * and weekly habits ask for their target, not every day.
+ * month when nothing was asked). Each habit counts from its first log, only on
+ * days it was in focus, and weekly habits ask for their target, not every day.
  */
 export function monthlyRates(rows: Tracked[], today: string, months = 12): { month: string; rate: number | null }[] {
-  const per = rows.map(r => ({ r, from: r.from ?? firstDay(r.byDate), months: monthlyTotals(r.byDate, today, months) }))
-  return Array.from({ length: months }, (_, i) => {
+  const shape = monthlyTotals(new Map(), today, months)
+  const per = rows.map(r => ({ r, from: r.from ?? firstDay(r.byDate) }))
+  return shape.map(({ month, elapsed }) => {
     let done = 0, asked = 0
-    for (const { r, from, months: ms } of per) {
-      const mo = ms[i]
-      if (!from || mo.elapsed === 0) continue
-      // Days of this month on or after the habit's first log.
-      const startDay = from.slice(0, 7) === mo.month ? Number(from.slice(8)) : from.slice(0, 7) < mo.month ? 1 : null
-      if (startDay == null) continue
-      const span = mo.elapsed - startDay + 1
-      if (span <= 0) continue
-      const want = expectedDays(r.habit, span)
-      asked += want
-      // Extra days on one habit don't make up for misses on another.
-      done += Math.min(mo.days, want)
+    for (const { r, from } of per) {
+      if (!from) continue
+      let mDone = 0, mAsked = 0
+      for (let day = 1; day <= elapsed; day++) {
+        const k = `${month}-${String(day).padStart(2, '0')}`
+        if (k < from || (r.asked && !r.asked(k))) continue
+        mAsked += expectedDays(r.habit, 1)
+        if (r.byDate.has(k)) mDone++
+      }
+      // A weekly habit done more often than asked doesn't make up for another habit.
+      asked += mAsked; done += Math.min(mDone, mAsked)
     }
-    return { month: per[0]?.months[i]?.month ?? '', rate: asked > 0 ? Math.min(1, done / asked) : null }
+    return { month, rate: asked > 0 ? Math.min(1, done / asked) : null }
   })
 }
 

@@ -1,5 +1,7 @@
 // Thin typed client over the C# API. In dev, Vite proxies "/api" to :5080.
 import type { DashboardSettings } from './settings'
+import type { SeasonRow } from './seasons'
+export type { SeasonRow }
 
 export interface CalendarEvent {
   id: number
@@ -591,6 +593,10 @@ export const api = {
   /** Replay-safe writes for taps that may be queued offline (see offline/habitSync.ts). */
   logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
     post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
+  seasons: () => get<SeasonRow[]>('/api/seasons'),
+  /** Sets the season from today (edits it if it started today). */
+  setSeason: (input: { name: string | null; habitIds: number[]; endsOn: string | null }) => send<void>('PUT', '/api/seasons/current', input),
+  endSeason: () => send<void>('DELETE', '/api/seasons/current'),
   setHabitColor: (id: number, colorHex: string | null) => send<{ habit: Habit }>('PUT', `/api/habits/${id}/color`, { colorHex }),
   setHabitReminder: (id: number, minutes: number | null) => send<{ habit: Habit }>('PUT', `/api/habits/${id}/reminder`, { minutes }),
   setHabitDone: (id: number, date: string, done: boolean) => send<{ habit?: Habit | null }>('PUT', `/api/habits/${id}/done/${date}`, { done }),
