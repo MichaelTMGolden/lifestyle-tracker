@@ -111,7 +111,7 @@ function Focus() {
         {habits.data && habits.data.filter(h => h.tracksTime).length === 0 && <p className="fx__muted">No habits track time yet. Turn on “Track time” in a habit's settings.</p>}
         <ul>
           {habits.data?.filter(h => h.tracksTime).map(h => <li key={h.id} style={habitStyle(h)}>
-            <Link to={`/focus/${h.id}`} className="fx__choice"><span className="fx__dot" aria-hidden="true" />{h.name}<small>{h.minutesToday ? `${h.minutesToday} min today` : ''}</small></Link>
+            <Link replace to={`/focus/${h.id}`} className="fx__choice"><span className="fx__dot" aria-hidden="true" />{h.name}<small>{h.minutesToday ? `${h.minutesToday} min today` : ''}</small></Link>
           </li>)}
         </ul>
       </div>
