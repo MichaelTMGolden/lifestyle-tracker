@@ -1,7 +1,7 @@
 // Focus: one timed habit full screen. A big clock, today's time and goal progress
 // counting up live, the screen kept awake while it runs, and one Stop button.
 // /focus alone opens the running timer, or lists timed habits to start one.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { fmtElapsed, fmtHours } from '../lib'
 import { useTimer } from '../timer/useTimer'
 import { Button, Progress } from '../ui'
 import { haptic } from '../ui/feedback'
+import { ToastHostContext } from '../ui/toastContext'
 import { goalForHabit } from './habits/stats'
 import './focus.css'
 
@@ -35,11 +36,31 @@ function useWakeLock(on: boolean) {
   }, [on])
 }
 
-// Rendered into <body>: the route wrapper's entrance animation would otherwise
-// make it the containing block and the screen would not cover the app.
-const Screen = ({ children }: { children: ReactNode }) => createPortal(children, document.body)
+/**
+ * The screen is rendered into <body>: the route wrapper's entrance animation
+ * would otherwise contain it. While open, the app behind it is inert (no focus
+ * or taps reach it), focus moves into the screen and returns on close, and
+ * toasts show inside it.
+ */
+function Screen({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const toastHost = useContext(ToastHostContext)
+  useEffect(() => {
+    const root = document.getElementById('root')
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    root?.setAttribute('inert', '')
+    ref.current?.focus({ preventScroll: true })
+    const unhost = ref.current && toastHost ? toastHost.register(ref.current) : undefined
+    return () => { unhost?.(); root?.removeAttribute('inert'); before?.focus({ preventScroll: true }) }
+  }, [toastHost])
+  return createPortal(<div ref={ref} tabIndex={-1} className="fx-host">{children}</div>, document.body)
+}
 
 export default function FocusPage() {
+  return <Screen><Focus /></Screen>
+}
+
+function Focus() {
   const param = useParams().id
   const id = param ? Number(param) : null
   const { timers, isRunning, elapsedMs, start, stop, dataTick } = useTimer()
@@ -82,7 +103,7 @@ export default function FocusPage() {
   if (id == null) {
     const live = timers[0]
     if (live) return <Navigate to={`/focus/${live.habitId}`} replace />
-    return <Screen><div className="fx" role="dialog" aria-modal="true" aria-labelledby="fx-pick">
+    return <div className="fx" role="dialog" aria-modal="true" aria-labelledby="fx-pick">
       <div className="fx__top"><span /><Button variant="quiet" icon="close" aria-label="Close focus" onClick={close} /></div>
       <div className="fx__pick">
         <h1 id="fx-pick">Focus on…</h1>
@@ -94,21 +115,21 @@ export default function FocusPage() {
           </li>)}
         </ul>
       </div>
-    </div></Screen>
+    </div>
   }
 
-  if (!habit) return <Screen><div className="fx" role="dialog" aria-modal="true" aria-label="Focus">
+  if (!habit) return <div className="fx" role="dialog" aria-modal="true" aria-label="Focus">
     <div className="fx__top"><span /><Button variant="quiet" icon="close" aria-label="Close focus" onClick={close} /></div>
     <div className="fx__center">
       {habits.isPending ? <p className="fx__muted" role="status">Loading…</p>
         : habits.error ? <p className="fx__error" role="alert">Couldn't load this habit. {message(habits.error)} <Button size="sm" variant="quiet" onClick={() => void habits.refetch()}>Retry</Button></p>
         : <p className="fx__muted">This habit no longer exists. <Link to="/focus">Pick another</Link></p>}
     </div>
-  </div></Screen>
+  </div>
 
-  return <Screen><FocusView habit={habit} running={running} ms={running ? elapsedMs(habit.id) : 0} goals={goals.data} busy={busy} note={note} error={error} onClose={close}
+  return <FocusView habit={habit} running={running} ms={running ? elapsedMs(habit.id) : 0} goals={goals.data} busy={busy} note={note} error={error} onClose={close}
     onStart={() => { haptic(); void act(() => start(habit.id, habit.name)) }}
-    onStop={() => { haptic(); const mins = Math.round(elapsedMs(habit.id) / 60000); void act(() => stop(habit.id), mins > 0 ? `${mins} min logged` : 'Stopped. Under a minute isn’t logged.') }} /></Screen>
+    onStop={() => { haptic(); const mins = Math.round(elapsedMs(habit.id) / 60000); void act(() => stop(habit.id), mins > 0 ? `${mins} min logged` : 'Stopped. Under a minute isn’t logged.') }} />
 }
 
 function FocusView({ habit: h, running, ms, goals, busy, note, error, onClose, onStart, onStop }: {
