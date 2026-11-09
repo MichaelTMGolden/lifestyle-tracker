@@ -67,10 +67,18 @@ public class SeasonTests
     {
         var (db, a, _) = await Database();
         Assert.NotNull(await Seasons.SetAsync(db, new(null, [], null), Today));
-        Assert.NotNull(await Seasons.SetAsync(db, new(null, [a, 999], null), Today));
+        Assert.NotNull(await Seasons.SetAsync(db, new(null, [999], null), Today));
         Assert.NotNull(await Seasons.SetAsync(db, new(null, [a], Today.AddDays(-1)), Today));
         Assert.NotNull(await Seasons.SetAsync(db, new(new string('x', 81), [a], null), Today));
         Assert.Empty(await db.Seasons.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Deleted_habits_are_dropped_not_refused()
+    {
+        var (db, a, b) = await Database();
+        Assert.Null(await Seasons.SetAsync(db, new(null, [b, 999, a], null), Today));
+        Assert.Equal([b, a], (await db.Seasons.SingleAsync()).HabitIds);
     }
 
     [Fact]
