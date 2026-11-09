@@ -36,7 +36,16 @@ const readList = async (shell, key) => { const r = await shell.match(key); retur
  * Make `html` the saved shell once all of its build's files are cached, so it
  * can always start (offline too). Keeps the previous build's files, drops older.
  */
-async function installBuild(html) {
+// One installation at a time: another one pruning between this one's caching
+// and its promotion could remove the files it is about to rely on.
+let installing = Promise.resolve()
+function installBuild(html) {
+  const run = installing.catch(() => undefined).then(() => installBuildNow(html))
+  installing = run.catch(() => undefined)
+  return run
+}
+
+async function installBuildNow(html) {
   // Without the build's full file list the new shell can't be known complete:
   // keep the saved one (throws; the caller ignores it and tries next open).
   const list = await fetch('/asset-list.json', { cache: 'no-store' })
