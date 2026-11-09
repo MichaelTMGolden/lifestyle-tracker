@@ -33,6 +33,7 @@ export default function HabitPage() {
 
 function HabitView({ id }: { id: number }) {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const toast = useToast()
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   // Start from what the Habits page already loaded (instant, and usable offline).
@@ -111,7 +112,12 @@ function HabitView({ id }: { id: number }) {
   }
   async function remove() {
     if (!confirm(`Delete "${h.name}" and all its logs? This can't be undone.`)) return
-    try { await api.deleteHabit(h.id); navigate('/habits', { replace: true }) } catch (e) { failed(e) }
+    try {
+      await api.deleteHabit(h.id)
+      // Deleting a season's last habit ends that season on the server.
+      void qc.invalidateQueries({ queryKey: ['seasons'] }); void qc.invalidateQueries({ queryKey: ['stats'] })
+      navigate('/habits', { replace: true })
+    } catch (e) { failed(e) }
   }
 
   return <div className="hb-page hb-detail" style={habitStyle(h)}>
@@ -156,7 +162,7 @@ function SeasonLine({ habit: h, current }: { habit: Habit; current: SeasonRow | 
 
 function Insights({ habit: h, byDate, today, goal, allIds }: { habit: Habit; byDate: Map<string, number>; today: string; goal?: Goal; allIds: number[] }) {
   const { seasons: all, current } = useSeasons()
-  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id])
+  const seasons = liveSeasons(all, allIds.length ? allIds : [h.id], today)
   const color = habitColor(h)
   // Days it was out of focus aren't counted as missed.
   const rates = weekdayRates(byDate, today, 12, h.firstLoggedOn ?? firstDay(byDate), d => inFocusOn(seasons, h.id, d))

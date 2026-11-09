@@ -43,7 +43,7 @@ export default function StatsPage() {
   const { habits, heat, goals } = q.data
   const today = todayKey()
   const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
-  const live = liveSeasons(seasons, habits.map(h => h.id))
+  const live = liveSeasons(seasons, habits.map(h => h.id), today)
   const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, asked: (d: string) => inFocusOn(live, h.id, d), byDate: heatById.get(h.id) ?? new Map<string, number>() }))
   const rates = monthlyRates(rows, today, 12)
   const best = bestWeek(rows, today, 53)

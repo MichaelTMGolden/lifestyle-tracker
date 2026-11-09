@@ -350,12 +350,12 @@ public static partial class ApiEndpoints
         });
 
         // Remove a habit (cascades its logs and goal-feeder links).
-        api.MapDelete("/habits/{id:int}", async (int id, AppDbContext db) =>
+        api.MapDelete("/habits/{id:int}", async (int id, AppDbContext db, HttpRequest req) =>
         {
             var habit = await db.Habits.FindAsync(id);
             if (habit is null) return Results.NotFound();
-            db.Habits.Remove(habit);
-            await db.SaveChangesAsync();
+            // Under the season lock; a season left with no habits ends (history kept).
+            await Seasons.DeleteHabitAsync(db, habit, ClientClock.From(req).Today);
             return Results.NoContent();
         });
     }

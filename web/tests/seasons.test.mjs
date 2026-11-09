@@ -40,7 +40,18 @@ test('days out of focus are not counted as missed', () => {
 test('a season whose habits were all deleted counts as none', async () => {
   const { liveSeasons } = await import('../src/seasons.ts')
   const emptied = [{ id: 3, name: null, startsOn: '2026-11-01', endsOn: null, habitIds: [9] }]
-  const live = liveSeasons(emptied, [1, 2])
+  const live = liveSeasons(emptied, [1, 2], '2026-11-09')
   assert.deepEqual(live, [])
   assert.equal(inFocusOn(live, 1, '2026-11-05'), true)
+  // A finished season keeps its history even if its habits are gone.
+  const past = [{ id: 4, name: null, startsOn: '2026-09-01', endsOn: '2026-09-30', habitIds: [9] }]
+  assert.equal(liveSeasons(past, [1], '2026-11-09').length, 1)
+})
+
+test('month presets clamp to short months', async () => {
+  const { seasonEnd } = await import('../src/seasons.ts')
+  assert.equal(seasonEnd('2027-01-31', 1), '2027-02-27')
+  assert.equal(seasonEnd('2026-11-09', 3), '2027-02-08')
+  assert.equal(seasonEnd('2026-08-31', 6), '2027-02-27')
+  assert.equal(seasonEnd('2026-01-15', 1), '2026-02-14')
 })

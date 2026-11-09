@@ -9,11 +9,22 @@ export const seasonOn = (seasons: readonly SeasonRow[], day: string): SeasonRow 
   seasons.find(s => s.startsOn <= day && (s.endsOn == null || s.endsOn >= day)) ?? null
 
 /**
- * Seasons that still have a habit in them. A season whose habits were all
- * deleted counts as no season (every habit in focus), as on Today and Habits.
+ * Seasons as they count from here on: one still running (or not started) whose
+ * habits were all deleted counts as no season, as on Today and Habits. Past
+ * seasons keep their history whatever was deleted since.
  */
-export const liveSeasons = (seasons: readonly SeasonRow[], habitIds: readonly number[]): SeasonRow[] =>
-  seasons.filter(s => s.habitIds.some(id => habitIds.includes(id)))
+export const liveSeasons = (seasons: readonly SeasonRow[], habitIds: readonly number[], today: string): SeasonRow[] =>
+  seasons.filter(s => (s.endsOn != null && s.endsOn < today) || s.habitIds.some(id => habitIds.includes(id)))
+
+/** Last day (inclusive) of a season lasting `months` from `today`, clamped for short months. */
+export function seasonEnd(today: string, months: number): string {
+  const [y, m, d] = today.split('-').map(Number)
+  const target = new Date(Date.UTC(y, m - 1 + months, 1, 12))
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0, 12)).getUTCDate()
+  target.setUTCDate(Math.min(d, last))
+  target.setUTCDate(target.getUTCDate() - 1)
+  return target.toISOString().slice(0, 10)
+}
 
 /** Whether a habit was expected on `day`. Pass `liveSeasons(...)` so emptied seasons don't count. */
 export function inFocusOn(seasons: readonly SeasonRow[], habitId: number, day: string): boolean {

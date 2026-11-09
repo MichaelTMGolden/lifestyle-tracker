@@ -6,12 +6,10 @@ import { api, type Habit, type SeasonRow } from '../../api'
 import { habitStyle } from '../../habitColor'
 import { Button, Sheet, Tabs } from '../../ui'
 import { todayKey } from './stats'
+import { seasonEnd } from '../../seasons'
 
 const fmt = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: k.slice(0, 4) === todayKey().slice(0, 4) ? undefined : 'numeric' })
-function monthsFromToday(n: number): string {
-  const d = new Date(); d.setHours(12, 0, 0, 0); d.setMonth(d.getMonth() + n); d.setDate(d.getDate() - 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const monthsFromToday = (n: number) => seasonEnd(todayKey(), n)
 
 export function SeasonBanner({ habits, current, onEdit }: { habits: Habit[]; current: SeasonRow | null; onEdit: () => void }) {
   const focus = current ? habits.filter(h => current.habitIds.includes(h.id)) : []
