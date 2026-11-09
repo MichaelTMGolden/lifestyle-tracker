@@ -43,6 +43,9 @@ async function installBuild(html) {
   if (!list.ok) throw new Error('asset list unavailable')
   const files = await list.json()
   if (!Array.isArray(files) || files.length === 0) throw new Error('asset list empty')
+  // A deploy between the two fetches would pair this HTML with another build's
+  // list: every file the HTML names must be on the list, or keep the saved shell.
+  if (!assetUrls(html).every(u => files.includes(u))) throw new Error('asset list is for another build')
   const needed = [...new Set([...assetUrls(html), ...files])]
   await cacheAll(needed)
   const shell = await caches.open(SHELL)
