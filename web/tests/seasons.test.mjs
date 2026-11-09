@@ -36,3 +36,11 @@ test('days out of focus are not counted as missed', () => {
   assert.deepEqual(w[1], { done: 0, total: 1 }) // Tuesday 3 Nov was in focus
   assert.deepEqual(w[0], { done: 1, total: 1 }) // Monday 9 Nov (today, not done) skipped
 })
+
+test('a season whose habits were all deleted counts as none', async () => {
+  const { liveSeasons } = await import('../src/seasons.ts')
+  const emptied = [{ id: 3, name: null, startsOn: '2026-11-01', endsOn: null, habitIds: [9] }]
+  const live = liveSeasons(emptied, [1, 2])
+  assert.deepEqual(live, [])
+  assert.equal(inFocusOn(live, 1, '2026-11-05'), true)
+})

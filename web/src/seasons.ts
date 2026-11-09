@@ -8,7 +8,14 @@ export type SeasonRow = { id: number; name: string | null; startsOn: string; end
 export const seasonOn = (seasons: readonly SeasonRow[], day: string): SeasonRow | null =>
   seasons.find(s => s.startsOn <= day && (s.endsOn == null || s.endsOn >= day)) ?? null
 
-/** Whether a habit was expected on `day`. */
+/**
+ * Seasons that still have a habit in them. A season whose habits were all
+ * deleted counts as no season (every habit in focus), as on Today and Habits.
+ */
+export const liveSeasons = (seasons: readonly SeasonRow[], habitIds: readonly number[]): SeasonRow[] =>
+  seasons.filter(s => s.habitIds.some(id => habitIds.includes(id)))
+
+/** Whether a habit was expected on `day`. Pass `liveSeasons(...)` so emptied seasons don't count. */
 export function inFocusOn(seasons: readonly SeasonRow[], habitId: number, day: string): boolean {
   const s = seasonOn(seasons, day)
   return !s || s.habitIds.includes(habitId)
