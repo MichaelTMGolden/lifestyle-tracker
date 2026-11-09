@@ -53,6 +53,7 @@ public static partial class ApiEndpoints
         MapConnections(api);
         MapArtist(api);
         MapHabits(api);
+        Seasons.Map(api);
         MapGoals(api);
         MapAlerts(api);
         MapReviews(api);

@@ -45,14 +45,16 @@ export function RunningTimers({ timers, goals, elapsedMs, onStop }: {
 }
 
 /* ---------- Habit tiles ---------- */
-export function HabitTiles({ habits, isRunning, elapsedMs, milestone, onTap, onLogPast }: {
+export function HabitTiles({ habits, isRunning, elapsedMs, milestone, onTap, onLogPast, compact }: {
   habits: Habit[]
+  /** Small chips for habits out of this season's focus; no "Log time" tile. */
+  compact?: boolean
   /** The habit whose streak just reached a milestone, briefly. */
   milestone?: number | null
   isRunning: (id: number) => boolean
   elapsedMs: (id: number) => number
   onTap: (h: Habit) => void
-  onLogPast: () => void
+  onLogPast?: () => void
 }) {
   // The tile just ticked pops once; the class clears when the burst ends so a later tick replays it.
   const [ticked, setTicked] = useState<number | null>(null)
@@ -61,7 +63,7 @@ export function HabitTiles({ habits, isRunning, elapsedMs, milestone, onTap, onL
     if (!h.tracksTime && !h.doneToday) setTicked(h.id)
     onTap(h)
   }
-  return <div className="td-tiles">
+  return <div className={compact ? 'td-tiles td-tiles--compact' : 'td-tiles'}>
     {habits.map(h => {
       const running = isRunning(h.id)
       const state = running ? 'running' : h.doneToday ? 'done' : 'open'
@@ -79,10 +81,10 @@ export function HabitTiles({ habits, isRunning, elapsedMs, milestone, onTap, onL
         <span className="td-tile__mark" aria-hidden="true">{state === 'done' ? <Icon name="check" size={14} /> : state === 'running' ? <span className="td-tile__pulse" /> : null}</span>
       </button>
     })}
-    <button type="button" className="td-tile td-tile--open" onClick={onLogPast}>
+    {onLogPast && <button type="button" className="td-tile td-tile--open" onClick={onLogPast}>
       <span className="td-tile__text"><span className="td-tile__name">Log time…</span><span className="td-tile__meta">Past session</span></span>
       <span className="td-tile__mark td-tile__mark--plus" aria-hidden="true"><Icon name="plus" size={14} /></span>
-    </button>
+    </button>}
   </div>
 }
 

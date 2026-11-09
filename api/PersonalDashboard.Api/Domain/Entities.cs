@@ -139,6 +139,22 @@ public class Habit
     public List<HabitLog> Logs { get; set; } = new();
 }
 
+/// <summary>
+/// A stretch of time with a few habits in focus (e.g. guitar and singing for three
+/// months). Habits outside it are still tracked but not expected. Seasons never
+/// overlap; past ones are kept so history is judged by what was in focus then.
+/// No season covering a day means every habit was in focus that day.
+/// </summary>
+public class Season
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public DateOnly StartsOn { get; set; }
+    /// <summary>Last day of the season (inclusive); null = until changed.</summary>
+    public DateOnly? EndsOn { get; set; }
+    public List<int> HabitIds { get; set; } = new();
+}
+
 public class HabitLog
 {
     public long Id { get; set; }

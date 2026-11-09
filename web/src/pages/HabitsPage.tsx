@@ -14,6 +14,9 @@ import { GoalsSection } from './habits/Goals'
 import { HabitCard, type Range } from './habits/HabitCard'
 import { useStreakMilestones } from './habits/milestones'
 import { lastHabits, rememberHabits } from './habits/lastLoaded'
+import { SeasonBanner, SeasonSheet } from './habits/SeasonSheet'
+import { useSeasons } from './habits/useSeasons'
+import { splitByFocus } from '../seasons'
 import { cellsFor, daysThisWeek, goalForHabit, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
 import './habits/habits.css'
 
@@ -42,6 +45,8 @@ export default function HabitsPage() {
   const toast = useToast()
   const milestone = useStreakMilestones(habits)
   const navigate = useNavigate()
+  const { current: season } = useSeasons()
+  const [seasonOpen, setSeasonOpen] = useState(false)
 
   const setRange = (r: Range) => { setRangeState(r); try { localStorage.setItem(RANGE_KEY, r) } catch { /* private mode */ } }
 
@@ -107,10 +112,19 @@ export default function HabitsPage() {
   }, [celebrating])
 
   const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
-  const week = habits.map(h => ({ h, done: daysThisWeek(heatById.get(h.id) ?? new Map()) }))
+  // The season's habits lead and make up the week's score; the rest sit below.
+  const { focus, others } = splitByFocus(habits, season)
+  const withWeek = (list: Habit[]) => list.map(h => ({ h, done: daysThisWeek(heatById.get(h.id) ?? new Map()) }))
+  const week = withWeek(focus)
   const weekDone = week.reduce((s, { h, done }) => s + Math.min(done, weeklyTarget(h)), 0)
   const weekTarget = week.reduce((s, { h }) => s + weeklyTarget(h), 0)
-  const longest = habits.filter(h => !isWeekly(h)).reduce((m, h) => Math.max(m, h.currentStreak), 0)
+  const longest = focus.filter(h => !isWeekly(h)).reduce((m, h) => Math.max(m, h.currentStreak), 0)
+  const card = ({ h, done }: { h: Habit; done: number }, r: Range) => {
+    const byDate = heatById.get(h.id) ?? new Map<string, number>()
+    return <HabitCard key={h.id} habit={h} range={r} cells={cellsFor(h, byDate, RANGE_DAYS[r])} doneThisWeek={done}
+      goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
+      onOpen={() => navigate(`/habits/${h.id}`)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
+  }
 
   return <div className="hb-page">
     <header className="hb-head">
@@ -126,6 +140,8 @@ export default function HabitsPage() {
       </div>
     </header>
 
+    {habits.length > 0 && <SeasonBanner habits={habits} current={season} onEdit={() => setSeasonOpen(true)} />}
+
     <Tabs options={ranges} value={range} onChange={setRange} label="Heatmap range" />
 
     {error && <p className="hb-error" role="alert">Couldn't load habits ({error}). <Button size="sm" variant="quiet" onClick={() => void load()}>Retry</Button></p>}
@@ -133,14 +149,17 @@ export default function HabitsPage() {
     <div className={`hb-list hb-list--${range}`}>
       {loading && habits.length === 0 && Array.from({ length: 4 }, (_, i) => <div key={i} className="hb-card" aria-hidden="true"><Skeleton height={22} width="40%" /><Skeleton height={14} /></div>)}
       {loading && <p className="ui-sr-only" role="status">Loading habits…</p>}
-      {week.map(({ h, done }) => {
-        const byDate = heatById.get(h.id) ?? new Map<string, number>()
-        return <HabitCard key={h.id} habit={h} range={range} cells={cellsFor(h, byDate, RANGE_DAYS[range])} doneThisWeek={done}
-          goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
-          onOpen={() => navigate(`/habits/${h.id}`)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
-      })}
+      {week.map(w => card(w, range))}
       {!loading && !error && habits.length === 0 && <p className="hb-hint">No habits yet. Add one to start a streak.</p>}
     </div>
+
+    {others.length > 0 && <section className="hb-others" aria-labelledby="hb-others">
+      <div className="hb-others__head"><h2 id="hb-others">Not in focus</h2><span className="hb-hint">Still tracked · log any time</span></div>
+      {/* Always the 4-week strip: these are for a quick tick, not study. */}
+      <div className="hb-list hb-list--4w">{withWeek(others).map(w => card(w, '4w'))}</div>
+    </section>}
+
+    <SeasonSheet open={seasonOpen} habits={habits} current={season} onClose={() => setSeasonOpen(false)} />
 
     <GoalsSection goals={goals} habits={habits} onChanged={load} />
     <ChallengesSection />

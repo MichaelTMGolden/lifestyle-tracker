@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom'
 import { api, type Habit } from '../api'
 import { habitColor } from '../habitColor'
 import { useTimer } from '../timer/useTimer'
+import { useSeasons } from './habits/useSeasons'
+import { inFocusOn } from '../seasons'
 import { fmtHours } from '../lib'
 import { Bars, Button, Icon, Progress, Skeleton, Stat } from '../ui'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
@@ -25,6 +27,7 @@ export default function StatsPage() {
   })
   // A timer stopped here or on another device logs minutes: show the new totals.
   const { dataTick } = useTimer()
+  const { seasons, current: season } = useSeasons()
   const refetch = q.refetch
   useEffect(() => { if (dataTick) void refetch() }, [dataTick, refetch])
 
@@ -40,7 +43,7 @@ export default function StatsPage() {
   const { habits, heat, goals } = q.data
   const today = todayKey()
   const heatById = new Map(heat.map(r => [r.id, minutesByDate(r)] as const))
-  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, byDate: heatById.get(h.id) ?? new Map<string, number>() }))
+  const rows: (Tracked & { h: Habit })[] = habits.map(h => ({ h, habit: h, from: h.firstLoggedOn, asked: (d: string) => inFocusOn(seasons, h.id, d), byDate: heatById.get(h.id) ?? new Map<string, number>() }))
   const rates = monthlyRates(rows, today, 12)
   const best = bestWeek(rows, today, 53)
   // One window for everything: the first day of the month eleven months ago, to today.
@@ -60,7 +63,7 @@ export default function StatsPage() {
       <div>
         <Link className="hb-back" to="/habits"><Icon name="chevron" size={16} />Habits</Link>
         <h1>Stats</h1>
-        <p className="hb-head__summary">The past 12 months</p>
+        <p className="hb-head__summary">The past 12 months{season?.name ? <> · season <b>{season.name}</b></> : null}</p>
       </div>
     </header>
 
@@ -73,7 +76,7 @@ export default function StatsPage() {
 
     {ratedMonths.length > 0 && <section className="hb-sheet__section" aria-labelledby="st-months">
       <h2 id="st-months" className="st-label">Done each month</h2>
-      <p className="hb-hint">Share of what your habits asked for. Each habit counts from its first entry; weekly habits ask for their target, not every day.</p>
+      <p className="hb-hint">Share of what your habits asked for. Each habit counts from its first entry and only while it was in focus; weekly habits ask for their target, not every day.</p>
       <Bars label="Share done each month" max={1}
         bars={rates.map(r => ({
           key: r.month, label: monthName(r.month).slice(0, 3), value: r.rate ?? 0,
