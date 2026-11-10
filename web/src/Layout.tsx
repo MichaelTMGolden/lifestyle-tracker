@@ -140,8 +140,34 @@ export default function Layout() {
       {/* Desktop entry point; on phones the action bar opens its own. */}
       <QuickLogSheet open={quickOpen || quickFromUrl} onClose={closeQuick} />
       <HabitSync />
+        <UpdatePrompt />
     </ToastProvider>
   </TimerProvider>
+}
+
+/**
+ * Offers a reload once the service worker has saved a newer version (it opens
+ * from the saved copy, so otherwise the new one only shows on a later open).
+ * Quiet when this page already runs that version.
+ */
+function UpdatePrompt() {
+  const toast = useToast()
+  const shown = useRef(false)
+  useEffect(() => {
+    const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null
+    if (!sw) return
+    const running = [...document.scripts].map(s => s.src ? new URL(s.src).pathname : '').filter(p => p.startsWith('/assets/'))
+    const onMessage = (event: MessageEvent) => {
+      const files: unknown = event.data?.files
+      if (event.data?.type !== 'build-ready' || !Array.isArray(files) || shown.current) return
+      if (running.length > 0 && running.every(p => files.includes(p))) return
+      shown.current = true
+      toast.show({ message: 'Update ready', action: { label: 'Reload', onClick: () => window.location.reload() }, duration: 30 * 60_000 })
+    }
+    sw.addEventListener('message', onMessage)
+    return () => sw.removeEventListener('message', onMessage)
+  }, [toast])
+  return null
 }
 
 /** Sends habit taps saved while offline, and says how many are still waiting. */
