@@ -166,9 +166,16 @@ function UpdatePrompt() {
     const onMessage = (event: MessageEvent) => { if (event.data?.type === 'build-ready') offer(event.data.files) }
     sw.addEventListener('message', onMessage)
     // The worker may have saved a newer build before this mounted (during sign-in,
-    // say): compare with the saved build directly too.
+    // say). Offer it only when this page is provably the build it replaced (on the
+    // saved "previous" list): a page loaded fresh from the network can be newer
+    // than what's saved, and must not be sent back to it.
     let live = true
-    void caches.open('pd-shell-v1').then(c => c.match('/__build/current')).then(r => r?.json()).then(files => { if (live) offer(files) }, () => { /* no saved build */ })
+    const list = (c: Cache, key: string) => c.match(key).then(r => r ? r.json() as Promise<unknown> : null)
+    void caches.open('pd-shell-v1').then(async c => {
+      const [current, previous] = await Promise.all([list(c, '/__build/current'), list(c, '/__build/previous')])
+      if (!live || !Array.isArray(previous) || !running.every(p => previous.includes(p))) return
+      offer(current)
+    }).catch(() => { /* no saved build */ })
     return () => { live = false; sw.removeEventListener('message', onMessage) }
   }, [toast])
   return null
