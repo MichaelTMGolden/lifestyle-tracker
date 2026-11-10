@@ -12,7 +12,9 @@ namespace PersonalDashboard.Api.Integrations;
 public record IncomingWorkout(
     string ExternalId, string Type, string? Title, DateTimeOffset StartedAt, DateTimeOffset? EndedAt,
     int DurationMinutes, double? DistanceMeters, int? Calories, int? AverageHeartRate,
-    IReadOnlyList<IncomingSet>? Sets = null);
+    IReadOnlyList<IncomingSet>? Sets = null,
+    /// <summary>The app that recorded it, when the source says (Apple Health: "Hevy", "Strava", ...).</summary>
+    string? RecordedBy = null);
 
 public record IncomingSet(int ExerciseIndex, string Exercise, string? ExerciseTemplateId, int SetIndex, string Kind,
     double? WeightKg, int? Reps, double? DistanceMeters, int? DurationSeconds, double? Rpe);

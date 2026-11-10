@@ -140,16 +140,20 @@ public static class WorkoutEndpoints
                 if (tooMany) return Results.Json(new { message = $"Too many workouts in one upload (over {HealthIngest.MaxWorkouts}). Send a shorter period." }, statusCode: StatusCodes.Status413PayloadTooLarge);
                 var source = await WorkoutStore.SourceAsync(db, SourceKind.AppleHealth, HealthSourceName);
                 var habits = await WorkoutStore.HabitsAsync(db);
-                int created = 0, updated = 0;
+                // Hevy also writes its workouts to Apple Health; with Hevy connected directly
+                // (sets and all), those copies would count every session twice.
+                var hevyDirect = await db.AppSecrets.AnyAsync(s => s.Key == HevySync.KeySecret);
+                int created = 0, updated = 0, fromHevy = 0;
                 foreach (var w in workouts)
                 {
+                    if (hevyDirect && w.RecordedBy?.Contains("hevy", StringComparison.OrdinalIgnoreCase) == true) { fromHevy++; continue; }
                     // Health sends local times: "today" by the same clock as the workout's day.
                     var today = WorkoutStore.OwnDay(DateTimeOffset.UtcNow.ToOffset(w.StartedAt.Offset));
                     if (await WorkoutStore.UpsertAsync(db, source, w, today, habits, WorkoutStore.OwnDay)) created++; else updated++;
                 }
                 source.LastSyncedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync();
-                return Results.Ok(new { created, updated, skipped });
+                return Results.Ok(new { created, updated, skipped, fromHevy });
             }
         });
     }

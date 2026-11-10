@@ -31,7 +31,13 @@ export function HevyCard() {
   const connect = (e: FormEvent) => {
     e.preventDefault()
     if (!key.trim()) return
-    void act(async () => { const r = await api.hevyConnect(key.trim()); setKey(''); return `Hevy connected. ${summary(r)}` })
+    void act(async () => {
+      const r = await api.hevyConnect(key.trim())
+      setKey('')
+      // The key is saved either way; say so if the first import didn't finish.
+      if (!r.ok) throw new Error(`Hevy connected, but the first sync didn't finish: ${r.error ?? 'unknown error'}. Try Sync now in a minute.`)
+      return `Hevy connected. ${summary(r)}`
+    })
   }
 
   return <Card title="Hevy" aside={<Pill tone={st?.connected ? 'good' : undefined}>{st?.connected ? 'Connected' : 'Not connected'}</Pill>}>
@@ -39,7 +45,7 @@ export function HevyCard() {
     {st?.connected ? <>
       <p className="cn-p">{workouts(st.workouts)} · synced {ago(st.lastSyncedAt, 'never')}</p>
       <div className="cn-row">
-        <Button size="sm" variant="primary" disabled={busy} onClick={() => void act(async () => summary(await api.hevySync()))}>{busy ? 'Syncing…' : 'Sync now'}</Button>
+        <Button size="sm" variant="primary" disabled={busy} onClick={() => void act(async () => { const r = await api.hevySync(); if (!r.ok) throw new Error(r.error ?? 'Hevy sync failed'); return summary(r) })}>{busy ? 'Syncing…' : 'Sync now'}</Button>
         <Button size="sm" variant="quiet" disabled={busy} onClick={() => void act(async () => { await api.hevyDisconnect(); return 'Hevy disconnected. Imported workouts stay.' })}>Disconnect</Button>
       </div>
     </> : <form className="cn-form" onSubmit={connect}>

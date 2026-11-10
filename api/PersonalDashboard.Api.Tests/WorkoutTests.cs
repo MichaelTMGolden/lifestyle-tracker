@@ -105,6 +105,15 @@ public class WorkoutTests
     }
 
     [Fact]
+    public void The_recording_app_is_kept()
+    {
+        var (list, _, _) = HealthIngest.Parse(Json("{\"data\":{\"workouts\":[{\"id\":\"H\",\"name\":\"Traditional Strength Training\",\"start\":\"2026-11-09 06:30:00 +1100\",\"duration\":3000,\"source\":\"Hevy\"}]}}"));
+        var w = Assert.Single(list);
+        Assert.Equal("Hevy", w.RecordedBy);
+        Assert.Equal("Strength", w.Type);
+    }
+
+    [Fact]
     public void An_oversized_batch_is_refused_whole()
     {
         var one = "{\"id\":\"X\",\"name\":\"Run\",\"start\":\"2026-11-09 06:30:00 +1100\",\"duration\":60}";

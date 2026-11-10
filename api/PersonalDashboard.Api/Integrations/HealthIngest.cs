@@ -54,7 +54,8 @@ public static partial class HealthIngest
             DurationMinutes: (int)Math.Round(seconds.Value / 60),
             DistanceMeters: Meters(w, "distance"),
             Calories: Kcal(w, "activeEnergyBurned") ?? Kcal(w, "activeEnergy"),
-            AverageHeartRate: HeartRate(w));
+            AverageHeartRate: HeartRate(w),
+            RecordedBy: Str(w, "source"));
     }
 
     static string? Str(JsonElement o, string key) =>
