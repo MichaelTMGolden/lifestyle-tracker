@@ -4,7 +4,7 @@
 // marked done quietly rather than chiming late.
 import { useEffect } from 'react'
 import { useTimer } from '../../timer/useTimer'
-import { chime, loadTarget, sessionDone } from './alerts'
+import { chime, loadTarget, sessionDone, unlockAudio } from './alerts'
 
 const LATE_MS = 10 * 60_000
 const firedKey = (habitId: number, startedAt: number) => `pd:focus-done:${habitId}:${startedAt}`
@@ -13,6 +13,13 @@ const markFired = (k: string) => { try { sessionStorage.setItem(k, '1') } catch 
 
 export function SessionWatcher() {
   const { timers, elapsedMs } = useTimer()
+  // Unlock sound on the first tap (and again after the browser suspends it), so
+  // the chime can play later without one.
+  useEffect(() => {
+    const unlock = () => unlockAudio()
+    document.addEventListener('pointerdown', unlock, { passive: true })
+    return () => document.removeEventListener('pointerdown', unlock)
+  }, [])
   // TimerProvider re-renders every second while a timer runs, so this re-checks then.
   useEffect(() => {
     for (const t of timers) {

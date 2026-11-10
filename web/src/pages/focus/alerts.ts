@@ -15,12 +15,30 @@ export function saveTarget(id: number, t: Target | null) {
   try { if (t) localStorage.setItem(KEY(id), JSON.stringify(t)); else localStorage.removeItem(KEY(id)) } catch { /* private mode */ }
 }
 
-/** A short rising chime (three soft notes). Silent if audio isn't allowed yet. */
-export function chime() {
+// One audio context for the app. Browsers (iOS Safari above all) only let sound
+// start from a tap, so the first tap anywhere unlocks it and the chime, played
+// minutes later from a timer, reuses it.
+let audio: AudioContext | null = null
+function context(): AudioContext | null {
+  if (audio) return audio
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
+    audio = Ctx ? new Ctx() : null
+  } catch { audio = null }
+  return audio
+}
+/** Call from a tap: creates or resumes the shared context. */
+export function unlockAudio() {
+  const ctx = context()
+  if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => { /* not allowed yet */ })
+}
+
+/** A short rising chime (three soft notes). Silent if sound hasn't been unlocked. */
+export function chime() {
+  const ctx = context()
+  if (!ctx) return
+  try {
+    if (ctx.state !== 'running') void ctx.resume().catch(() => { /* still locked */ })
     ;[523.25, 659.25, 783.99].forEach((freq, i) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain()
       const t = ctx.currentTime + i * 0.18
@@ -31,7 +49,6 @@ export function chime() {
       osc.connect(gain).connect(ctx.destination)
       osc.start(t); osc.stop(t + 0.65)
     })
-    setTimeout(() => void ctx.close(), 1500)
   } catch { /* no audio */ }
 }
 
