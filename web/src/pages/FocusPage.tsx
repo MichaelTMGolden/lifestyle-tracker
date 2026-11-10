@@ -185,7 +185,8 @@ function Picker({ habits, error, onClose }: { habits: Habit[] | undefined; error
     if (workState === 'saving') return
     try {
       setWorkState('saving')
-      let w = work
+      // Decide from the server's list, not a possibly stale or unloaded copy.
+      let w = (await api.habits()).find(h => isWork(h.name))
       if (w && !w.tracksTime) await api.toggleHabitTracksTime(w.id)
       if (!w) {
         w = await api.createHabit(WORK, true)
@@ -219,7 +220,7 @@ function Picker({ habits, error, onClose }: { habits: Habit[] | undefined; error
 
       <ul>
         <li>
-          <button type="button" className="fx__choice fx__choice--work" onClick={() => void openWork()} disabled={workState === 'saving'}>
+          <button type="button" className="fx__choice fx__choice--work" onClick={() => void openWork()} disabled={!habits || workState === 'saving'}>
             <span className="fx__dot" aria-hidden="true" />Work<small>{work?.minutesToday ? `${work.minutesToday} min today` : 'Deep work sessions'}</small>
           </button>
           {!['idle', 'saving'].includes(workState) && <p className="fx__error" role="alert">{workState}</p>}
