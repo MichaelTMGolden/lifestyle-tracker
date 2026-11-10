@@ -20,7 +20,7 @@ public static class HevySync
     public const string SourceName = "Hevy";
     const string Base = "https://api.hevyapp.com/v1/";
     const int PageSize = 10; // the API's maximum
-    const int MaxPages = 500;
+    const int MaxPages = 2000; // 20,000 workouts: far beyond any real history, a backstop only
 
     public record Result(bool Ok, string? Error, int Created, int Updated, int Deleted);
 
@@ -53,6 +53,7 @@ public static class HevySync
         var since = await db.AppSecrets.AsNoTracking().Where(s => s.Key == CursorSecret).Select(s => s.Value).FirstOrDefaultAsync();
         var started = DateTimeOffset.UtcNow;
         int created = 0, updated = 0, deleted = 0;
+        var complete = false; // reached the last page, so the cursor may move on
 
         for (var page = 1; page <= MaxPages; page++)
         {
@@ -62,7 +63,7 @@ public static class HevySync
             if (res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return new(false, "Hevy no longer accepts the stored key (is Hevy Pro still active?).", created, updated, deleted);
             // Past the last page Hevy can answer 404: that's the end, not an error.
-            if (res.StatusCode == HttpStatusCode.NotFound && page > 1) break;
+            if (res.StatusCode == HttpStatusCode.NotFound && page > 1) { complete = true; break; }
             if (!res.IsSuccessStatusCode) return new(false, $"Hevy sync stopped ({(int)res.StatusCode}).", created, updated, deleted);
 
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStreamAsync());
@@ -86,7 +87,16 @@ public static class HevySync
                 if (await WorkoutStore.UpsertAsync(db, source, w, today, habits, dayOf)) created++; else updated++;
             }
             var pageCount = root.TryGetProperty("page_count", out var pc) && pc.TryGetInt32(out var n) ? n : page;
-            if (page >= pageCount || items.Count == 0) break;
+            if (page >= pageCount || items.Count == 0) { complete = true; break; }
+        }
+
+        // Stopped at the page limit with more to read: keep the old cursor (or none,
+        // for a first import), so the next sync carries on rather than skipping the rest.
+        if (!complete)
+        {
+            source.LastSyncedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            return new(false, $"Hevy has more than {MaxPages * PageSize} workouts to read; imported {created + updated} so far. Sync again to continue.", created, updated, deleted);
         }
 
         // Next time, only what changed since this run began (a little overlap is harmless: upserts).

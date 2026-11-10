@@ -164,6 +164,18 @@ public class WorkoutTests
     }
 
     [Fact]
+    public async Task Hitting_the_page_limit_keeps_the_cursor()
+    {
+        var db = Database();
+        // Every page claims more remain: the sync must stop at its limit without moving the cursor.
+        var http = new HttpClient(new FakeHevy(req => req.RequestUri!.PathAndQuery.StartsWith("/v1/workouts?page=")
+            ? Page(1, 100_000, Workout("W" + req.RequestUri.Query.GetHashCode(), "x", 50)) : null));
+        var r = await HevySync.SyncAsync(db, http, "KEY", Today, UtcDay);
+        Assert.False(r.Ok);
+        Assert.False(await db.AppSecrets.AnyAsync(s => s.Key == HevySync.CursorSecret));
+    }
+
+    [Fact]
     public async Task A_rejected_key_reports_why()
     {
         var http = new HttpClient(new FakeHevy(_ => null, HttpStatusCode.Unauthorized));
