@@ -31,7 +31,12 @@ export function useLevels(habits: Habit[], ready: boolean) {
     if (!ready || habits.length === 0) return
     const now: Seen = { player: levels.player.level, habits: Object.fromEntries([...levels.byHabit].map(([id, l]) => [String(id), l.level])) }
     const seen = read()
-    write({ player: Math.max(now.player, seen?.player ?? 0), habits: { ...seen?.habits, ...now.habits } })
+    // Highest level ever seen, for you and each habit: an older cached copy
+    // (Today repaints from one before refetching) must never lower the baseline,
+    // or the same level-up would be announced again.
+    const habitsSeen: Record<string, number> = { ...seen?.habits }
+    for (const [id, level] of Object.entries(now.habits)) habitsSeen[id] = Math.max(level, habitsSeen[id] ?? 0)
+    write({ player: Math.max(now.player, seen?.player ?? 0), habits: habitsSeen })
     if (!seen) return
     for (const h of habits) {
       const before = seen.habits[String(h.id)], after = now.habits[String(h.id)]
