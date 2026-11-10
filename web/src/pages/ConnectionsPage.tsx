@@ -1,9 +1,10 @@
-// Connect: where the dashboard's data comes from. Garmin (live sync or CSV),
+// Connect: where the dashboard's data comes from. Workouts (Hevy, Apple Health), Garmin (live sync or CSV),
 // Google Calendar (secret iCal feeds, read-only), and the remaining sources.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { api, type Connection } from '../api'
 import { Button, Card, Pill } from '../ui'
 import { useToast } from '../ui/hooks'
+import { HealthCard, HevyCard, WorkoutHabitsCard } from './connect/WorkoutCards'
 import './connect/connect.css'
 
 /** "Synced 12 Jun, 18:53 · 3h ago"; "Never synced" when it hasn't run. */
@@ -34,13 +35,16 @@ export default function ConnectionsPage() {
   const load = () => { api.connections().then(c => { setConns(c); setError(null) }, e => setError(e instanceof Error ? e.message : String(e))) }
   useEffect(load, [])
   const { busy, run } = useRunner(load)
-  const others = (conns ?? []).filter(c => c.kind !== 'Garmin' && c.kind !== 'GoogleCalendar')
+  const others = (conns ?? []).filter(c => !['Garmin', 'GoogleCalendar', 'Hevy', 'AppleHealth'].includes(c.kind))
 
   return <div className="cn-page">
     <header className="cn-head">
       <h1>Connect</h1>
       <p className="cn-head__sub">Where your data comes from. Sources sync on their own every hour.</p>
     </header>
+    <HevyCard />
+    <HealthCard />
+    <WorkoutHabitsCard />
     <GarminCard />
     <GoogleCard />
     {error && <p className="cn-error" role="alert">Couldn't load the other sources ({error}).</p>}

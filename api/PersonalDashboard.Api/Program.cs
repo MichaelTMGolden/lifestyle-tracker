@@ -81,6 +81,7 @@ builder.Services.AddSingleton<ReviewSynthesisService>();
 // seams that go live by implementing IDataProvider + flipping Configured.
 builder.Services.AddHttpClient(); // for calling the Garmin sidecar
 builder.Services.AddHttpClient("push", c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("hevy", c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddSingleton<PersonalDashboard.Api.Push.PushSender>();
 builder.Services.AddSingleton<PersonalDashboard.Api.Push.ReminderService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PersonalDashboard.Api.Push.ReminderService>()); // habit reminders, once a minute
@@ -164,7 +165,9 @@ app.Use(async (ctx, next) =>
     var path = ctx.Request.Path.Value ?? "";
     if (!string.IsNullOrEmpty(appPassword)
         && path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase)
-        && !path.StartsWith("/api/auth/", StringComparison.OrdinalIgnoreCase))
+        && !path.StartsWith("/api/auth/", StringComparison.OrdinalIgnoreCase)
+        // The phone's workout upload checks its own key (exact path only).
+        && !string.Equals(path, PersonalDashboard.Api.Endpoints.WorkoutEndpoints.IngestPath, StringComparison.OrdinalIgnoreCase))
     {
         if (ctx.Request.Cookies["pd_auth"] != AuthToken(appPassword!))
         {
@@ -200,6 +203,7 @@ app.MapPost("/api/auth/logout", (HttpContext ctx) =>
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok", service = "personal-dashboard-api" }));
 app.MapApiEndpoints();
+PersonalDashboard.Api.Endpoints.WorkoutEndpoints.MapIngest(app);
 app.MapGroup("/api").MapTodayBundleEndpoints();
 app.MapSettingsEndpoints();
 app.MapSkillProgressEndpoints();

@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<DataSource> DataSources => Set<DataSource>();
     public DbSet<MetricSample> MetricSamples => Set<MetricSample>();
     public DbSet<Workout> Workouts => Set<Workout>();
+    public DbSet<WorkoutSet> WorkoutSets => Set<WorkoutSet>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<MusicPlay> MusicPlays => Set<MusicPlay>();
     public DbSet<Habit> Habits => Set<Habit>();
@@ -66,6 +67,13 @@ public class AppDbContext : DbContext
         b.Entity<Habit>().Property(h => h.ShowInQuickActions).HasDefaultValue(true);
         b.Entity<Habit>().Property(h => h.ColorHex).HasMaxLength(7);
         b.Entity<Season>().Property(x => x.Name).HasMaxLength(80);
+        b.Entity<Workout>().Property(x => x.ExternalId).HasMaxLength(100);
+        b.Entity<Workout>().Property(x => x.Title).HasMaxLength(200);
+        b.Entity<Workout>().HasIndex(x => new { x.DataSourceId, x.ExternalId }).IsUnique().HasFilter("\"ExternalId\" IS NOT NULL");
+        b.Entity<WorkoutSet>().Property(x => x.Exercise).HasMaxLength(200);
+        b.Entity<WorkoutSet>().Property(x => x.ExerciseTemplateId).HasMaxLength(64);
+        b.Entity<WorkoutSet>().Property(x => x.Kind).HasMaxLength(16);
+        b.Entity<WorkoutSet>().HasOne<Workout>().WithMany(w => w.Sets).HasForeignKey(x => x.WorkoutId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Season>().HasIndex(x => x.StartsOn);
         b.Entity<DayNote>().HasKey(x => x.Date);
         b.Entity<DayNote>().Property(x => x.Note).HasMaxLength(500);

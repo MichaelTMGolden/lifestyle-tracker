@@ -54,6 +54,7 @@ public static partial class ApiEndpoints
         MapArtist(api);
         MapHabits(api);
         Seasons.Map(api);
+        WorkoutEndpoints.Map(api);
         DayNotes.Map(api);
         MapGoals(api);
         MapAlerts(api);
