@@ -55,7 +55,19 @@ public static partial class HealthIngest
             DistanceMeters: Meters(w, "distance"),
             Calories: Kcal(w, "activeEnergyBurned") ?? Kcal(w, "activeEnergy"),
             AverageHeartRate: HeartRate(w),
-            RecordedBy: Str(w, "source"));
+            RecordedBy: Source(w));
+    }
+
+    /// <summary>
+    /// The recording app. v2 sends {"name": "Hevy", "identifier": "com.hevy..."};
+    /// a plain string is accepted too. Name and identifier are both kept, so either can match.
+    /// </summary>
+    static string? Source(JsonElement w)
+    {
+        if (Str(w, "source") is string plain) return plain;
+        if (!w.TryGetProperty("source", out var src) || src.ValueKind != JsonValueKind.Object) return null;
+        var parts = new[] { Str(src, "name"), Str(src, "identifier") }.OfType<string>().ToArray();
+        return parts.Length == 0 ? null : string.Join(" ", parts);
     }
 
     static string? Str(JsonElement o, string key) =>
