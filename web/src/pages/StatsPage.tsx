@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, type Habit } from '../api'
-import { habitColor } from '../habitColor'
+import { habitColor, habitStyle } from '../habitColor'
 import { useTimer } from '../timer/useTimer'
 import { useSeasons } from './habits/useSeasons'
 import { inFocusOn, liveSeasons } from '../seasons'
@@ -12,6 +12,9 @@ import { fmtHours } from '../lib'
 import { Bars, Button, Heatmap, Icon, Progress, Skeleton, Stat } from '../ui'
 import type { HeatCell } from '../ui/hooks'
 import { MOODS } from './today/mood'
+import { LevelCard } from './habits/LevelCard'
+import { levelsFor } from './habits/useLevels'
+import { badges, titleFor } from './habits/levels'
 import { addDays } from './habits/insights'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
 import { consistency, goalPace, isWeekly, minutesByDate, streakUnit, todayKey } from './habits/stats'
@@ -111,6 +114,8 @@ export default function StatsPage() {
       {habits.length === 0 && <p className="hb-hint">No habits yet.</p>}
     </section>
 
+    <LevelsSection habits={habits} />
+
     {notes.data && notes.data.length > 0 && <MoodSection notes={notes.data} today={today} />}
 
     {liveGoals.length > 0 && <section className="hb-sheet__section" aria-labelledby="st-goals">
@@ -151,5 +156,33 @@ function MoodSection({ notes, today }: { notes: { date: string; mood: number | n
     {recent.length > 0 && <ul className="st-notes">
       {recent.map(n => <li key={n.date}><span className="st-notes__date">{shortDate(n.date)}{n.mood ? ` · ${MOODS[n.mood - 1]}` : ''}</span>{n.note}</li>)}
     </ul>}
+  </section>
+}
+
+/** Your level, each habit's, and badges: all worked out from your logs. */
+function LevelsSection({ habits }: { habits: Habit[] }) {
+  // Opened from a level link (/stats#levels): bring this section into view.
+  useEffect(() => { if (location.hash === '#levels') document.getElementById('levels')?.scrollIntoView({ block: 'start' }) }, [])
+  if (!habits.length) return null
+  const { player, byHabit } = levelsFor(habits)
+  const ranked = [...habits].sort((a, b) => (byHabit.get(b.id)?.xp ?? 0) - (byHabit.get(a.id)?.xp ?? 0))
+  const list = badges(habits)
+  const earned = list.filter(b => b.earned).length
+  return <section className="hb-sheet__section" id="levels" aria-labelledby="st-levels">
+    <h2 id="st-levels" className="st-label">Levels &amp; badges</h2>
+    <LevelCard level={player} />
+    <p className="hb-hint">XP: a point a minute on timed habits plus 10 a practice day, 30 a day on tick habits, and a bonus for your best run. Your level counts every habit.</p>
+    <ul className="lv-habits">
+      {ranked.map(h => { const l = byHabit.get(h.id)!; return <li key={h.id} style={habitStyle(h)}>
+        <div className="lv-habits__line"><Link to={`/habits/${h.id}`} className="st-habit"><span className="st-dot" style={{ background: habitColor(h) }} aria-hidden="true" />{h.name}</Link><span>Lv {l.level} <small>{titleFor(l.level)}</small></span></div>
+        <Progress value={Math.round(l.fraction * 100)} max={100} label={`${h.name}: level ${l.level}, ${Math.round(l.fraction * 100)}% to the next`} />
+      </li> })}
+    </ul>
+    <h3 className="hb-sheet__label">Badges · {earned} of {list.length}</h3>
+    <ul className="lv-badges">
+      {list.map(b => <li key={b.id} className={`lv-badge${b.earned ? ' lv-badge--earned' : ''}`}>
+        <b>{b.name}</b><span>{b.detail}</span><span>{b.earned ? 'Earned' : b.progress}</span>
+      </li>)}
+    </ul>
   </section>
 }
