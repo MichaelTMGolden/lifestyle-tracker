@@ -142,6 +142,8 @@ function Focus() {
     onStop={() => { haptic(); const mins = Math.round(elapsedMs(habit.id) / 60000); void act(() => stop(habit.id), mins > 0 ? `${mins} min logged` : 'Stopped. Under a minute isn’t logged.') }} />
 }
 
+const MAX_MINUTES = 600
+
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 /** Pick what to focus on: Work, a roll of the dice, or any timed habit. */
@@ -245,6 +247,13 @@ function FocusView({ habit: h, running, ms, goal, goalLiveMs, busy, note, error,
   const [target, setTargetState] = useState<Target | null>(() => loadTarget(h.id))
   const setTarget = (t: Target | null) => { setTargetState(t); saveTarget(h.id, t) }
   const cd = target ? countdown(target.minutes, ms) : null
+  // A typed length: any whole number of minutes, 1 to 10 hours.
+  const custom = !!target && !target.rolled && !(PRESETS as readonly number[]).includes(target.minutes)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const draftMinutes = Number(draft)
+  const validDraft = Number.isInteger(draftMinutes) && draftMinutes >= 1 && draftMinutes <= MAX_MINUTES
+  const applyDraft = () => { if (!validDraft) return; setTarget({ minutes: draftMinutes, rolled: false }); setEditing(false) }
   // The chime and notification come from SessionWatcher (app-wide), so they
   // still fire with Focus closed.
   const done = running && !!cd?.over
@@ -268,11 +277,20 @@ function FocusView({ habit: h, running, ms, goal, goalLiveMs, busy, note, error,
       </p>
 
       <div className="fx__lengths" role="radiogroup" aria-label="Session length">
-        <button type="button" role="radio" aria-checked={!target} onClick={() => setTarget(null)}>Open</button>
-        {PRESETS.map(m => <button key={m} type="button" role="radio" aria-checked={target?.minutes === m && !target.rolled} onClick={() => setTarget({ minutes: m, rolled: false })}>{m}</button>)}
+        <button type="button" role="radio" aria-checked={!target} onClick={() => { setEditing(false); setTarget(null) }}>Open</button>
+        {PRESETS.map(m => <button key={m} type="button" role="radio" aria-checked={target?.minutes === m && !target.rolled} onClick={() => { setEditing(false); setTarget({ minutes: m, rolled: false }) }}>{m}</button>)}
+        <button type="button" role="radio" aria-checked={custom} aria-label={custom ? `Custom: ${target!.minutes} minutes; change` : 'Custom length'}
+          onClick={() => { setDraft(custom ? String(target!.minutes) : ''); setEditing(true) }}>{custom ? `${target!.minutes}` : 'Custom'}</button>
         <button type="button" role="radio" aria-checked={!!target?.rolled} aria-label={target?.rolled ? `Rolled ${target.minutes} minutes; roll again` : 'Roll a random length'}
-          onClick={() => { haptic(); setTarget({ minutes: rollMinutes(), rolled: true }) }}>🎲{target?.rolled ? ` ${target.minutes}` : ''}</button>
+          onClick={() => { haptic(); setEditing(false); setTarget({ minutes: rollMinutes(), rolled: true }) }}>🎲{target?.rolled ? ` ${target.minutes}` : ''}</button>
       </div>
+      {editing && <form className="fx__custom" onSubmit={e => { e.preventDefault(); applyDraft() }}>
+        <label htmlFor="fx-custom-min">Minutes</label>
+        <input id="fx-custom-min" type="number" inputMode="numeric" min={1} max={MAX_MINUTES} step={1} autoFocus value={draft}
+          onChange={e => setDraft(e.target.value)} placeholder="e.g. 35" />
+        <Button type="submit" size="sm" variant="primary" disabled={!validDraft}>Set</Button>
+        <Button size="sm" variant="quiet" onClick={() => setEditing(false)}>Cancel</Button>
+      </form>}
 
       <dl className="fx__facts">
         <div><dt>Today</dt><dd>{fmtHours(Math.floor(today))}</dd></div>
