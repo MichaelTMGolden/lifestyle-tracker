@@ -69,6 +69,12 @@ async function installBuildNow(html) {
   await shell.put('/', new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }))
   const keep = new Set([...needed, ...(same ? await readList(shell, PREVIOUS) : current)])
   for (const req of await assets.keys()) if (!keep.has(new URL(req.url).pathname)) await assets.delete(req)
+  // A different build is now saved: tell open pages, which offer a reload unless
+  // they already run it. (The very first save has nothing to replace.)
+  if (!same && known) {
+    const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const page of pages) page.postMessage({ type: 'build-ready', files: needed })
+  }
 }
 
 self.addEventListener('install', event => {

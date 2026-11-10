@@ -140,8 +140,45 @@ export default function Layout() {
       {/* Desktop entry point; on phones the action bar opens its own. */}
       <QuickLogSheet open={quickOpen || quickFromUrl} onClose={closeQuick} />
       <HabitSync />
+        <UpdatePrompt />
     </ToastProvider>
   </TimerProvider>
+}
+
+/**
+ * Offers a reload once the service worker has saved a newer version (it opens
+ * from the saved copy, so otherwise the new one only shows on a later open).
+ * Quiet when this page already runs that version.
+ */
+function UpdatePrompt() {
+  const toast = useToast()
+  const shown = useRef(false)
+  useEffect(() => {
+    const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null
+    if (!sw) return
+    const running = [...document.scripts].map(s => s.src ? new URL(s.src).pathname : '').filter(p => p.startsWith('/assets/'))
+    const offer = (files: unknown) => {
+      if (!Array.isArray(files) || files.length === 0 || shown.current || running.length === 0) return
+      if (running.every(p => files.includes(p))) return // already on the saved build
+      shown.current = true
+      toast.show({ message: 'Update ready', action: { label: 'Reload', onClick: () => window.location.reload() }, duration: 30 * 60_000 })
+    }
+    const onMessage = (event: MessageEvent) => { if (event.data?.type === 'build-ready') offer(event.data.files) }
+    sw.addEventListener('message', onMessage)
+    // The worker may have saved a newer build before this mounted (during sign-in,
+    // say). Offer it only when this page is provably the build it replaced (on the
+    // saved "previous" list): a page loaded fresh from the network can be newer
+    // than what's saved, and must not be sent back to it.
+    let live = true
+    const list = (c: Cache, key: string) => c.match(key).then(r => r ? r.json() as Promise<unknown> : null)
+    void caches.open('pd-shell-v1').then(async c => {
+      const [current, previous] = await Promise.all([list(c, '/__build/current'), list(c, '/__build/previous')])
+      if (!live || !Array.isArray(previous) || !running.every(p => previous.includes(p))) return
+      offer(current)
+    }).catch(() => { /* no saved build */ })
+    return () => { live = false; sw.removeEventListener('message', onMessage) }
+  }, [toast])
+  return null
 }
 
 /** Sends habit taps saved while offline, and says how many are still waiting. */
