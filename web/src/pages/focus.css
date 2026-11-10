@@ -56,3 +56,6 @@
 button.fx__choice { width: 100%; font: inherit; font-size: 17px; text-align: left; cursor: pointer; }
 .fx__choice--work .fx__dot { background: var(--rite-text); }
 @media (prefers-reduced-motion: reduce) { .fx--done .fx__clock, .fx__dice-face.is-spinning { animation: none; } }
+.fx__custom { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.fx__custom label { font-size: 13px; color: var(--rite-muted); }
+.fx__custom input { width: 96px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 500 16px var(--font-body); font-variant-numeric: tabular-nums; text-align: center; }
