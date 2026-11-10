@@ -5,6 +5,7 @@ import './App.css'
 import './ux.css'
 import './shell.css'
 import { TimerProvider } from './timer/TimerContext'
+import { SessionWatcher } from './pages/focus/SessionWatcher'
 import { MobileActionBar } from './components/MobileActionBar'
 import { QuickLogSheet } from './components/QuickLog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
@@ -83,6 +84,7 @@ export default function Layout() {
   }, [openMore])
 
   return <TimerProvider>
+    <SessionWatcher />
     <ToastProvider>
       <div className="app dashboard-shell">
         <a className="skip-link" href="#main-content">Skip to content</a>

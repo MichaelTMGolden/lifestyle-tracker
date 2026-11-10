@@ -18,7 +18,7 @@ import { goalForHabit } from './habits/stats'
 import { useSeasons } from './habits/useSeasons'
 import { splitByFocus } from '../seasons'
 import { skillProgressApi } from '../skillProgressApi'
-import { chime, loadTarget, saveTarget, sessionDone, type Target } from './focus/alerts'
+import { loadTarget, saveTarget, type Target } from './focus/alerts'
 import { countdown, isWork, PRESETS, rollMinutes, rollOne, WORK } from './focus/session'
 import './focus.css'
 
@@ -190,8 +190,9 @@ function Picker({ habits, error, onClose }: { habits: Habit[] | undefined; error
       if (!w) {
         w = await api.createHabit(WORK, true)
         await skillProgressApi.cadence(w.id, 'weekly', 5).catch(() => { /* daily is fine too */ })
-        await qc.invalidateQueries({ queryKey: ['habits'] })
       }
+      // Refresh either way: a stale copy could toggle tracking back off next time.
+      await qc.invalidateQueries({ queryKey: ['habits'] })
       navigate(`/focus/${w.id}`, { replace: true })
     } catch (e) { setWorkState(message(e)) }
   }
@@ -243,14 +244,8 @@ function FocusView({ habit: h, running, ms, goal, goalLiveMs, busy, note, error,
   const [target, setTargetState] = useState<Target | null>(() => loadTarget(h.id))
   const setTarget = (t: Target | null) => { setTargetState(t); saveTarget(h.id, t) }
   const cd = target ? countdown(target.minutes, ms) : null
-  const signalled = useRef(running && !!cd?.over) // reopened past the target: don't chime again
-  useEffect(() => {
-    if (!running || !cd || !target) { signalled.current = false; return }
-    if (!cd.over) { signalled.current = false; return }
-    if (signalled.current) return
-    signalled.current = true
-    chime(); sessionDone(h.name, target.minutes)
-  })
+  // The chime and notification come from SessionWatcher (app-wide), so they
+  // still fire with Focus closed.
   const done = running && !!cd?.over
 
   return <div className={`fx${running ? ' fx--running' : ''}${done ? ' fx--done' : ''}`} role="dialog" aria-modal="true" aria-labelledby="fx-name" style={habitStyle(h)}>
