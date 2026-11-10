@@ -15,7 +15,7 @@ import { MOODS } from './today/mood'
 import { LevelCard } from './habits/LevelCard'
 import { levelsFor } from './habits/useLevels'
 import { badges, titleFor } from './habits/levels'
-import { addDays } from './habits/insights'
+import { addDays, mondayOf } from './habits/insights'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
 import { consistency, goalPace, isWeekly, minutesByDate, streakUnit, todayKey } from './habits/stats'
 import './habits/habits.css'
@@ -116,6 +116,8 @@ export default function StatsPage() {
 
     <LevelsSection habits={habits} />
 
+    <WorkoutsSection today={today} />
+
     {notes.data && notes.data.length > 0 && <MoodSection notes={notes.data} today={today} />}
 
     {liveGoals.length > 0 && <section className="hb-sheet__section" aria-labelledby="st-goals">
@@ -182,6 +184,42 @@ function LevelsSection({ habits }: { habits: Habit[] }) {
     <ul className="lv-badges">
       {list.map(b => <li key={b.id} className={`lv-badge${b.earned ? ' lv-badge--earned' : ''}`}>
         <b>{b.name}</b><span>{b.detail}</span><span>{b.earned ? 'Earned' : b.progress}</span>
+      </li>)}
+    </ul>
+  </section>
+}
+
+/** Workouts from Hevy and Apple Health over the last 12 weeks. Hidden until there are any. */
+function WorkoutsSection({ today }: { today: string }) {
+  const q = useQuery({ queryKey: ['workouts', 84], queryFn: () => api.recentWorkouts(84), refetchOnMount: 'always' })
+  const list = q.data ?? []
+  if (!list.length) return null
+  const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  const first = addDays(mondayOf(today), -7 * 11)
+  const weeks = Array.from({ length: 12 }, (_, i) => {
+    const start = addDays(first, i * 7), end = addDays(start, 7)
+    const inWeek = list.filter(w => { const d = localDay(w.startedAt); return d >= start && d < end })
+    return { start, count: inWeek.length, minutes: inWeek.reduce((s, w) => s + w.durationMinutes, 0) }
+  })
+  const runs = list.filter(w => w.type === 'Run')
+  const km = runs.reduce((s, w) => s + (w.distanceMeters ?? 0), 0) / 1000
+  const tonnes = list.reduce((s, w) => s + w.volumeKg, 0) / 1000
+  const minutes = list.reduce((s, w) => s + w.durationMinutes, 0)
+  return <section className="hb-sheet__section" aria-labelledby="st-workouts">
+    <h2 id="st-workouts" className="st-label">Workouts</h2>
+    <div className="hb-sheet__stats">
+      <Stat label="Sessions" value={list.length} sub="last 12 weeks" />
+      <Stat label="Time" value={fmtHours(minutes)} />
+      <Stat label="Run" value={km >= 10 ? Math.round(km) : km.toFixed(1)} unit="km" sub={`${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`} />
+      <Stat label="Lifted" value={tonnes === 0 ? '–' : tonnes >= 10 ? Math.round(tonnes) : tonnes.toFixed(1)} unit={tonnes === 0 ? undefined : 't'} sub={tonnes === 0 ? 'from Hevy' : 'working sets'} />
+    </div>
+    <Bars label="Workouts per week" bars={weeks.map(w => ({ key: w.start, label: String(Number(w.start.slice(8))), value: w.count,
+      readout: `Week of ${shortDate(w.start)} · ${w.count} ${w.count === 1 ? 'workout' : 'workouts'} · ${fmtHours(w.minutes)}` }))} />
+    <ul className="st-notes">
+      {list.slice(0, 8).map(w => <li key={w.id}>
+        <span className="st-notes__date">{new Date(w.startedAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })} · {w.source}</span>
+        <span><b>{w.title || w.type}</b> · {w.durationMinutes} min{w.distanceMeters ? ` · ${(w.distanceMeters / 1000).toFixed(1)} km` : ''}{w.sets ? ` · ${w.sets} sets · ${Math.round(w.volumeKg).toLocaleString()} kg` : ''}{w.averageHeartRate ? ` · ${w.averageHeartRate} bpm` : ''}</span>
+        {w.exercises.length > 0 && <small className="hb-hint">{w.exercises.join(', ')}</small>}
       </li>)}
     </ul>
   </section>

@@ -19,3 +19,16 @@
 .cn-others li { display: flex; align-items: center; justify-content: space-between; gap: var(--rite-3); padding: var(--rite-3) var(--rite-4); border-top: 1px solid var(--rite-hair); }
 .cn-others__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cn-others__name { font-size: 14px; font-weight: 600; }
+
+/* Workouts */
+.cn-key { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid var(--rite-accent); background: var(--rite-tint, transparent); margin: 8px 0; }
+.cn-key p { margin: 0; font-size: 13px; }
+.cn-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; padding: 2px 6px; border-radius: 6px; background: var(--rite-surface-2); overflow-wrap: anywhere; word-break: break-all; }
+.cn-key .cn-code { font-size: 13px; padding: 8px; user-select: all; }
+.cn-steps { margin: 8px 0; font-size: 14px; }
+.cn-steps summary { cursor: pointer; color: var(--rite-accent-light); }
+.cn-steps ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; }
+.cn-steps ul { padding-left: 18px; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.cn-maps { display: flex; flex-direction: column; gap: 8px; }
+.cn-map { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.cn-map select { max-width: 60%; }

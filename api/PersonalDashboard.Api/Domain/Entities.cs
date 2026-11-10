@@ -16,6 +16,8 @@ public enum SourceKind
     OpenFoodFacts = 5,
     Usda = 6,
     SpotifyArtist = 7, // manual Spotify-for-Artists KPIs (no public artist API)
+    Hevy = 8,          // lifting workouts via Hevy's API (Hevy Pro key)
+    AppleHealth = 9,   // workouts pushed from the phone (Health Auto Export or a Shortcut)
 }
 
 public class DataSource
@@ -81,6 +83,32 @@ public class Workout
     public double? DistanceMeters { get; set; }
     public int? Calories { get; set; }
     public int? AverageHeartRate { get; set; }
+
+    /// <summary>The source's own id (Hevy workout id, Apple Health workout id), for updates and dedupe.</summary>
+    public string? ExternalId { get; set; }
+    /// <summary>The workout's name in its app, e.g. "Push day" or "Outdoor Run".</summary>
+    public string? Title { get; set; }
+    public DateTimeOffset? EndedAt { get; set; }
+    /// <summary>Sets, for lifting sources that send them (Hevy).</summary>
+    public List<WorkoutSet> Sets { get; set; } = new();
+}
+
+/// <summary>One set of one exercise in a workout (from Hevy).</summary>
+public class WorkoutSet
+{
+    public long Id { get; set; }
+    public long WorkoutId { get; set; }
+    public int ExerciseIndex { get; set; }
+    public required string Exercise { get; set; }
+    public string? ExerciseTemplateId { get; set; }
+    public int SetIndex { get; set; }
+    /// <summary>normal, warmup, dropset or failure.</summary>
+    public string Kind { get; set; } = "normal";
+    public double? WeightKg { get; set; }
+    public int? Reps { get; set; }
+    public double? DistanceMeters { get; set; }
+    public int? DurationSeconds { get; set; }
+    public double? Rpe { get; set; }
 }
 
 public class CalendarEvent

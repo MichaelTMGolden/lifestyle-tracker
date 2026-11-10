@@ -60,5 +60,15 @@ public class ConnectionsAutoSync : BackgroundService
                 events, failures.Count > 0 ? $" ({failures.Count} feed failed)" : "");
         }
         catch (Exception ex) { _log.LogWarning(ex, "Auto-sync · Google error."); }
+
+        // Hevy — changes since the last good sync (no-op without a key).
+        try
+        {
+            var clock = await Push.DeviceClock.CurrentAsync(db, DateTime.UtcNow);
+            var r = await HevySync.SyncStoredAsync(db, _http.CreateClient("hevy"), clock.Today, await WorkoutStore.UserDayAsync(db, clock.OffsetMinutes));
+            if (!r.Ok) _log.LogWarning("Auto-sync · Hevy failed: {Error}", r.Error);
+            else if (r.Created + r.Updated + r.Deleted > 0) _log.LogInformation("Auto-sync · Hevy: {Created} new, {Updated} updated, {Deleted} removed.", r.Created, r.Updated, r.Deleted);
+        }
+        catch (Exception ex) { _log.LogWarning(ex, "Auto-sync · Hevy error."); }
     }
 }

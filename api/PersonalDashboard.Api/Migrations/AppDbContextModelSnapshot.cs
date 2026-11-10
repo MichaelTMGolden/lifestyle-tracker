@@ -1211,8 +1211,19 @@ namespace PersonalDashboard.Api.Migrations
                     b.Property<int>("DurationMinutes")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1220,11 +1231,66 @@ namespace PersonalDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DataSourceId");
-
                     b.HasIndex("StartedAt");
 
+                    b.HasIndex("DataSourceId", "ExternalId")
+                        .IsUnique()
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
+
                     b.ToTable("Workouts");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.WorkoutSet", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<double?>("DistanceMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Exercise")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ExerciseIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExerciseTemplateId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("Reps")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("Rpe")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("SetIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("WeightKg")
+                        .HasColumnType("double precision");
+
+                    b.Property<long>("WorkoutId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkoutId");
+
+                    b.ToTable("WorkoutSets");
                 });
 
             modelBuilder.Entity("PersonalDashboard.Api.Domain.BingoSquare", b =>
@@ -1389,6 +1455,15 @@ namespace PersonalDashboard.Api.Migrations
                     b.Navigation("DataSource");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.WorkoutSet", b =>
+                {
+                    b.HasOne("PersonalDashboard.Api.Domain.Workout", null)
+                        .WithMany("Sets")
+                        .HasForeignKey("WorkoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.BingoBoard", b =>
                 {
                     b.Navigation("Squares");
@@ -1417,6 +1492,11 @@ namespace PersonalDashboard.Api.Migrations
             modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillBenchmark", b =>
                 {
                     b.Navigation("Assessments");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.Workout", b =>
+                {
+                    b.Navigation("Sets");
                 });
 #pragma warning restore 612, 618
         }

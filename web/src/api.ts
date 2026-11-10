@@ -2,6 +2,13 @@
 import type { DashboardSettings } from './settings'
 import type { SeasonRow } from './seasons'
 export type { SeasonRow }
+export type HevySyncResult = { ok: boolean; error: string | null; created: number; updated: number; deleted: number }
+export type WorkoutHabits = { strength: number | null; run: number | null; other: number | null }
+export type RecentWorkout = {
+  id: number; type: string; title: string | null; startedAt: string; endedAt: string | null; durationMinutes: number
+  distanceMeters: number | null; calories: number | null; averageHeartRate: number | null; source: string
+  sets: number; volumeKg: number; exercises: string[]
+}
 export type DayNoteRow = { date: string; mood: number | null; note: string | null }
 
 export interface CalendarEvent {
@@ -594,6 +601,18 @@ export const api = {
   /** Replay-safe writes for taps that may be queued offline (see offline/habitSync.ts). */
   logHabitMinutesOn: (id: number, minutes: number, date: string, requestId: string) =>
     post<HabitLogChange & { duplicate?: boolean }>(`/api/habits/${id}/log-time`, { minutes, date, requestId }),
+  // Workouts from Hevy (pulled) and Apple Health (pushed from the phone).
+  hevyStatus: () => get<{ connected: boolean; lastSyncedAt: string | null; workouts: number }>('/api/connections/hevy'),
+  hevyConnect: (key: string) => send<HevySyncResult>('PUT', '/api/connections/hevy/key', { key }),
+  hevySync: () => post<HevySyncResult>('/api/connections/hevy/sync'),
+  hevyDisconnect: () => send<void>('DELETE', '/api/connections/hevy/key'),
+  healthStatus: () => get<{ hasKey: boolean; lastReceivedAt: string | null; workouts: number; path: string }>('/api/connections/health'),
+  /** A new upload key, returned this once. */
+  healthNewKey: () => post<{ key: string; path: string }>('/api/connections/health/key'),
+  healthRevokeKey: () => send<void>('DELETE', '/api/connections/health/key'),
+  workoutHabits: () => get<WorkoutHabits>('/api/connections/workouts/habits'),
+  setWorkoutHabits: (h: WorkoutHabits) => send<void>('PUT', '/api/connections/workouts/habits', h),
+  recentWorkouts: (days = 90) => get<RecentWorkout[]>(`/api/workouts/recent?days=${days}`),
   seasons: () => get<SeasonRow[]>('/api/seasons'),
   /** Evening check-ins (mood 1–5 and a line) for the last `days` days, oldest first. */
   dayNotes: (days = 371) => get<DayNoteRow[]>(`/api/day-notes?days=${days}`),
