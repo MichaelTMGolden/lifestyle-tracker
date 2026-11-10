@@ -12,9 +12,11 @@ namespace PersonalDashboard.Api.Integrations;
 /// </summary>
 public static partial class HealthIngest
 {
-    public const int MaxWorkouts = 500;
+    /// <summary>The most workouts one upload may hold; a bigger one is refused whole, never cut short.</summary>
+    public const int MaxWorkouts = 5000;
 
-    public static (List<IncomingWorkout> Workouts, int Skipped) Parse(JsonElement root)
+    /// <summary>The workouts in a batch; TooMany (and nothing else) when it holds more than <see cref="MaxWorkouts"/>.</summary>
+    public static (List<IncomingWorkout> Workouts, int Skipped, bool TooMany) Parse(JsonElement root)
     {
         var list = new List<IncomingWorkout>();
         var skipped = 0;
@@ -22,13 +24,14 @@ public static partial class HealthIngest
         var found = root.ValueKind == JsonValueKind.Object
             && ((root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object && data.TryGetProperty("workouts", out arr))
                 || root.TryGetProperty("workouts", out arr));
-        if (!found || arr.ValueKind != JsonValueKind.Array) return (list, 0);
-        foreach (var w in arr.EnumerateArray().Take(MaxWorkouts))
+        if (!found || arr.ValueKind != JsonValueKind.Array) return (list, 0, false);
+        if (arr.GetArrayLength() > MaxWorkouts) return (list, 0, true);
+        foreach (var w in arr.EnumerateArray())
         {
             var parsed = ParseOne(w);
             if (parsed is null) skipped++; else list.Add(parsed);
         }
-        return (list, skipped);
+        return (list, skipped, false);
     }
 
     static IncomingWorkout? ParseOne(JsonElement w)

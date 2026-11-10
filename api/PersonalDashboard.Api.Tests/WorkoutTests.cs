@@ -24,7 +24,7 @@ public class WorkoutTests
     [Fact]
     public void Health_auto_export_v2_is_read_with_units_converted()
     {
-        var (list, skipped) = HealthIngest.Parse(Json("""
+        var (list, skipped, _) = HealthIngest.Parse(Json("""
           {"data": {"metrics": [], "workouts": [{
             "id": "A1", "name": "Outdoor Run", "start": "2026-11-09 06:30:00 +1100", "end": "2026-11-09 07:00:00 +1100",
             "duration": 1800, "distance": {"qty": 3.1, "units": "mi"}, "activeEnergyBurned": {"qty": 320.4, "units": "kcal"},
@@ -46,7 +46,7 @@ public class WorkoutTests
     [Fact]
     public void V1_and_shortcut_shapes_work_and_bad_items_are_skipped()
     {
-        var (list, skipped) = HealthIngest.Parse(Json("""
+        var (list, skipped, _) = HealthIngest.Parse(Json("""
           {"workouts": [
             {"name": "Walking", "start": "2026-11-08T08:00:00+11:00", "end": "2026-11-08T08:45:00+11:00", "distance": {"qty": 4.2, "units": "km"}, "heartRate": {"avg": {"qty": 101}}},
             {"name": "Yoga"},
@@ -102,6 +102,16 @@ public class WorkoutTests
         Assert.Equal(40, liftLog.Minutes); // timed habit: minutes, added once
         Assert.True(Assert.Single(logs, l => l.HabitId == run.Id).Completed); // the 30-day-old run didn't tick
         Assert.Equal(2, logs.Count);
+    }
+
+    [Fact]
+    public void An_oversized_batch_is_refused_whole()
+    {
+        var one = "{\"id\":\"X\",\"name\":\"Run\",\"start\":\"2026-11-09 06:30:00 +1100\",\"duration\":60}";
+        var items = string.Join(",", Enumerable.Repeat(one, HealthIngest.MaxWorkouts + 1));
+        var (list, _, tooMany) = HealthIngest.Parse(Json("{\"workouts\":[" + items + "]}"));
+        Assert.True(tooMany);
+        Assert.Empty(list);
     }
 
     [Fact]

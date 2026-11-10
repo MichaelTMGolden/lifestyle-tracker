@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using PersonalDashboard.Api.Data;
 using PersonalDashboard.Api.Domain;
 using PersonalDashboard.Api.Integrations;
-using PersonalDashboard.Api.Push;
 
 namespace PersonalDashboard.Api.Endpoints;
 
@@ -137,13 +136,17 @@ public static class WorkoutEndpoints
             catch (JsonException) { return Results.BadRequest(new { message = "Send JSON: Health Auto Export's format, or {\"workouts\": [...]}." }); }
             using (doc)
             {
-                var (workouts, skipped) = HealthIngest.Parse(doc.RootElement);
+                var (workouts, skipped, tooMany) = HealthIngest.Parse(doc.RootElement);
+                if (tooMany) return Results.Json(new { message = $"Too many workouts in one upload (over {HealthIngest.MaxWorkouts}). Send a shorter period." }, statusCode: StatusCodes.Status413PayloadTooLarge);
                 var source = await WorkoutStore.SourceAsync(db, SourceKind.AppleHealth, HealthSourceName);
                 var habits = await WorkoutStore.HabitsAsync(db);
-                var today = (await DeviceClock.CurrentAsync(db, DateTime.UtcNow)).Today;
                 int created = 0, updated = 0;
                 foreach (var w in workouts)
+                {
+                    // Health sends local times: "today" by the same clock as the workout's day.
+                    var today = WorkoutStore.OwnDay(DateTimeOffset.UtcNow.ToOffset(w.StartedAt.Offset));
                     if (await WorkoutStore.UpsertAsync(db, source, w, today, habits, WorkoutStore.OwnDay)) created++; else updated++;
+                }
                 source.LastSyncedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync();
                 return Results.Ok(new { created, updated, skipped });
