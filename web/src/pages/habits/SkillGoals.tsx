@@ -1,6 +1,6 @@
 // "Working toward": goals on a skill with no deadline (a solo to learn, a song to
 // finish), each with optional steps. Reaching one is worth XP and a moment.
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { Habit } from '../../api'
 import { Celebration } from '../../components/Celebration'
@@ -104,7 +104,12 @@ export function GoalCard({ goal: g, habit, compact, onReached }: {
 
 /** The celebration for a goal just reached. */
 export function GoalReached({ reached, onDone }: { reached: Reached; onDone: () => void }) {
-  return <Celebration eyebrow="Goal reached" title={reached.title} figure="★" note={`+${GOAL_XP} XP for ${reached.habit}. On to the next one.`} onDone={onDone} />
+  // Stable for Celebration: its auto-close restarts whenever the callback changes,
+  // and Focus re-renders every second while a timer runs.
+  const latest = useRef(onDone)
+  useEffect(() => { latest.current = onDone })
+  const done = useCallback(() => latest.current(), [])
+  return <Celebration eyebrow="Goal reached" title={reached.title} figure="★" note={`+${GOAL_XP} XP for ${reached.habit}. On to the next one.`} onDone={done} />
 }
 
 /** A habit's goals on its page: open ones to work on, a form for a new one, and those reached. */
