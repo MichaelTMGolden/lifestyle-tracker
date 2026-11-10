@@ -17,6 +17,8 @@ import { lastHabits, rememberHabits } from './habits/lastLoaded'
 import { SeasonBanner, SeasonSheet } from './habits/SeasonSheet'
 import { LevelCard } from './habits/LevelCard'
 import { useLevels } from './habits/useLevels'
+import { useSkillGoals } from './habits/useSkillGoals'
+import { sortGoals } from '../skillGoals'
 import { titleFor } from './habits/levels'
 import { useSeasons } from './habits/useSeasons'
 import { splitByFocus } from '../seasons'
@@ -50,6 +52,7 @@ export default function HabitsPage() {
   const toast = useToast()
   const milestone = useStreakMilestones(habits)
   const { levels, celebrate: levelUp, dismiss: dismissLevelUp } = useLevels(habits, loaded)
+  const skillGoals = useSkillGoals().all
   const navigate = useNavigate()
   const { current: season } = useSeasons()
   const [seasonOpen, setSeasonOpen] = useState(false)
@@ -122,6 +125,7 @@ export default function HabitsPage() {
     const byDate = heatById.get(h.id) ?? new Map<string, number>()
     return <HabitCard key={h.id} habit={h} range={r} cells={cellsFor(h, byDate, RANGE_DAYS[r])} doneThisWeek={done}
       goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id} level={levels.byHabit.get(h.id)?.level}
+      aims={sortGoals(skillGoals.filter(g => g.habitId === h.id)).open}
       onOpen={() => navigate(`/habits/${h.id}`)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
   }
 

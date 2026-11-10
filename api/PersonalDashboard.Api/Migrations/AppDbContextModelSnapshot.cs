@@ -1102,6 +1102,68 @@ namespace PersonalDashboard.Api.Migrations
                     b.ToTable("SkillBenchmarks");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillGoal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("CreatedOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("DoneOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("HabitId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HabitId");
+
+                    b.ToTable("SkillGoals");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillGoalStep", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("DoneOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SkillGoalId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillGoalId");
+
+                    b.ToTable("SkillGoalSteps");
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.TodoItem", b =>
                 {
                     b.Property<long>("Id")
@@ -1444,6 +1506,26 @@ namespace PersonalDashboard.Api.Migrations
                     b.Navigation("Habit");
                 });
 
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillGoal", b =>
+                {
+                    b.HasOne("PersonalDashboard.Api.Domain.Habit", "Habit")
+                        .WithMany()
+                        .HasForeignKey("HabitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Habit");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillGoalStep", b =>
+                {
+                    b.HasOne("PersonalDashboard.Api.Domain.SkillGoal", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("SkillGoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PersonalDashboard.Api.Domain.Workout", b =>
                 {
                     b.HasOne("PersonalDashboard.Api.Domain.DataSource", "DataSource")
@@ -1492,6 +1574,11 @@ namespace PersonalDashboard.Api.Migrations
             modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillBenchmark", b =>
                 {
                     b.Navigation("Assessments");
+                });
+
+            modelBuilder.Entity("PersonalDashboard.Api.Domain.SkillGoal", b =>
+                {
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("PersonalDashboard.Api.Domain.Workout", b =>

@@ -15,6 +15,7 @@ import { Button, Progress } from '../ui'
 import { haptic } from '../ui/feedback'
 import { ToastHostContext } from '../ui/toastContext'
 import { goalForHabit } from './habits/stats'
+import { FocusGoals } from './habits/SkillGoals'
 import { useSeasons } from './habits/useSeasons'
 import { splitByFocus } from '../seasons'
 import { skillProgressApi } from '../skillProgressApi'
@@ -302,6 +303,8 @@ function FocusView({ habit: h, running, ms, goal, goalLiveMs, busy, note, error,
         <div className="fx__goal-line"><span>{goal.name}</span><span>{fmtHours(Math.floor(goalNow))} of {fmtHours(goal.targetMinutes)}</span></div>
         <Progress value={Math.min(100, Math.round((goalNow / Math.max(1, goal.targetMinutes)) * 100))} max={100} label={`${goal.name} progress`} />
       </div>}
+
+      <FocusGoals habit={h} />
     </div>
 
     <div className="fx__bottom">

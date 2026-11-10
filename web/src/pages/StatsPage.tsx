@@ -14,6 +14,7 @@ import type { HeatCell } from '../ui/hooks'
 import { MOODS } from './today/mood'
 import { LevelCard } from './habits/LevelCard'
 import { levelsFor } from './habits/useLevels'
+import { useSkillGoals } from './habits/useSkillGoals'
 import { badges, titleFor } from './habits/levels'
 import { addDays, mondayOf } from './habits/insights'
 import { bestWeek, monthlyRates, monthlyTotals, type Tracked } from './habits/insights'
@@ -165,15 +166,17 @@ function MoodSection({ notes, today }: { notes: { date: string; mood: number | n
 function LevelsSection({ habits }: { habits: Habit[] }) {
   // Opened from a level link (/stats#levels): bring this section into view.
   useEffect(() => { if (location.hash === '#levels') document.getElementById('levels')?.scrollIntoView({ block: 'start' }) }, [])
+  const goals = useSkillGoals().all
   if (!habits.length) return null
-  const { player, byHabit } = levelsFor(habits)
+  const { player, byHabit } = levelsFor(habits, goals)
   const ranked = [...habits].sort((a, b) => (byHabit.get(b.id)?.xp ?? 0) - (byHabit.get(a.id)?.xp ?? 0))
-  const list = badges(habits)
+  // Goals on deleted habits went with them; archived habits' still count.
+  const list = badges(habits, goals.filter(g => g.doneOn).length)
   const earned = list.filter(b => b.earned).length
   return <section className="hb-sheet__section" id="levels" aria-labelledby="st-levels">
     <h2 id="st-levels" className="st-label">Levels &amp; badges</h2>
     <LevelCard level={player} />
-    <p className="hb-hint">XP: a point a minute on timed habits plus 10 a practice day, 30 a day on tick habits, and a bonus for your best run. Your level counts every habit.</p>
+    <p className="hb-hint">XP: a point a minute on timed habits plus 10 a practice day, 30 a day on tick habits, a bonus for your best run, 150 for each skill goal reached and 15 a step. Your level counts every habit.</p>
     <ul className="lv-habits">
       {ranked.map(h => { const l = byHabit.get(h.id)!; return <li key={h.id} style={habitStyle(h)}>
         <div className="lv-habits__line"><Link to={`/habits/${h.id}`} className="st-habit"><span className="st-dot" style={{ background: habitColor(h) }} aria-hidden="true" />{h.name}</Link><span>Lv {l.level} <small>{titleFor(l.level)}</small></span></div>

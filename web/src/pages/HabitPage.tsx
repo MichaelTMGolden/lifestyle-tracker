@@ -15,7 +15,9 @@ import { MOODS } from './today/mood'
 import { useQuery } from '@tanstack/react-query'
 import { lastHabits, rememberHabit, rememberHabits } from './habits/lastLoaded'
 import { useSeasons } from './habits/useSeasons'
-import { levelOf, titleFor, xpFor } from './habits/levels'
+import { goalXp, levelOf, titleFor, xpFor } from './habits/levels'
+import { GoalsSection } from './habits/SkillGoals'
+import { useSkillGoals } from './habits/useSkillGoals'
 import { inFocusOn, liveSeasons, type SeasonRow } from '../seasons'
 import { useQueryClient } from '@tanstack/react-query'
 import { firstDay, weekdayRates, weeklyTotals } from './habits/insights'
@@ -173,7 +175,8 @@ function SeasonLine({ habit: h, current }: { habit: Habit; current: SeasonRow | 
 
 /** This habit's level and XP to the next one. */
 function HabitLevel({ habit: h }: { habit: Habit }) {
-  const l = levelOf(xpFor(h))
+  const { all } = useSkillGoals()
+  const l = levelOf(xpFor(h) + goalXp(all.filter(g => g.habitId === h.id)))
   return <section className="hb-sheet__section" aria-labelledby="hb-level">
     <h3 id="hb-level" className="hb-sheet__label">Level {l.level} · {titleFor(l.level)}</h3>
     <div className="hb-card__goal-line"><span>{Math.round(l.xp).toLocaleString()} XP</span><span>{Math.round(l.next - l.xp).toLocaleString()} XP to level {l.level + 1}</span></div>
@@ -200,6 +203,7 @@ function Insights({ habit: h, byDate, today, goal, allIds }: { habit: Habit; byD
   return <>
     <SeasonLine habit={h} current={current && seasons.includes(current) ? current : null} />
     <HabitLevel habit={h} />
+    <GoalsSection habit={h} />
     {goal && <section className="hb-sheet__section" aria-labelledby="hb-goal">
       <h3 id="hb-goal" className="hb-sheet__label">Goal · {goal.name}</h3>
       <div className="hb-card__goal-line">
