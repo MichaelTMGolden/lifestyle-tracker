@@ -1,7 +1,7 @@
 // Your level and each habit's, plus level-ups noticed while the app is open or
 // since the last visit on this device (never on a first visit, so nothing old
 // is celebrated as new).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Habit } from '../../api'
 import { useToast } from '../../ui/hooks'
 import { levelOf, titleFor, xpFor, type Level } from './levels'
@@ -44,5 +44,8 @@ export function useLevels(habits: Habit[], ready: boolean) {
     setTimeout(() => { if (mounted.current) setCelebrate(up) }, 0)
   }, [levels, habits, ready, toast])
 
-  return { levels, celebrate, dismiss: () => setCelebrate(null) }
+  // Stable, so pages re-rendering every second (a running timer) don't restart
+  // the celebration's auto-close.
+  const dismiss = useCallback(() => setCelebrate(null), [])
+  return { levels, celebrate, dismiss }
 }
