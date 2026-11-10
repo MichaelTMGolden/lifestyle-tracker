@@ -15,6 +15,9 @@ import { HabitCard, type Range } from './habits/HabitCard'
 import { useStreakMilestones } from './habits/milestones'
 import { lastHabits, rememberHabits } from './habits/lastLoaded'
 import { SeasonBanner, SeasonSheet } from './habits/SeasonSheet'
+import { LevelCard } from './habits/LevelCard'
+import { useLevels } from './habits/useLevels'
+import { titleFor } from './habits/levels'
 import { useSeasons } from './habits/useSeasons'
 import { splitByFocus } from '../seasons'
 import { cellsFor, daysThisWeek, goalForHabit, heatWithToday, isWeekly, minutesByDate, todayKey, weeklyTarget } from './habits/stats'
@@ -46,6 +49,7 @@ export default function HabitsPage() {
   const { isRunning, elapsedMs, start, stop, dataTick } = useTimer()
   const toast = useToast()
   const milestone = useStreakMilestones(habits)
+  const { levels, celebrate: levelUp, dismiss: dismissLevelUp } = useLevels(habits, loaded)
   const navigate = useNavigate()
   const { current: season } = useSeasons()
   const [seasonOpen, setSeasonOpen] = useState(false)
@@ -117,7 +121,7 @@ export default function HabitsPage() {
   const card = ({ h, done }: { h: Habit; done: number }, r: Range) => {
     const byDate = heatById.get(h.id) ?? new Map<string, number>()
     return <HabitCard key={h.id} habit={h} range={r} cells={cellsFor(h, byDate, RANGE_DAYS[r])} doneThisWeek={done}
-      goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id}
+      goal={goalForHabit(goals, h.id)} running={isRunning(h.id)} elapsedMs={elapsedMs(h.id)} milestone={milestone === h.id} level={levels.byHabit.get(h.id)?.level}
       onOpen={() => navigate(`/habits/${h.id}`)} onToggle={() => void toggle(h)} onStart={() => startTimer(h)} onStop={() => stopTimer(h)} />
   }
 
@@ -134,6 +138,8 @@ export default function HabitsPage() {
         <Button size="sm" variant="quiet" icon="plus" onClick={() => setAdding(true)}>New habit</Button>
       </div>
     </header>
+
+    {habits.length > 0 && <LevelCard level={levels.player} link />}
 
     {habits.length > 0 && <SeasonBanner habits={habits} current={season} onEdit={() => setSeasonOpen(true)} />}
 
@@ -166,6 +172,8 @@ export default function HabitsPage() {
       figure={fmtHours(celebrating.targetMinutes)}
       note={celebrating.completedOn && celebrating.startDate ? `Done in ${fmtDaySpan(Math.max(1, daysBetween(celebrating.startDate, celebrating.completedOn)))}.` : 'Target reached.'}
       onDone={dismissCelebration} />}
+    {!celebrating && levelUp && !adding && <Celebration eyebrow={levelUp.newTitle ? 'New title' : 'Level up'} title={levelUp.newTitle ? levelUp.title : `Level ${levelUp.level}`}
+      figure={String(levelUp.level)} note={levelUp.newTitle ? `You're now ${titleFor(levelUp.level)} · level ${levelUp.level}.` : `${levelUp.title} · keep going.`} onDone={dismissLevelUp} />}
   </div>
 }
 

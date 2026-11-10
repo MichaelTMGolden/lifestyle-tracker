@@ -17,6 +17,9 @@ import { useToast } from '../ui/hooks'
 import { addMinutes, QUEUED } from '../offline/habitSync'
 import { agendaRows } from './today/agenda'
 import { useStreakMilestones } from './habits/milestones'
+import { useLevels } from './habits/useLevels'
+import { titleFor } from './habits/levels'
+import { Celebration } from '../components/Celebration'
 import { useSeasons } from './habits/useSeasons'
 import { CheckIn } from './today/CheckIn'
 import { splitByFocus } from '../seasons'
@@ -41,6 +44,7 @@ export default function TodayPage() {
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.goals, enabled: timers.length > 0 })
   const qc = useQueryClient()
   const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
+  const { levels, celebrate: levelUp, dismiss: dismissLevelUp } = useLevels(bundle.data?.habits ?? NO_HABITS, !!bundle.data)
   const { current: season } = useSeasons()
   const [params] = useSearchParams()
   // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
@@ -141,6 +145,7 @@ export default function TodayPage() {
             : tomorrowTasks ? <>Tomorrow · <b>{tomorrowTasks} {tomorrowTasks === 1 ? 'task' : 'tasks'} planned</b></>
             : 'Nothing else scheduled today'}
         </span>
+        {habits.length > 0 && <Link to="/stats#levels" className="td-head__level">Level {levels.player.level} · {titleFor(levels.player.level)}</Link>}
       </div>
       {focus.length > 0 && <Ring value={doneCount} max={focus.length} label={`${doneCount} of ${focus.length} ${season && others.length ? 'focus ' : ''}habits done today`} />}
     </header>
@@ -181,5 +186,7 @@ export default function TodayPage() {
     </Collapsible>
 
     <LogTimeSheet open={logging} habits={habits} onClose={() => setLogging(false)} onLog={logPast} />
+    {levelUp && !logging && <Celebration eyebrow={levelUp.newTitle ? 'New title' : 'Level up'} title={levelUp.newTitle ? levelUp.title : `Level ${levelUp.level}`}
+      figure={String(levelUp.level)} note={levelUp.newTitle ? `You're now ${levelUp.title} · level ${levelUp.level}.` : `${levelUp.title} · keep going.`} onDone={dismissLevelUp} />}
   </div>
 }

@@ -65,8 +65,12 @@ export default function Layout() {
   useEffect(() => {
     document.title = `${current?.label ?? 'Dashboard'} · Personal Dashboard`
     main.current?.focus({ preventScroll: true })
-    window.scrollTo({ top: 0 })
-  }, [location.pathname, current?.label])
+    // A link to a section (/stats#levels) lands on it; any other page change starts at the top.
+    // Child effects run first, so a section already on screen is found here.
+    const target = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null
+    if (target) target.scrollIntoView({ block: 'start' })
+    else window.scrollTo({ top: 0 })
+  }, [location.pathname, location.hash, current?.label])
 
   // Focus the search box once the sheet has opened (desktop keyboard users).
   useEffect(() => { if (moreOpen && window.matchMedia('(min-width: 1024px)').matches) searchInput.current?.focus() }, [moreOpen])
