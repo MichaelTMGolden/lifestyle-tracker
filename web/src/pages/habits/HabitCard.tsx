@@ -8,10 +8,12 @@ import { Button, Heatmap, Icon, Progress } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
 import { cadenceLabel, goalPace, streakUnit } from './stats'
 import { LevelChip } from './LevelCard'
+import type { SkillGoal } from '../../skillGoals'
+import { GoalLine } from './SkillGoals'
 
 export type Range = '4w' | '6m' | 'y'
 
-export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, milestone, level, onOpen, onToggle, onStart, onStop }: {
+export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, milestone, level, aims, onOpen, onToggle, onStart, onStop }: {
   habit: Habit
   cells: HeatCell[]
   range: Range
@@ -23,6 +25,8 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
   milestone?: boolean
   /** The habit's level, shown as a chip. */
   level?: number
+  /** Open skill goals, lead first. */
+  aims?: SkillGoal[]
   onOpen: () => void
   onToggle: () => void
   onStart: () => void
@@ -60,6 +64,10 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
       <Heatmap cells={cells} variant={range === '4w' ? 'strip' : 'calendar'} label={`${h.name}: ${range === '4w' ? 'last 4 weeks' : range === '6m' ? 'last 6 months' : 'last year'}`}
         today={cells.at(-1)?.date} cellSize={range === 'y' ? 9 : 11} />
     </button>
+
+    {aims && aims.length > 0 && <button type="button" className="hb-card__aim" onClick={onOpen} aria-label={`${h.name}: working toward ${aims[0].title}`}>
+      <GoalLine goal={aims[0]} more={aims.length - 1} />
+    </button>}
 
     {h.tracksTime && h.minutesToday > 0 && !goal && <p className="hb-card__note">{h.minutesToday} min today · {fmtHours(h.totalMinutes)} total</p>}
 

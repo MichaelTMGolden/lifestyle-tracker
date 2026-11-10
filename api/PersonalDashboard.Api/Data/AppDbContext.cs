@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public DbSet<HabitLog> HabitLogs => Set<HabitLog>();
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<DayNote> DayNotes => Set<DayNote>();
+    public DbSet<SkillGoal> SkillGoals => Set<SkillGoal>();
+    public DbSet<SkillGoalStep> SkillGoalSteps => Set<SkillGoalStep>();
     public DbSet<HabitTimer> HabitTimers => Set<HabitTimer>();
     public DbSet<AppliedRequest> AppliedRequests => Set<AppliedRequest>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
@@ -77,6 +79,13 @@ public class AppDbContext : DbContext
         b.Entity<Season>().HasIndex(x => x.StartsOn);
         b.Entity<DayNote>().HasKey(x => x.Date);
         b.Entity<DayNote>().Property(x => x.Note).HasMaxLength(500);
+        // A habit's goals go with it, as its logs do.
+        b.Entity<SkillGoal>().Property(x => x.Title).HasMaxLength(120);
+        b.Entity<SkillGoal>().Property(x => x.Note).HasMaxLength(500);
+        b.Entity<SkillGoal>().HasIndex(x => x.HabitId);
+        b.Entity<SkillGoal>().HasOne(x => x.Habit).WithMany().HasForeignKey(x => x.HabitId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SkillGoalStep>().Property(x => x.Title).HasMaxLength(120);
+        b.Entity<SkillGoalStep>().HasOne<SkillGoal>().WithMany(g => g.Steps).HasForeignKey(x => x.SkillGoalId).OnDelete(DeleteBehavior.Cascade);
 
         // At most one running timer per habit; deleting the habit clears it.
         b.Entity<HabitTimer>().HasIndex(x => x.HabitId).IsUnique();

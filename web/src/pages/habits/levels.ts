@@ -1,5 +1,5 @@
 // Levels: XP, levels, titles and badges, all worked out from what is already
-// logged (nothing extra is stored, so they can't drift from your history).
+// logged and the skill goals reached (nothing extra is stored, so they can't drift from your history).
 // No imports: the node tests load this file directly.
 
 export type Practice = {
@@ -21,6 +21,13 @@ export function xpFor(p: Practice): number {
   const run = p.cadence === 'weekly' ? 20 * p.bestStreak : 5 * p.bestStreak
   return Math.max(0, Math.round(work + run))
 }
+
+/** Bonus XP for skill goals: reaching one, and each step ticked on the way. */
+export const GOAL_XP = 150
+export const STEP_XP = 15
+type GoalLike = { doneOn: string | null; steps: { doneOn: string | null }[] }
+export const goalXp = (goals: GoalLike[]) =>
+  goals.reduce((s, g) => s + (g.doneOn ? GOAL_XP : 0) + STEP_XP * g.steps.filter(x => x.doneOn).length, 0)
 
 /** XP needed to reach `level` (level 1 is free): 50 × (level − 1)². */
 export const xpForLevel = (level: number) => 50 * (level - 1) ** 2
@@ -44,7 +51,7 @@ export const nextTitleAt = (level: number) => [...TITLES].reverse().find(([min])
 export type Badge = { id: string; name: string; detail: string; earned: boolean; progress: string }
 
 /** Badges across all habits, earned or not, in display order. */
-export function badges(habits: Practice[]): Badge[] {
+export function badges(habits: Practice[], goalsReached = 0): Badge[] {
   const best = (f: (p: Practice) => number) => habits.reduce((m, p) => Math.max(m, f(p)), 0)
   const dayRun = best(p => p.cadence === 'weekly' ? 0 : p.bestStreak)
   const topHours = best(p => p.tracksTime ? p.totalMinutes / 60 : 0)
@@ -64,5 +71,7 @@ export function badges(habits: Practice[]): Badge[] {
     b('thousand', 'The Thousand', '1,000 hours across everything', allHours, 1000, 'h'),
     b('polymath', 'Polymath', '10+ days on five different habits', broad, 5, 'habits'),
     b('devotion', 'Devotion', '365 practice days in all', days, 365, 'days'),
+    b('first-summit', 'First Summit', 'Reach a skill goal', goalsReached, 1, 'goal'),
+    b('ten-summits', 'Ten Summits', 'Reach 10 skill goals', goalsReached, 10, 'goals'),
   ]
 }

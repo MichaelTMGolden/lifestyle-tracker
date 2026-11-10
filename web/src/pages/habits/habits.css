@@ -160,3 +160,4 @@
 .lv-badge--earned { border-color: var(--rite-accent); background: var(--rite-tint, transparent); }
 .lv-badge--earned b { color: var(--rite-accent-light); }
 .lv-badge:not(.lv-badge--earned) { opacity: .7; }
+

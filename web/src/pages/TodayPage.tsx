@@ -21,6 +21,10 @@ import { useLevels } from './habits/useLevels'
 import { titleFor } from './habits/levels'
 import { Celebration } from '../components/Celebration'
 import { useSeasons } from './habits/useSeasons'
+import { useSkillGoals } from './habits/useSkillGoals'
+import { sortGoals, type SkillGoal } from '../skillGoals'
+import { GoalLine } from './habits/SkillGoals'
+import { habitStyle } from '../habitColor'
 import { CheckIn } from './today/CheckIn'
 import { splitByFocus } from '../seasons'
 import { eventOnDay, PLAN_DAYS } from './plan/days'
@@ -46,6 +50,7 @@ export default function TodayPage() {
   const milestone = useStreakMilestones(bundle.data?.habits ?? NO_HABITS)
   const { levels, celebrate: levelUp, dismiss: dismissLevelUp } = useLevels(bundle.data?.habits ?? NO_HABITS, !!bundle.data)
   const { current: season } = useSeasons()
+  const skillGoals = useSkillGoals().all
   const [params] = useSearchParams()
   // Once today has nothing left, the header previews tomorrow. Same cache as Plan.
   const [quietDay, setQuietDay] = useState(false)
@@ -159,6 +164,7 @@ export default function TodayPage() {
     <section aria-labelledby="td-habits">
       <SectionHead id="td-habits" title="Habits" aside={<span className="td-hint">Tap to log</span>} />
       <HabitTiles habits={focus} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} onLogPast={() => setLogging(true)} />
+      <Aims habits={focus} goals={skillGoals} />
       {others.length > 0 && <div className="td-others">
         <span className="td-others__label">Also tracking</span>
         <HabitTiles compact habits={others} milestone={milestone} isRunning={isRunning} elapsedMs={elapsedMs} onTap={tapHabit} />
@@ -188,5 +194,19 @@ export default function TodayPage() {
     <LogTimeSheet open={logging} habits={habits} onClose={() => setLogging(false)} onLog={logPast} />
     {levelUp && !logging && <Celebration eyebrow={levelUp.newTitle ? 'New title' : 'Level up'} title={levelUp.newTitle ? levelUp.title : `Level ${levelUp.level}`}
       figure={String(levelUp.level)} note={levelUp.newTitle ? `You're now ${levelUp.title} · level ${levelUp.level}.` : `${levelUp.title} · keep going.`} onDone={dismissLevelUp} />}
+  </div>
+}
+
+/** The lead goal of each focus habit that has one: a reminder of what the practice is for. */
+function Aims({ habits, goals }: { habits: Habit[]; goals: SkillGoal[] }) {
+  const rows = habits.flatMap(h => { const open = sortGoals(goals.filter(g => g.habitId === h.id)).open; return open.length ? [{ h, open }] : [] })
+  if (!rows.length) return null
+  return <div className="td-aims">
+    <span className="td-others__label">Working toward</span>
+    <ul>
+      {rows.map(({ h, open }) => <li key={h.id} style={habitStyle(h)}>
+        <Link to={`/habits/${h.id}#working-toward`} className="td-aims__row"><span className="td-aims__dot" aria-hidden="true" /><b>{h.name}</b><GoalLine goal={open[0]} more={open.length - 1} /></Link>
+      </li>)}
+    </ul>
   </div>
 }

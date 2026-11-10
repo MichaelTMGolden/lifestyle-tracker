@@ -192,6 +192,32 @@ public class Season
     public List<int> HabitIds { get; set; } = new();
 }
 
+/// <summary>
+/// Something to work toward on a skill, with no deadline: "learn the solo",
+/// "finish writing the song". Optional steps break it down; reaching it is a date.
+/// </summary>
+public class SkillGoal
+{
+    public int Id { get; set; }
+    public int HabitId { get; set; }
+    public Habit? Habit { get; set; }
+    public required string Title { get; set; }
+    public string? Note { get; set; }
+    public DateOnly CreatedOn { get; set; }
+    /// <summary>The day it was reached; null while still working toward it.</summary>
+    public DateOnly? DoneOn { get; set; }
+    public List<SkillGoalStep> Steps { get; set; } = new();
+}
+
+public class SkillGoalStep
+{
+    public int Id { get; set; }
+    public int SkillGoalId { get; set; }
+    public required string Title { get; set; }
+    public int Position { get; set; }
+    public DateOnly? DoneOn { get; set; }
+}
+
 public class HabitLog
 {
     public long Id { get; set; }

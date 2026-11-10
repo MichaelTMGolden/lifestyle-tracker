@@ -59,3 +59,9 @@ button.fx__choice { width: 100%; font: inherit; font-size: 17px; text-align: lef
 .fx__custom { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
 .fx__custom label { font-size: 13px; color: var(--rite-muted); }
 .fx__custom input { width: 96px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--rite-border-strong); background: var(--rite-bg); color: var(--rite-text); font: 500 16px var(--font-body); font-variant-numeric: tabular-nums; text-align: center; }
+
+/* The lead skill goal, ticked mid-session */
+.fx__aims { width: min(420px, 100%); display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.fx__aims-label { font-size: 12px; color: var(--rite-muted); }
+.fx__aims .fx__link { align-self: center; }
+.fx__aims .sg-steps { max-height: 30vh; overflow-y: auto; }

@@ -1,0 +1,30 @@
+/* Skill goals ("Working toward"). Self-contained: Focus shows them without the habits stylesheet. */
+.sg-card { display: flex; flex-direction: column; gap: var(--rite-2); padding: var(--rite-3); border-radius: var(--rite-radius-lg); border: 1px solid var(--habit-border, var(--rite-border)); background: var(--rite-surface); min-width: 0; }
+.sg-card > .ui-btn { align-self: flex-start; }
+.sg-card .ui-progress span { background: var(--habit, var(--rite-accent)); }
+.sg-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--rite-2); }
+.sg-card__title { margin: 0; font: 500 16px/1.3 var(--font-body); color: var(--rite-text); overflow-wrap: anywhere; }
+.sg-card__note { margin: 0; font-size: 13px; color: var(--rite-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.sg-edit { display: flex; flex-direction: column; gap: var(--rite-2); }
+.sg-textarea { padding: 10px var(--rite-3); min-height: 0; resize: vertical; line-height: 1.4; }
+.sg-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sg-steps li { display: flex; align-items: center; gap: var(--rite-2); }
+.sg-step { flex: 1; min-width: 0; font-size: 14px; }
+.sg-step input { accent-color: var(--habit, var(--rite-accent)); flex-shrink: 0; }
+.sg-step span { overflow-wrap: anywhere; }
+.sg-step.is-done span { color: var(--rite-muted); text-decoration: line-through; }
+.sg-reached ul { list-style: none; margin: var(--rite-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sg-reached li { display: flex; align-items: center; gap: var(--rite-2); min-height: var(--rite-tap); }
+.sg-reached summary { cursor: pointer; min-height: var(--rite-tap); display: flex; align-items: center; }
+.sg-reached__star { color: var(--habit-light, var(--rite-accent-light)); }
+.sg-reached__title { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; overflow-wrap: anywhere; }
+.sg-reached__title small { font-size: 12px; color: var(--rite-muted); }
+.sg-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-line small { color: var(--rite-muted); font-size: inherit; }
+.hb-card__aim { all: unset; cursor: pointer; display: flex; min-width: 0; font-size: 13px; color: var(--habit-light, var(--rite-accent-light)); min-height: 24px; align-items: center; }
+.hb-card__aim:focus-visible { outline: 2px solid var(--rite-accent-light); outline-offset: 2px; border-radius: 4px; }
+.sg-card__line { display: flex; justify-content: space-between; gap: var(--rite-2); font-size: 12px; color: var(--rite-muted); }
+.sg-card__line .sg-good { color: var(--rite-good); }
+.sg-step { display: flex; align-items: center; gap: var(--rite-2); min-height: var(--rite-tap); cursor: pointer; }
+.sg-step input { width: 20px; height: 20px; margin: 0; }
+.sg-error { margin: 0; font-size: 13px; color: var(--rite-bad); }

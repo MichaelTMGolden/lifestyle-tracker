@@ -3,8 +3,10 @@
 // is celebrated as new).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Habit } from '../../api'
+import type { SkillGoal } from '../../skillGoals'
 import { useToast } from '../../ui/hooks'
-import { levelOf, titleFor, xpFor, type Level } from './levels'
+import { useSkillGoals } from './useSkillGoals'
+import { goalXp, levelOf, titleFor, xpFor, type Level } from './levels'
 
 const KEY = 'pd:levels-seen'
 type Seen = { player: number; habits: Record<string, number> }
@@ -13,16 +15,20 @@ const write = (s: Seen) => { try { localStorage.setItem(KEY, JSON.stringify(s)) 
 
 export type Levels = { player: Level; byHabit: Map<number, Level> }
 
-export function levelsFor(habits: Habit[]): Levels {
-  const byHabit = new Map(habits.map(h => [h.id, levelOf(xpFor(h))] as const))
+/** Each habit's level (its logs plus its skill goals) and yours (all of them). */
+export function levelsFor(habits: Habit[], goals: SkillGoal[] = []): Levels {
+  const byHabit = new Map(habits.map(h => [h.id, levelOf(xpFor(h) + goalXp(goals.filter(g => g.habitId === h.id)))] as const))
   const total = [...byHabit.values()].reduce((s, l) => s + l.xp, 0)
   return { player: levelOf(total), byHabit }
 }
 
 /** Levels for these habits; a toast for each habit level-up and the player level to celebrate, if any. */
-export function useLevels(habits: Habit[], ready: boolean) {
+export function useLevels(habits: Habit[], habitsReady: boolean) {
   const toast = useToast()
-  const levels = useMemo(() => levelsFor(habits), [habits])
+  // Until goals load, levels would read low: hold the baseline until they do.
+  const goals = useSkillGoals()
+  const ready = habitsReady && goals.loaded
+  const levels = useMemo(() => levelsFor(habits, goals.all), [habits, goals.all])
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [celebrate, setCelebrate] = useState<{ level: number; title: string; newTitle: boolean } | null>(null)
