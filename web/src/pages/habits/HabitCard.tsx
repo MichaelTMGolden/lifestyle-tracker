@@ -7,10 +7,11 @@ import { fmtElapsed, fmtHours } from '../../lib'
 import { Button, Heatmap, Icon, Progress } from '../../ui'
 import type { HeatCell } from '../../ui/hooks'
 import { cadenceLabel, goalPace, streakUnit } from './stats'
+import { LevelChip } from './LevelCard'
 
 export type Range = '4w' | '6m' | 'y'
 
-export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, milestone, onOpen, onToggle, onStart, onStop }: {
+export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, elapsedMs, milestone, level, onOpen, onToggle, onStart, onStop }: {
   habit: Habit
   cells: HeatCell[]
   range: Range
@@ -20,6 +21,8 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
   elapsedMs: number
   /** True briefly after this habit's streak reaches a milestone. */
   milestone?: boolean
+  /** The habit's level, shown as a chip. */
+  level?: number
   onOpen: () => void
   onToggle: () => void
   onStart: () => void
@@ -38,6 +41,7 @@ export function HabitCard({ habit, cells, range, doneThisWeek, goal, running, el
       <button type="button" className="hb-card__open" onClick={onOpen} aria-label={`${h.name}: ${streakText}. Open details`}>
         <h2 className="hb-card__name">{h.name}</h2>
         <span className="hb-card__streak" aria-hidden="true"><Icon name="flame" size={13} filled />{h.currentStreak}</span>
+        {level != null && <LevelChip level={level} />}
         <span className="hb-card__cadence">{cadenceLabel(h, doneThisWeek)}</span>
       </button>
       {h.tracksTime

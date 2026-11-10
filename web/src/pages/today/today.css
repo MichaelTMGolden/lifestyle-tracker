@@ -137,3 +137,5 @@
 .td-checkin--done p { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 14px; min-width: 0; }
 .td-checkin__eyebrow { font-size: 12px; color: var(--rite-muted); }
 .td-checkin__line { color: var(--rite-muted); overflow-wrap: anywhere; }
+.td-head__level { align-self: flex-start; margin-top: 4px; font-size: 12px; color: var(--rite-accent-light); text-decoration: none; }
+.td-head__level:hover { text-decoration: underline; }
