@@ -157,15 +157,19 @@ function UpdatePrompt() {
     const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null
     if (!sw) return
     const running = [...document.scripts].map(s => s.src ? new URL(s.src).pathname : '').filter(p => p.startsWith('/assets/'))
-    const onMessage = (event: MessageEvent) => {
-      const files: unknown = event.data?.files
-      if (event.data?.type !== 'build-ready' || !Array.isArray(files) || shown.current) return
-      if (running.length > 0 && running.every(p => files.includes(p))) return
+    const offer = (files: unknown) => {
+      if (!Array.isArray(files) || files.length === 0 || shown.current || running.length === 0) return
+      if (running.every(p => files.includes(p))) return // already on the saved build
       shown.current = true
       toast.show({ message: 'Update ready', action: { label: 'Reload', onClick: () => window.location.reload() }, duration: 30 * 60_000 })
     }
+    const onMessage = (event: MessageEvent) => { if (event.data?.type === 'build-ready') offer(event.data.files) }
     sw.addEventListener('message', onMessage)
-    return () => sw.removeEventListener('message', onMessage)
+    // The worker may have saved a newer build before this mounted (during sign-in,
+    // say): compare with the saved build directly too.
+    let live = true
+    void caches.open('pd-shell-v1').then(c => c.match('/__build/current')).then(r => r?.json()).then(files => { if (live) offer(files) }, () => { /* no saved build */ })
+    return () => { live = false; sw.removeEventListener('message', onMessage) }
   }, [toast])
   return null
 }
