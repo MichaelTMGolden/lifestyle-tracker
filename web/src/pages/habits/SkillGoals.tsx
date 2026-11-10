@@ -123,6 +123,9 @@ export function GoalsSection({ habit: h }: { habit: Habit }) {
   const [steps, setSteps] = useState('')
   const [state, setState] = useState<'idle' | 'saving' | string>('idle')
   const [celebrate, setCelebrate] = useState<Reached | null>(null)
+  // Opened from a "working toward" link: the page loads before this section exists,
+  // so bring it into view once it does.
+  useEffect(() => { if (location.hash === '#working-toward') document.getElementById('working-toward')?.scrollIntoView({ block: 'start' }) }, [])
   const stepList = steps.split('\n').map(s => s.trim()).filter(Boolean)
   const tooLong = stepList.some(s => s.length > MAX_TITLE)
 
